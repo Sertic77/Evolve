@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { C, GRADIENTS } from './src/theme';
 import FoodScreen from './src/FoodScreen';
+import TrainScreen from './src/TrainScreen';
 
 // 5 Pestañas con HOME en el centro exacto (Índice 2)
 const SIDE_TABS_LEFT = [
@@ -63,7 +64,7 @@ function ComingSoonHUD({ title, icon, subtitle }: { title: string; icon: any; su
 }
 
 export default function App() {
-  const [tab, setTab] = useState<string>('food');
+  const [tab, setTab] = useState<string>('train');
 
   const getSubtitle = (key: string) => {
     switch (key) {
@@ -99,6 +100,8 @@ export default function App() {
         <View style={styles.mainContent}>
           {tab === 'food' ? (
             <FoodScreen />
+          ) : tab === 'train' ? (
+            <TrainScreen />
           ) : (
             <ComingSoonHUD
               title={currentLabel}
