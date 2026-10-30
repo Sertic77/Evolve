@@ -1337,12 +1337,12 @@ function WorkoutDayLog({
                       <Ionicons
                         name={isTimeMode ? 'timer-outline' : 'barbell-outline'}
                         size={12}
-                        color={isTimeMode ? '#EA580C' : C.pastelPurple}
+                        color="#94A3B8"
                       />
-                      <Text style={[styles.modeToggleText, isTimeMode && { color: '#EA580C' }]}>
+                      <Text style={styles.modeToggleText}>
                         {isTimeMode ? 'Tiempo / CrossFit' : 'Peso / Reps'}
                       </Text>
-                      <Ionicons name="swap-horizontal" size={11} color={C.subMuted} />
+                      <Ionicons name="swap-horizontal" size={11} color="#94A3B8" />
                     </Pressable>
 
                     <Text style={styles.volumeMiniText}>
@@ -1409,7 +1409,7 @@ function WorkoutDayLog({
                               );
                             }}
                           />
-                          <Text style={[styles.setUnitLabel, { color: '#EA580C', fontWeight: '800' }]}>min</Text>
+                          <Text style={styles.setUnitLabel}>min</Text>
                         </View>
 
                         {/* Input de Distancia o Repeticiones */}
@@ -1463,7 +1463,7 @@ function WorkoutDayLog({
                             style={styles.toggleUnitBadge}
                           >
                             <Text style={styles.toggleUnitText}>{isKm ? 'km' : 'reps'}</Text>
-                            <Ionicons name="swap-vertical" size={10} color={C.pastelPurple} />
+                            <Ionicons name="swap-vertical" size={10} color="#94A3B8" />
                           </Pressable>
                         </View>
                       </>
@@ -2578,15 +2578,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: C.borderLight,
+    borderColor: '#CBD5E1',
   },
   modeToggleText: {
-    color: C.pastelPurple,
+    color: '#64748B',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -2597,14 +2597,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 5,
-    backgroundColor: 'rgba(139, 92, 246, 0.08)',
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: '#CBD5E1',
   },
   toggleUnitText: {
-    color: C.pastelPurple,
+    color: '#64748B',
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   exerciseTypeBtn: {
     flex: 1,
@@ -2692,7 +2692,7 @@ const styles = StyleSheet.create({
     minWidth: 36,
   },
   setUnitLabel: {
-    color: C.subMuted,
+    color: '#64748B',
     fontSize: 11,
     fontWeight: '600',
   },
