@@ -343,11 +343,15 @@ function WorkoutDynamicChart({
   onOpenRangePicker: () => void;
 }) {
   // Altura animada: crece cuando pasa a estadísticas
-  const heightAnim = useRef(new Animated.Value(tab === 0 ? 172 : 270)).current;
+  const heightAnim = useRef(new Animated.Value(tab === 0 ? 172 : 288)).current;
 
   // Animación del fondo (orbes flotantes)
   const floatAnim1 = useRef(new Animated.Value(0)).current;
   const floatAnim2 = useRef(new Animated.Value(0)).current;
+
+  // Animación viva de respiración y resplandor para la llama de Kcal
+  const flameAnim = useRef(new Animated.Value(1)).current;
+  const flameGlowAnim = useRef(new Animated.Value(0.8)).current;
 
   // Rotación automática de estadísticas cuando no hay ejercicio seleccionado
   const [statIndex, setStatIndex] = useState(0);
@@ -355,12 +359,49 @@ function WorkoutDynamicChart({
 
   useEffect(() => {
     Animated.timing(heightAnim, {
-      toValue: tab === 0 ? 172 : 270,
+      toValue: tab === 0 ? 172 : 288,
       duration: 320,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
   }, [tab]);
+
+  useEffect(() => {
+    const flameLoop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(flameAnim, {
+            toValue: 1.22,
+            duration: 850,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(flameGlowAnim, {
+            toValue: 1,
+            duration: 850,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(flameAnim, {
+            toValue: 0.94,
+            duration: 850,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(flameGlowAnim, {
+            toValue: 0.65,
+            duration: 850,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    );
+    flameLoop.start();
+    return () => flameLoop.stop();
+  }, []);
 
   useEffect(() => {
     const bgLoop1 = Animated.loop(
@@ -637,6 +678,33 @@ function WorkoutDynamicChart({
 
   const selectedExercise = exercises.find((e) => e.id === selectedExerciseId);
 
+  // Cálculo del PR histórico para el ejercicio seleccionado (mayor peso a mayor reps)
+  const exercisePR = useMemo(() => {
+    if (!selectedExerciseId) return null;
+
+    let bestWeight = 0;
+    let bestReps = 0;
+    let bestDate = '';
+
+    Object.entries(workoutLogs).forEach(([dateStr, weList]) => {
+      const match = weList.find((we) => we.exerciseId === selectedExerciseId);
+      if (match) {
+        match.sets.forEach((s) => {
+          const w = s.weight || 0;
+          const r = s.reps || 0;
+          if (w > bestWeight || (w === bestWeight && r > bestReps)) {
+            bestWeight = w;
+            bestReps = r;
+            bestDate = dateStr;
+          }
+        });
+      }
+    });
+
+    if (bestWeight === 0 && bestReps === 0) return null;
+    return { weight: bestWeight, reps: bestReps, date: bestDate };
+  }, [workoutLogs, selectedExerciseId]);
+
   // Interpolación de orbes flotantes
   const transX1 = floatAnim1.interpolate({ inputRange: [0, 1], outputRange: [-20, 25] });
   const transY1 = floatAnim1.interpolate({ inputRange: [0, 1], outputRange: [-10, 15] });
@@ -681,7 +749,7 @@ function WorkoutDynamicChart({
           )}
         </View>
 
-        {/* MODO 1: GRÁFICA RESUMEN DE SESIÓN DIARIA (KCAL QUEMADAS EN ROJO) */}
+        {/* MODO 1: GRÁFICA RESUMEN DE SESIÓN DIARIA (KCAL QUEMADAS EN ROJO + LLAMA GRANDE ANIMADA) */}
         {tab === 0 && (
           <View style={styles.dayWorkoutSummaryRow}>
             {/* Medidor Circular de Calorías Quemadas en Rojo Anime */}
@@ -700,7 +768,17 @@ function WorkoutDynamicChart({
                 />
               </Svg>
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-                <Ionicons name="flame" size={20} color="#F43F5E" style={{ marginBottom: 1 }} />
+                <Animated.View
+                  style={{
+                    transform: [{ scale: flameAnim }],
+                    opacity: flameGlowAnim,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 2,
+                  }}
+                >
+                  <Ionicons name="flame" size={30} color="#F43F5E" />
+                </Animated.View>
                 <Text style={styles.workoutKcalNumber}>
                   {dayStats.totalKcal}
                 </Text>
@@ -743,11 +821,11 @@ function WorkoutDynamicChart({
 
         {/* MODO 2: ESTADÍSTICAS AMPLIADAS */}
         {tab === 1 && (
-          <View style={{ flex: 1, justifyContent: 'center', marginTop: 8 }}>
+          <View style={{ flex: 1, justifyContent: 'center', marginTop: 6 }}>
             {selectedExercise ? (
-              /* GRÁFICA SVG HISTÓRICA DEL EJERCICIO SELECCIONADO CON TEMA DINÁMICO */
+              /* GRÁFICA SVG HISTÓRICA DEL EJERCICIO SELECCIONADO CON TEMA DINÁMICO & PR */
               <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={styles.selectedExerciseNameHeader} numberOfLines={1}>
@@ -777,6 +855,39 @@ function WorkoutDynamicChart({
                   </Pressable>
                 </View>
 
+                {/* BADGE DESTACADO DEL PR HISTÓRICO (MAYOR PESO A MAYOR NÚMERO DE REPS) */}
+                {(() => {
+                  const theme = getMuscleTheme(selectedExercise.muscleGroup);
+                  return (
+                    <View
+                      style={[
+                        styles.prHighlightCard,
+                        { backgroundColor: theme.primary + '14', borderColor: theme.primary + '40' },
+                      ]}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <Ionicons name="trophy" size={14} color={theme.primary} />
+                        <Text style={[styles.prHighlightTitle, { color: theme.primary }]}>
+                          RÉCORD HISTÓRICO (PR):
+                        </Text>
+                      </View>
+                      {exercisePR ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                          <Text style={styles.prHighlightWeight}>{exercisePR.weight} kg</Text>
+                          <Text style={[styles.prHighlightReps, { color: theme.primary }]}>
+                            × {exercisePR.reps} reps
+                          </Text>
+                          {exercisePR.date ? (
+                            <Text style={styles.prHighlightDate}>({exercisePR.date.slice(5)})</Text>
+                          ) : null}
+                        </View>
+                      ) : (
+                        <Text style={styles.prHighlightEmpty}>Sin registros aún</Text>
+                      )}
+                    </View>
+                  );
+                })()}
+
                 {historyData.length < 2 ? (
                   <View style={styles.emptyHistoryBox}>
                     <Ionicons name="stats-chart-outline" size={28} color={C.subMuted} />
@@ -790,6 +901,7 @@ function WorkoutDynamicChart({
                   <WorkoutHistorySVGChart
                     data={historyData}
                     theme={getMuscleTheme(selectedExercise.muscleGroup)}
+                    prWeight={exercisePR?.weight}
                   />
                 )}
               </View>
@@ -865,14 +977,16 @@ function WorkoutDynamicChart({
 function WorkoutHistorySVGChart({
   data,
   theme,
+  prWeight,
 }: {
   data: { dateStr: string; maxWeight: number; totalVolume: number }[];
   theme: StatTheme;
+  prWeight?: number;
 }) {
   const width = Dimensions.get('window').width - 64;
-  const height = 150;
+  const height = 140;
   const paddingX = 20;
-  const paddingY = 24;
+  const paddingY = 22;
 
   const weights = data.map((d) => d.maxWeight);
   const minW = Math.max(0, Math.min(...weights) - 5);
@@ -899,7 +1013,7 @@ function WorkoutHistorySVGChart({
   const fillD = `${pathD} L ${points[points.length - 1].x} ${height} L ${points[0].x} ${height} Z`;
 
   return (
-    <View style={{ width, height, marginTop: 4 }}>
+    <View style={{ width, height, marginTop: 2 }}>
       <Svg width={width} height={height}>
         <Defs>
           <SvgGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
@@ -917,23 +1031,44 @@ function WorkoutHistorySVGChart({
         {/* Curva de progresión dinámica */}
         <Path d={pathD} fill="none" stroke={theme.primary} strokeWidth={3} strokeLinecap="round" />
 
-        {/* Puntos y etiquetas de peso */}
-        {points.map((p, idx) => (
-          <React.Fragment key={idx}>
-            <Circle cx={p.x} cy={p.y} r={5} fill="#FFFFFF" stroke={theme.primary} strokeWidth={2.5} />
-            <Circle cx={p.x} cy={p.y} r={2} fill={theme.primary} />
-          </React.Fragment>
-        ))}
+        {/* Puntos y etiquetas de peso (Con halo dorado en el PR) */}
+        {points.map((p, idx) => {
+          const isPR = prWeight !== undefined && p.weight === prWeight;
+          return (
+            <React.Fragment key={idx}>
+              {isPR && (
+                <Circle cx={p.x} cy={p.y} r={9} fill="none" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="3 2" />
+              )}
+              <Circle
+                cx={p.x}
+                cy={p.y}
+                r={isPR ? 6 : 5}
+                fill="#FFFFFF"
+                stroke={isPR ? '#F59E0B' : theme.primary}
+                strokeWidth={2.5}
+              />
+              <Circle cx={p.x} cy={p.y} r={2} fill={isPR ? '#F59E0B' : theme.primary} />
+            </React.Fragment>
+          );
+        })}
       </Svg>
 
-      {/* Etiquetas debajo de los puntos */}
+      {/* Etiquetas debajo de los puntos con estrella en el PR */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, marginTop: -14 }}>
-        {points.map((p, idx) => (
-          <View key={idx} style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: theme.primary }}>{p.weight}kg</Text>
-            <Text style={{ fontSize: 9, color: C.subMuted }}>{p.date}</Text>
-          </View>
-        ))}
+        {points.map((p, idx) => {
+          const isPR = prWeight !== undefined && p.weight === prWeight;
+          return (
+            <View key={idx} style={{ alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: isPR ? '#D97706' : theme.primary }}>
+                  {p.weight}kg
+                </Text>
+                {isPR && <Text style={{ fontSize: 8.5, color: '#D97706', fontWeight: '900' }}>★</Text>}
+              </View>
+              <Text style={{ fontSize: 9, color: C.subMuted }}>{p.date}</Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -1130,19 +1265,23 @@ function WorkoutStatsLibrary({
   const [query, setQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('Todos');
 
-  // Cálculo de estadísticas por ejercicio
+  // Cálculo de estadísticas por ejercicio (PR: mayor peso a mayor reps)
   const exerciseStatsMap = useMemo(() => {
-    const stats: Record<string, { maxWeight: number; totalSets: number; lastDate: string }> = {};
+    const stats: Record<string, { maxWeight: number; bestReps: number; totalSets: number; lastDate: string }> = {};
 
     Object.entries(workoutLogs).forEach(([dateStr, weList]) => {
       weList.forEach((we) => {
         if (!stats[we.exerciseId]) {
-          stats[we.exerciseId] = { maxWeight: 0, totalSets: 0, lastDate: dateStr };
+          stats[we.exerciseId] = { maxWeight: 0, bestReps: 0, totalSets: 0, lastDate: dateStr };
         }
         stats[we.exerciseId].totalSets += we.sets.length;
         we.sets.forEach((s) => {
-          if (s.weight > stats[we.exerciseId].maxWeight) {
-            stats[we.exerciseId].maxWeight = s.weight;
+          const w = s.weight || 0;
+          const r = s.reps || 0;
+          const current = stats[we.exerciseId];
+          if (w > current.maxWeight || (w === current.maxWeight && r > current.bestReps)) {
+            current.maxWeight = w;
+            current.bestReps = r;
           }
         });
         stats[we.exerciseId].lastDate = dateStr;
@@ -1294,7 +1433,9 @@ function WorkoutStatsLibrary({
                     <Text style={[styles.muscleBadgeText, { color: exTheme.primary }]}>{ex.muscleGroup}</Text>
                   </View>
                   <Text style={styles.statsMiniText}>
-                    {st ? `PR: ${st.maxWeight} kg  •  ${st.totalSets} series` : 'Sin entrenamientos registrados'}
+                    {st && st.maxWeight > 0
+                      ? `PR: ${st.maxWeight} kg × ${st.bestReps} reps  •  ${st.totalSets} series`
+                      : 'Sin entrenamientos registrados'}
                   </Text>
                 </View>
               </View>
@@ -1898,6 +2039,40 @@ const styles = StyleSheet.create({
   selectedExerciseSub: {
     color: C.sub,
     fontSize: 11,
+  },
+  prHighlightCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5.5,
+    borderRadius: 9,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
+  prHighlightTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  prHighlightWeight: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: C.text,
+  },
+  prHighlightReps: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  prHighlightDate: {
+    fontSize: 9.5,
+    color: C.subMuted,
+    fontWeight: '600',
+  },
+  prHighlightEmpty: {
+    fontSize: 10.5,
+    color: C.subMuted,
+    fontStyle: 'italic',
   },
   closeSelectedBtn: {
     width: 26,
