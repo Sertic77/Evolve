@@ -27,6 +27,7 @@ import {
   Ingredient,
   MealBlock,
   SavedMeal,
+  FoodUnit,
 } from './store';
 import {
   MacroSummary,
@@ -108,6 +109,7 @@ export default function FoodScreen() {
                 ...it,
                 ingredientId: selectedIng.id,
                 grams: it.grams > 0 ? it.grams : selectedIng.servingGrams,
+                unit: selectedIng.unit || 'g',
               }
             : it,
         ),
@@ -125,6 +127,7 @@ export default function FoodScreen() {
                         ...it,
                         ingredientId: selectedIng.id,
                         grams: it.grams > 0 ? it.grams : selectedIng.servingGrams,
+                        unit: selectedIng.unit || 'g',
                       }
                     : it,
                 ),
@@ -623,8 +626,8 @@ function IngredientsList() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.ingredientCardTitle}>{ing.name}</Text>
               <View style={styles.servingBadge}>
-                <Ionicons name="scale-outline" size={11} color={C.pastelPurple} />
-                <Text style={styles.servingBadgeText}>por {ing.servingGrams}g</Text>
+                <Ionicons name="scale-outline" size={11} color="#94A3B8" />
+                <Text style={styles.servingBadgeText}>por {ing.servingGrams}{ing.unit || 'g'}</Text>
               </View>
             </View>
 
@@ -671,9 +674,10 @@ function IngredientFormModal({
   onClose: () => void;
   onDelete?: () => void;
 }) {
+  const [unit, setUnit] = useState<FoodUnit>(ing.unit || 'g');
   const [form, setForm] = useState({
     name: ing.name,
-    servingGrams: String(ing.servingGrams || 100),
+    servingGrams: String(ing.servingGrams || (ing.unit === 'ud' ? 1 : 100)),
     kcal: String(ing.kcal || 0),
     carbs: String(ing.carbs || 0),
     protein: String(ing.protein || 0),
@@ -742,15 +746,52 @@ function IngredientFormModal({
                 <TextInput
                   value={form.name}
                   onChangeText={(t) => setForm({ ...form, name: t })}
-                  placeholder="Ej. Mantequilla de maní, Avena, Huevos..."
+                  placeholder="Ej. Mantequilla de maní, Leche, Huevos..."
                   placeholderTextColor={C.subMuted}
                   style={styles.fieldTextInput}
                 />
               </View>
 
+              {/* Selector de Unidad de Medida */}
+              <Text style={styles.fieldLabel}>Unidad de medida</Text>
+              <View style={styles.unitSelectorRow}>
+                {(
+                  [
+                    { key: 'g' as FoodUnit, label: 'Gramos (g)', icon: 'scale-outline' },
+                    { key: 'ml' as FoodUnit, label: 'Mililitros (ml)', icon: 'water-outline' },
+                    { key: 'ud' as FoodUnit, label: 'Unidades (ud)', icon: 'egg-outline' },
+                  ] as const
+                ).map((u) => {
+                  const active = unit === u.key;
+                  return (
+                    <Pressable
+                      key={u.key}
+                      onPress={() => {
+                        setUnit(u.key);
+                        if (u.key === 'ud' && (form.servingGrams === '100' || form.servingGrams === '0')) {
+                          setForm((prev) => ({ ...prev, servingGrams: '1' }));
+                        } else if (u.key !== 'ud' && form.servingGrams === '1') {
+                          setForm((prev) => ({ ...prev, servingGrams: u.key === 'ml' ? '200' : '100' }));
+                        }
+                      }}
+                      style={[styles.unitPillBtn, active && styles.unitPillBtnActive]}
+                    >
+                      <Ionicons
+                        name={u.icon as any}
+                        size={13}
+                        color={active ? '#334155' : '#94A3B8'}
+                      />
+                      <Text style={[styles.unitPillText, active && styles.unitPillTextActive]}>
+                        {u.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
               {/* Porción base y Calorías */}
               <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-                {renderField('servingGrams', 'Porción empaque (g)', C.pastelPurple, 'scale-outline')}
+                {renderField('servingGrams', `Porción base (${unit})`, C.pastelPurple, 'scale-outline')}
                 {renderField('kcal', 'Calorías (kcal)', C.kcal, 'flame')}
               </View>
 
@@ -771,13 +812,14 @@ function IngredientFormModal({
                   label="Guardar alimento"
                   onPress={() => {
                     if (!form.name.trim() || parseNum('servingGrams') <= 0) {
-                      Alert.alert('Datos incompletos', 'Ingresa un nombre y los gramos de porción base.');
+                      Alert.alert('Datos incompletos', 'Ingresa un nombre y la cantidad de porción base.');
                       return;
                     }
                     onSave({
                       id: ing.id,
                       name: form.name.trim(),
                       servingGrams: parseNum('servingGrams'),
+                      unit,
                       kcal: parseNum('kcal'),
                       carbs: parseNum('carbs'),
                       protein: parseNum('protein'),
@@ -1254,15 +1296,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    backgroundColor: 'transparent',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: '#CBD5E1',
   },
   servingBadgeText: {
-    color: C.pastelPurple,
+    color: '#64748B',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -1323,6 +1365,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     paddingVertical: 9,
+  },
+  unitSelectorRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  unitPillBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  unitPillBtnActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#94A3B8',
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  unitPillText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  unitPillTextActive: {
+    color: C.text,
+    fontWeight: '800',
   },
 
   // Comidas guardadas

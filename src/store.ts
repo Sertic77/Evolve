@@ -8,9 +8,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export type Macros = { kcal: number; carbs: number; protein: number; fat: number };
 
 /** Valores nutricionales tal como vienen en el empaque, para `servingGrams` gramos. */
-export type Ingredient = Macros & { id: string; name: string; servingGrams: number };
+export type FoodUnit = 'g' | 'ml' | 'ud';
+export type Ingredient = Macros & { id: string; name: string; servingGrams: number; unit?: FoodUnit };
 
-export type MealItem = { id: string; ingredientId: string | null; grams: number };
+export type MealItem = { id: string; ingredientId: string | null; grams: number; unit?: FoodUnit };
 export type MealBlock = { id: string; name: string; items: MealItem[] };
 export type SavedMeal = MealBlock;
 
@@ -20,13 +21,16 @@ export type SavedMeal = MealBlock;
 export type Exercise = {
   id: string;
   name: string;
-  muscleGroup: string; // ej. Pecho, Espalda, Piernas, Hombros, Brazos, Core
+  muscleGroup: string; // ej. Pecho, Espalda, Piernas, Hombros, Brazos, Core, CrossFit, Cardio
+  type?: 'reps' | 'time';
 };
 
 export type WorkoutSet = {
   id: string;
-  weight: number; // en kg
-  reps: number;
+  weight?: number; // en kg
+  timeSeconds?: number; // tiempo en segundos (CrossFit, correr, bicicleta)
+  distanceMeters?: number;
+  reps?: number;
 };
 
 export type WorkoutExercise = {
@@ -68,6 +72,63 @@ export type ProgressPhoto = {
 /* ==========================================================
    TIPOS DE BIENESTAR (SUEÑO Y SUPLEMENTOS)
 ========================================================== */
+export type HealthMetricDefinition = {
+  id: string;
+  name: string;
+  unit: string;
+  icon: string;
+  color: string;
+  isDualValue?: boolean;
+  primaryLabel?: string;
+  secondaryLabel?: string;
+  idealRange?: string;
+  custom?: boolean;
+};
+
+export type HealthLogEntry = {
+  value?: number;
+  secondaryValue?: number;
+  notes?: string;
+};
+
+export const SEED_HEALTH_METRICS: HealthMetricDefinition[] = [
+  {
+    id: 'presion',
+    name: 'Presión Arterial',
+    unit: 'mmHg',
+    icon: 'heart-outline',
+    color: '#EC4899',
+    isDualValue: true,
+    primaryLabel: 'Sistólica',
+    secondaryLabel: 'Diastólica',
+    idealRange: '< 120/80 mmHg',
+  },
+  {
+    id: 'azucar',
+    name: 'Glucosa / Azúcar',
+    unit: 'mg/dL',
+    icon: 'water-outline',
+    color: '#06B6D4',
+    idealRange: '70 - 100 mg/dL',
+  },
+  {
+    id: 'colesterol',
+    name: 'Colesterol Total',
+    unit: 'mg/dL',
+    icon: 'flask-outline',
+    color: '#F59E0B',
+    idealRange: '< 200 mg/dL',
+  },
+  {
+    id: 'trigliceridos',
+    name: 'Triglicéridos',
+    unit: 'mg/dL',
+    icon: 'analytics-outline',
+    color: '#8B5CF6',
+    idealRange: '< 150 mg/dL',
+  },
+];
+
 export type Supplement = {
   id: string;
   name: string;
@@ -87,11 +148,47 @@ export function isSupplementActiveOnDate(supp: Supplement, dateStr: string): boo
   return true;
 }
 
+export function dateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const genRecentDateKey = (daysAgo: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return dateKey(d);
+};
+
+export const SEED_HEALTH_LOGS: Record<string, Record<string, HealthLogEntry>> = {
+  [genRecentDateKey(6)]: {
+    presion: { value: 122, secondaryValue: 82 },
+    azucar: { value: 98 },
+    colesterol: { value: 188 },
+    trigliceridos: { value: 145 },
+  },
+  [genRecentDateKey(4)]: {
+    presion: { value: 120, secondaryValue: 80 },
+    azucar: { value: 95 },
+    colesterol: { value: 184 },
+    trigliceridos: { value: 142 },
+  },
+  [genRecentDateKey(2)]: {
+    presion: { value: 118, secondaryValue: 79 },
+    azucar: { value: 92 },
+    colesterol: { value: 180 },
+    trigliceridos: { value: 139 },
+  },
+  [genRecentDateKey(0)]: {
+    presion: { value: 119, secondaryValue: 78 },
+    azucar: { value: 94 },
+    colesterol: { value: 178 },
+    trigliceridos: { value: 138 },
+  },
+};
+
 export const ZERO: Macros = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
-export const dateKey = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 
 /** Escala los macros del ingrediente a la cantidad indicada. */
 export function scaleMacros(ing: Ingredient | undefined, grams: number): Macros {
@@ -118,17 +215,23 @@ export function itemsTotal(items: MealItem[], ingredients: Ingredient[]): Macros
    SEMILLAS INICIALES (SEED DATA)
 ========================================================== */
 const SEED_INGREDIENTS: Ingredient[] = [
-  { id: 'seed-pb', name: 'Mantequilla de maní', servingGrams: 50, kcal: 110, protein: 12, carbs: 5, fat: 17 },
-  { id: 'seed-egg', name: 'Huevo', servingGrams: 50, kcal: 72, protein: 6.3, carbs: 0.4, fat: 4.8 },
-  { id: 'seed-rice', name: 'Arroz blanco cocido', servingGrams: 100, kcal: 130, protein: 2.7, carbs: 28, fat: 0.3 },
-  { id: 'seed-chicken', name: 'Pechuga de pollo', servingGrams: 100, kcal: 165, protein: 31, carbs: 0, fat: 3.6 },
-  { id: 'seed-oats', name: 'Avena', servingGrams: 40, kcal: 150, protein: 5, carbs: 27, fat: 3 },
+  { id: 'seed-pb', name: 'Mantequilla de maní', servingGrams: 50, kcal: 110, protein: 12, carbs: 5, fat: 17, unit: 'g' },
+  { id: 'seed-egg', name: 'Huevo', servingGrams: 1, kcal: 72, protein: 6.3, carbs: 0.4, fat: 4.8, unit: 'ud' },
+  { id: 'seed-milk', name: 'Leche entera', servingGrams: 200, kcal: 124, protein: 6.4, carbs: 9.6, fat: 6.8, unit: 'ml' },
+  { id: 'seed-rice', name: 'Arroz blanco cocido', servingGrams: 100, kcal: 130, protein: 2.7, carbs: 28, fat: 0.3, unit: 'g' },
+  { id: 'seed-chicken', name: 'Pechuga de pollo', servingGrams: 100, kcal: 165, protein: 31, carbs: 0, fat: 3.6, unit: 'g' },
+  { id: 'seed-oats', name: 'Avena', servingGrams: 40, kcal: 150, protein: 5, carbs: 27, fat: 3, unit: 'g' },
 ];
 
 const SEED_EXERCISES: Exercise[] = [
   { id: 'ex-bench', name: 'Press de Banca Plano', muscleGroup: 'Pecho' },
   { id: 'ex-squat', name: 'Sentadilla con Barra', muscleGroup: 'Piernas' },
   { id: 'ex-deadlift', name: 'Peso Muerto', muscleGroup: 'Espalda' },
+  { id: 'ex-run', name: 'Correr / Trote', muscleGroup: 'Cardio', type: 'time' },
+  { id: 'ex-bike', name: 'Bicicleta / AirBike', muscleGroup: 'Cardio', type: 'time' },
+  { id: 'ex-rower', name: 'Remo / Rower', muscleGroup: 'CrossFit', type: 'time' },
+  { id: 'ex-burpee', name: 'Burpees / WOD', muscleGroup: 'CrossFit', type: 'time' },
+  { id: 'ex-plank', name: 'Plancha Abdominal', muscleGroup: 'Core', type: 'time' },
   { id: 'ex-pullup', name: 'Dominadas', muscleGroup: 'Espalda' },
   { id: 'ex-military', name: 'Press Militar', muscleGroup: 'Hombros' },
   { id: 'ex-curl', name: 'Curl de Bíceps', muscleGroup: 'Brazos' },
@@ -193,6 +296,13 @@ type State = {
     alarmSound?: string,
   ) => void;
   toggleSupplementDose: (date: string, supplementId: string, doseIndex: number, targetCount: number) => void;
+
+  // Bienestar: Salud
+  healthMetrics: HealthMetricDefinition[];
+  healthLogs: Record<string, Record<string, HealthLogEntry>>;
+  setHealthLog: (date: string, metricId: string, entry: HealthLogEntry) => void;
+  addHealthMetric: (metric: Omit<HealthMetricDefinition, 'id'>) => void;
+  deleteHealthMetric: (id: string) => void;
 };
 
 export const useStore = create<State>()(
@@ -559,7 +669,57 @@ export const useStore = create<State>()(
             },
           };
         }),
+
+      // Bienestar: Salud
+      healthMetrics: SEED_HEALTH_METRICS,
+      healthLogs: SEED_HEALTH_LOGS,
+
+      setHealthLog: (date, metricId, entry) =>
+        set((s) => {
+          const logs = s.healthLogs || {};
+          return {
+            healthLogs: {
+              ...logs,
+              [date]: {
+                ...(logs[date] || {}),
+                [metricId]: entry,
+              },
+            },
+          };
+        }),
+
+      addHealthMetric: (metric) =>
+        set((s) => ({
+          healthMetrics: [
+            ...(s.healthMetrics || SEED_HEALTH_METRICS),
+            {
+              ...metric,
+              id: uid(),
+              custom: true,
+            },
+          ],
+        })),
+
+      deleteHealthMetric: (id) =>
+        set((s) => ({
+          healthMetrics: (s.healthMetrics || SEED_HEALTH_METRICS).filter((m) => m.id !== id),
+        })),
     }),
-    { name: 'evolve-app-data', storage: createJSONStorage(() => AsyncStorage) },
+    {
+      name: 'evolve-app-data',
+      storage: createJSONStorage(() => AsyncStorage),
+      merge: (persistedState: any, currentState) => ({
+        ...currentState,
+        ...(persistedState || {}),
+        healthMetrics:
+          persistedState && Array.isArray(persistedState.healthMetrics) && persistedState.healthMetrics.length > 0
+            ? persistedState.healthMetrics
+            : SEED_HEALTH_METRICS,
+        healthLogs:
+          persistedState && persistedState.healthLogs && Object.keys(persistedState.healthLogs).length > 0
+            ? persistedState.healthLogs
+            : SEED_HEALTH_LOGS,
+      }),
+    },
   ),
 );

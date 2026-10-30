@@ -30,7 +30,7 @@ import {
 } from './store';
 import { DateSelector, PrimaryButton, s } from './components';
 
-const MUSCLE_GROUPS = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Core'];
+const MUSCLE_GROUPS = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Core', 'CrossFit', 'Cardio'];
 
 /* ==========================================================
    TEMAS DINÁMICOS POR GRUPO MUSCULAR & TIPO DE MÉTRICA
@@ -45,6 +45,24 @@ export type StatTheme = {
 
 export function getMuscleTheme(muscleGroup: string): StatTheme {
   const g = (muscleGroup || '').toLowerCase();
+  if (g.includes('crossfit') || g.includes('wod')) {
+    return {
+      primary: '#F97316', // Flame Orange
+      gradient: ['#FB923C', '#EA580C'],
+      bgGradient: ['rgba(249, 115, 22, 0.22)', 'rgba(234, 88, 12, 0.05)'],
+      icon: 'flame-outline',
+      badgeLabel: 'CROSSFIT & WOD',
+    };
+  }
+  if (g.includes('cardio') || g.includes('correr') || g.includes('bici')) {
+    return {
+      primary: '#06B6D4', // Electric Cyan
+      gradient: ['#22D3EE', '#0891B2'],
+      bgGradient: ['rgba(6, 182, 212, 0.22)', 'rgba(8, 145, 178, 0.05)'],
+      icon: 'bicycle-outline',
+      badgeLabel: 'CARDIO & RESISTENCIA',
+    };
+  }
   if (g.includes('pecho')) {
     return {
       primary: '#EC4899', // Sakura Pink
@@ -110,6 +128,11 @@ export function getMuscleTheme(muscleGroup: string): StatTheme {
 
 /* Estimación de Kcal quemadas por serie de ejercicio (Base para Smartwatch) */
 export function estimateSetKcal(exercise: Exercise | undefined, s: WorkoutSet): number {
+  if (s.timeSeconds && s.timeSeconds > 0) {
+    // Estimación cardio/tiempo: ~9-12 kcal por minuto
+    const minutes = s.timeSeconds / 60;
+    return Math.round(minutes * 10.5);
+  }
   const reps = Math.max(1, s.reps || 0);
   const weight = Math.max(0, s.weight || 0);
   const group = (exercise?.muscleGroup || '').toLowerCase();
@@ -120,6 +143,8 @@ export function estimateSetKcal(exercise: Exercise | undefined, s: WorkoutSet): 
   else if (group.includes('pecho')) factor = 1.25;
   else if (group.includes('hombro')) factor = 1.15;
   else if (group.includes('core')) factor = 1.1;
+  else if (group.includes('crossfit')) factor = 1.5;
+  else if (group.includes('cardio')) factor = 1.4;
 
   const work = 7.0 + (weight * reps * 0.0055);
   return Math.round(work * factor);
@@ -175,14 +200,24 @@ export default function TrainScreen() {
 
   // Manejo de agregar ejercicio al día
   const handleSelectExercise = (ex: Exercise) => {
+    const isTime = ex.type === 'time' || ex.muscleGroup === 'CrossFit' || ex.muscleGroup === 'Cardio';
     const newEx: WorkoutExercise = {
       id: uid(),
       exerciseId: ex.id,
-      sets: [
-        { id: uid(), weight: 20, reps: 10 },
-        { id: uid(), weight: 20, reps: 10 },
-        { id: uid(), weight: 20, reps: 10 },
-      ],
+      sets: isTime
+        ? [
+            {
+              id: uid(),
+              timeSeconds: 900,
+              reps: ex.muscleGroup === 'CrossFit' ? 50 : undefined,
+              distanceMeters: ex.muscleGroup === 'Cardio' ? 2000 : undefined,
+            },
+          ]
+        : [
+            { id: uid(), weight: 20, reps: 10 },
+            { id: uid(), weight: 20, reps: 10 },
+            { id: uid(), weight: 20, reps: 10 },
+          ],
     };
     setDayWorkout(key, [...dayExercises, newEx]);
     setPickerOpen(false);
@@ -542,9 +577,11 @@ function WorkoutDynamicChart({
       weList.forEach((we) => {
         we.sets.forEach((s) => {
           grandTotalSets += 1;
-          grandTotalVolume += (s.weight || 0) * (s.reps || 0);
-          if (!maxWeights[we.exerciseId] || s.weight > maxWeights[we.exerciseId].weight) {
-            maxWeights[we.exerciseId] = { weight: s.weight, reps: s.reps, date: dateStr };
+          const w = s.weight || 0;
+          const r = s.reps || 0;
+          grandTotalVolume += w * r;
+          if (w > 0 && (!maxWeights[we.exerciseId] || w > maxWeights[we.exerciseId].weight)) {
+            maxWeights[we.exerciseId] = { weight: w, reps: r, date: dateStr };
           }
         });
       });
@@ -1205,6 +1242,7 @@ function WorkoutDayLog({
   onOpenExercisePicker: () => void;
 }) {
   const { setDayWorkout } = useStore();
+  const [exerciseModes, setExerciseModes] = useState<Record<string, 'reps' | 'time'>>({});
 
   const updateExercises = (newList: WorkoutExercise[]) => {
     setDayWorkout(dayKey, newList);
@@ -1235,6 +1273,13 @@ function WorkoutDayLog({
         const ex = exercises.find((e) => e.id === we.exerciseId);
         const exName = ex?.name || 'Ejercicio';
         const exGroup = ex?.muscleGroup || 'General';
+        const defaultIsTime =
+          ex?.type === 'time' ||
+          exGroup === 'CrossFit' ||
+          exGroup === 'Cardio' ||
+          we.sets.some((s) => (s.timeSeconds ?? 0) > 0);
+        const currentMode = exerciseModes[we.id] ?? (defaultIsTime ? 'time' : 'reps');
+        const isTimeMode = currentMode === 'time';
 
         const updateSets = (newSets: WorkoutSet[]) => {
           updateExercises(dayExercises.map((x) => (x.id === we.id ? { ...x, sets: newSets } : x)));
@@ -1245,22 +1290,66 @@ function WorkoutDayLog({
         };
 
         const totalVol = we.sets.reduce((acc, s) => acc + (s.weight || 0) * (s.reps || 0), 0);
+        const totalSecs = we.sets.reduce((acc, s) => acc + (s.timeSeconds || 0), 0);
+        const totalMins = Math.round((totalSecs / 60) * 10) / 10;
+        const totalKm =
+          Math.round(
+            (we.sets.reduce((acc, s) => acc + (s.distanceMeters || 0), 0) / 1000) * 10,
+          ) / 10;
+        const totalReps = we.sets.reduce((acc, s) => acc + (s.reps || 0), 0);
 
         return (
           <View key={we.id} style={styles.workoutExerciseCard}>
             <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ padding: 16 }}>
               {/* Barra lateral de acento */}
-              <View style={styles.exerciseAccentBar} />
+              <View
+                style={[
+                  styles.exerciseAccentBar,
+                  isTimeMode && { backgroundColor: '#F97316' },
+                ]}
+              />
 
               {/* Cabecera del Ejercicio */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, paddingLeft: 6 }}>
                   <Text style={styles.exerciseTitleText}>{exName}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                     <View style={styles.muscleBadge}>
                       <Text style={styles.muscleBadgeText}>{exGroup}</Text>
                     </View>
-                    <Text style={styles.volumeMiniText}>Volumen: {Math.round(totalVol)} kg</Text>
+
+                    {/* Toggle entre modo Peso y modo Tiempo */}
+                    <Pressable
+                      onPress={() => {
+                        const nextMode = isTimeMode ? 'reps' : 'time';
+                        setExerciseModes((prev) => ({ ...prev, [we.id]: nextMode }));
+                        if (nextMode === 'time' && !we.sets.some((s) => (s.timeSeconds ?? 0) > 0)) {
+                          updateSets(
+                            we.sets.map((s) => ({
+                              ...s,
+                              timeSeconds: 900,
+                            })),
+                          );
+                        }
+                      }}
+                      style={styles.modeTogglePill}
+                    >
+                      <Ionicons
+                        name={isTimeMode ? 'timer-outline' : 'barbell-outline'}
+                        size={12}
+                        color="#94A3B8"
+                      />
+                      <Text style={styles.modeToggleText}>
+                        {isTimeMode ? 'Tiempo / CrossFit' : 'Peso / Reps'}
+                      </Text>
+                      <Ionicons name="swap-horizontal" size={11} color="#94A3B8" />
+                    </Pressable>
+
+                    <Text style={styles.volumeMiniText}>
+                      {isTimeMode
+                        ? `Tiempo: ${totalMins} min${totalKm > 0 ? ` · ${totalKm} km` : totalReps > 0 ? ` · ${totalReps} reps` : ''}`
+                        : `Volumen: ${Math.round(totalVol)} kg`}
+                    </Text>
                   </View>
                 </View>
 
@@ -1272,70 +1361,176 @@ function WorkoutDayLog({
               {/* Encabezados de la Tabla de Series */}
               <View style={styles.setTableHeadersRow}>
                 <Text style={[styles.setTableHeaderText, { width: 44 }]}>SET</Text>
-                <Text style={[styles.setTableHeaderText, { flex: 1, textAlign: 'center' }]}>PESO (KG)</Text>
-                <Text style={[styles.setTableHeaderText, { flex: 1, textAlign: 'center' }]}>REPS</Text>
+                <Text style={[styles.setTableHeaderText, { flex: 1, textAlign: 'center' }]}>
+                  {isTimeMode ? 'TIEMPO (MIN)' : 'PESO (KG)'}
+                </Text>
+                <Text style={[styles.setTableHeaderText, { flex: 1, textAlign: 'center' }]}>
+                  {isTimeMode ? 'DIST (KM) / REPS' : 'REPS'}
+                </Text>
                 <View style={{ width: 34 }} />
               </View>
 
               {/* Filas de Series */}
-              {we.sets.map((set, setIdx) => (
-                <View key={set.id} style={styles.setRowContainer}>
-                  <View style={styles.setNumberBadge}>
-                    <Text style={styles.setNumberText}>{setIdx + 1}</Text>
-                  </View>
+              {we.sets.map((set, setIdx) => {
+                const isKm =
+                  (set.distanceMeters ?? 0) > 0 ||
+                  ((set.reps ?? 0) === 0 && !exGroup.toLowerCase().includes('crossfit'));
 
-                  {/* Input de Peso */}
-                  <View style={styles.setInputBox}>
-                    <TextInput
-                      value={set.weight ? String(set.weight) : ''}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      placeholderTextColor={C.subMuted}
-                      style={styles.setTextInput}
-                      onChangeText={(t) => {
-                        const val = parseFloat(t.replace(',', '.')) || 0;
-                        updateSets(we.sets.map((s) => (s.id === set.id ? { ...s, weight: val } : s)));
-                      }}
-                    />
-                    <Text style={styles.setUnitLabel}>kg</Text>
-                  </View>
+                return (
+                  <View key={set.id} style={styles.setRowContainer}>
+                    <View style={styles.setNumberBadge}>
+                      <Text style={styles.setNumberText}>{setIdx + 1}</Text>
+                    </View>
 
-                  {/* Input de Repeticiones */}
-                  <View style={styles.setInputBox}>
-                    <TextInput
-                      value={set.reps ? String(set.reps) : ''}
-                      keyboardType="number-pad"
-                      placeholder="0"
-                      placeholderTextColor={C.subMuted}
-                      style={styles.setTextInput}
-                      onChangeText={(t) => {
-                        const val = parseInt(t) || 0;
-                        updateSets(we.sets.map((s) => (s.id === set.id ? { ...s, reps: val } : s)));
-                      }}
-                    />
-                    <Text style={styles.setUnitLabel}>reps</Text>
-                  </View>
+                    {isTimeMode ? (
+                      <>
+                        {/* Input de Tiempo */}
+                        <View style={styles.setInputBox}>
+                          <TextInput
+                            value={
+                              set.timeSeconds !== undefined && set.timeSeconds !== null
+                                ? String(
+                                    set.timeSeconds >= 60
+                                      ? Math.round((set.timeSeconds / 60) * 10) / 10
+                                      : set.timeSeconds,
+                                  )
+                                : ''
+                            }
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={C.subMuted}
+                            style={styles.setTextInput}
+                            onChangeText={(t) => {
+                              const val = parseFloat(t.replace(',', '.')) || 0;
+                              updateSets(
+                                we.sets.map((s) =>
+                                  s.id === set.id ? { ...s, timeSeconds: Math.round(val * 60) } : s,
+                                ),
+                              );
+                            }}
+                          />
+                          <Text style={styles.setUnitLabel}>min</Text>
+                        </View>
 
-                  {/* Botón eliminar serie */}
-                  <Pressable
-                    onPress={() => updateSets(we.sets.filter((s) => s.id !== set.id))}
-                    hitSlop={8}
-                    style={{ width: 34, alignItems: 'center' }}
-                  >
-                    <Ionicons name="close-circle-outline" size={19} color={C.danger} />
-                  </Pressable>
-                </View>
-              ))}
+                        {/* Input de Distancia o Repeticiones */}
+                        <View style={styles.setInputBox}>
+                          <TextInput
+                            value={
+                              isKm
+                                ? set.distanceMeters
+                                  ? String(Math.round((set.distanceMeters / 1000) * 100) / 100)
+                                  : ''
+                                : set.reps
+                                ? String(set.reps)
+                                : ''
+                            }
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={C.subMuted}
+                            style={styles.setTextInput}
+                            onChangeText={(t) => {
+                              const val = parseFloat(t.replace(',', '.')) || 0;
+                              if (isKm) {
+                                updateSets(
+                                  we.sets.map((s) =>
+                                    s.id === set.id ? { ...s, distanceMeters: Math.round(val * 1000) } : s,
+                                  ),
+                                );
+                              } else {
+                                updateSets(
+                                  we.sets.map((s) => (s.id === set.id ? { ...s, reps: Math.round(val) } : s)),
+                                );
+                              }
+                            }}
+                          />
+                          <Pressable
+                            onPress={() => {
+                              if (isKm) {
+                                updateSets(
+                                  we.sets.map((s) =>
+                                    s.id === set.id ? { ...s, reps: s.reps || 20, distanceMeters: undefined } : s,
+                                  ),
+                                );
+                              } else {
+                                updateSets(
+                                  we.sets.map((s) =>
+                                    s.id === set.id ? { ...s, distanceMeters: 2000, reps: undefined } : s,
+                                  ),
+                                );
+                              }
+                            }}
+                            hitSlop={6}
+                            style={styles.toggleUnitBadge}
+                          >
+                            <Text style={styles.toggleUnitText}>{isKm ? 'km' : 'reps'}</Text>
+                            <Ionicons name="swap-vertical" size={10} color="#94A3B8" />
+                          </Pressable>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        {/* Input de Peso */}
+                        <View style={styles.setInputBox}>
+                          <TextInput
+                            value={set.weight ? String(set.weight) : ''}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={C.subMuted}
+                            style={styles.setTextInput}
+                            onChangeText={(t) => {
+                              const val = parseFloat(t.replace(',', '.')) || 0;
+                              updateSets(we.sets.map((s) => (s.id === set.id ? { ...s, weight: val } : s)));
+                            }}
+                          />
+                          <Text style={styles.setUnitLabel}>kg</Text>
+                        </View>
+
+                        {/* Input de Repeticiones */}
+                        <View style={styles.setInputBox}>
+                          <TextInput
+                            value={set.reps ? String(set.reps) : ''}
+                            keyboardType="number-pad"
+                            placeholder="0"
+                            placeholderTextColor={C.subMuted}
+                            style={styles.setTextInput}
+                            onChangeText={(t) => {
+                              const val = parseInt(t) || 0;
+                              updateSets(we.sets.map((s) => (s.id === set.id ? { ...s, reps: val } : s)));
+                            }}
+                          />
+                          <Text style={styles.setUnitLabel}>reps</Text>
+                        </View>
+                      </>
+                    )}
+
+                    {/* Botón eliminar serie */}
+                    <Pressable
+                      onPress={() => updateSets(we.sets.filter((s) => s.id !== set.id))}
+                      hitSlop={8}
+                      style={{ width: 34, alignItems: 'center' }}
+                    >
+                      <Ionicons name="close-circle-outline" size={19} color={C.danger} />
+                    </Pressable>
+                  </View>
+                );
+              })}
 
               {/* Botón para agregar una nueva serie */}
               <Pressable
                 onPress={() => {
                   const lastSet = we.sets[we.sets.length - 1];
-                  const newSet: WorkoutSet = {
-                    id: uid(),
-                    weight: lastSet ? lastSet.weight : 20,
-                    reps: lastSet ? lastSet.reps : 10,
-                  };
+                  const newSet: WorkoutSet = isTimeMode
+                    ? {
+                        id: uid(),
+                        timeSeconds: lastSet?.timeSeconds ?? 900,
+                        distanceMeters: lastSet?.distanceMeters,
+                        reps: lastSet?.reps,
+                      }
+                    : {
+                        id: uid(),
+                        weight: lastSet ? lastSet.weight : 20,
+                        reps: lastSet ? lastSet.reps : 10,
+                      };
                   updateSets([...we.sets, newSet]);
                 }}
                 style={({ pressed }) => [styles.addSetDashedBtn, pressed && s.btnPressed]}
@@ -1729,10 +1924,18 @@ function ExerciseFormModal({
 }) {
   const [name, setName] = useState(exercise.name || '');
   const [muscleGroup, setMuscleGroup] = useState(exercise.muscleGroup || 'Pecho');
+  const [exerciseType, setExerciseType] = useState<'reps' | 'time'>(
+    exercise.type ||
+      (exercise.muscleGroup === 'CrossFit' || exercise.muscleGroup === 'Cardio' ? 'time' : 'reps'),
+  );
 
   useEffect(() => {
     setName(exercise.name || '');
     setMuscleGroup(exercise.muscleGroup || 'Pecho');
+    setExerciseType(
+      exercise.type ||
+        (exercise.muscleGroup === 'CrossFit' || exercise.muscleGroup === 'Cardio' ? 'time' : 'reps'),
+    );
   }, [exercise]);
 
   const handleSave = () => {
@@ -1740,7 +1943,7 @@ function ExerciseFormModal({
       Alert.alert('Nombre requerido', 'Por favor ingresa un nombre para el ejercicio.');
       return;
     }
-    onSave({ id: exercise.id, name: name.trim(), muscleGroup });
+    onSave({ id: exercise.id, name: name.trim(), muscleGroup, type: exerciseType });
   };
 
   return (
@@ -1752,7 +1955,7 @@ function ExerciseFormModal({
           style={styles.formModalSheetContainer}
         >
           <View style={styles.formModalSheetContent}>
-            <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ flex: 1 }}>
+            <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ paddingBottom: Platform.OS === 'ios' ? 24 : 16 }}>
               {/* Header con botón de cerrar */}
               <View style={styles.formModalHeaderPadding}>
                 <View style={styles.sheetHandleBar} />
@@ -1761,7 +1964,7 @@ function ExerciseFormModal({
                     <Text style={styles.formTitle}>
                       {exercise.name ? 'EDITAR EJERCICIO' : 'NUEVO EJERCICIO'}
                     </Text>
-                    <Text style={styles.formSubtitle}>Configura el nombre y grupo muscular</Text>
+                    <Text style={styles.formSubtitle}>Configura el nombre, tipo y grupo muscular</Text>
                   </View>
                   <Pressable
                     onPress={onClose}
@@ -1773,13 +1976,8 @@ function ExerciseFormModal({
                 </View>
               </View>
 
-              {/* Contenido scrolleable del formulario */}
-              <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
-                keyboardShouldPersistTaps="always"
-                showsVerticalScrollIndicator={false}
-              >
+              {/* Contenido del formulario visible completo sin scroll-Y innecesario */}
+              <View style={{ paddingHorizontal: 20 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <Text style={styles.fieldLabel}>Nombre del ejercicio</Text>
                   <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
@@ -1787,12 +1985,12 @@ function ExerciseFormModal({
                   </Pressable>
                 </View>
 
-                <View style={[styles.fieldInputBox, { marginBottom: 16 }]}>
+                <View style={[styles.fieldInputBox, { marginBottom: 14 }]}>
                   <Ionicons name="barbell-outline" size={18} color={C.pastelPurple} style={{ marginLeft: 12 }} />
                   <TextInput
                     value={name}
                     onChangeText={setName}
-                    placeholder="Ej. Press Militar con Barra..."
+                    placeholder="Ej. Press Militar, Correr, Burpees..."
                     placeholderTextColor={C.subMuted}
                     style={[styles.fieldTextInput, { marginLeft: 8 }]}
                     autoFocus={!exercise.name}
@@ -1806,11 +2004,59 @@ function ExerciseFormModal({
                   )}
                 </View>
 
+                {/* Selector de Tipo de Ejercicio */}
+                <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Tipo de Medición</Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                  <Pressable
+                    onPress={() => setExerciseType('reps')}
+                    style={[
+                      styles.exerciseTypeBtn,
+                      exerciseType === 'reps' && styles.exerciseTypeBtnActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name="barbell-outline"
+                      size={15}
+                      color={exerciseType === 'reps' ? '#FFFFFF' : C.sub}
+                    />
+                    <Text
+                      style={[
+                        styles.exerciseTypeText,
+                        exerciseType === 'reps' && styles.exerciseTypeTextActive,
+                      ]}
+                    >
+                      Peso & Repeticiones
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => setExerciseType('time')}
+                    style={[
+                      styles.exerciseTypeBtn,
+                      exerciseType === 'time' && styles.exerciseTypeBtnActiveTime,
+                    ]}
+                  >
+                    <Ionicons
+                      name="timer-outline"
+                      size={15}
+                      color={exerciseType === 'time' ? '#FFFFFF' : C.sub}
+                    />
+                    <Text
+                      style={[
+                        styles.exerciseTypeText,
+                        exerciseType === 'time' && styles.exerciseTypeTextActive,
+                      ]}
+                    >
+                      Tiempo (CrossFit / Cardio)
+                    </Text>
+                  </Pressable>
+                </View>
+
                 <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Grupo muscular principal</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 8, paddingVertical: 4, marginBottom: 12 }}
+                  contentContainerStyle={{ gap: 8, paddingVertical: 4, marginBottom: 16 }}
                 >
                   {MUSCLE_GROUPS.filter((g) => g !== 'Todos').map((g) => {
                     const active = muscleGroup === g;
@@ -1818,7 +2064,12 @@ function ExerciseFormModal({
                     return (
                       <Pressable
                         key={g}
-                        onPress={() => setMuscleGroup(g)}
+                        onPress={() => {
+                          setMuscleGroup(g);
+                          if (g === 'CrossFit' || g === 'Cardio') {
+                            setExerciseType('time');
+                          }
+                        }}
                         style={[
                           styles.filterGroupPill,
                           active && {
@@ -1834,9 +2085,9 @@ function ExerciseFormModal({
                     );
                   })}
                 </ScrollView>
-              </ScrollView>
+              </View>
 
-              {/* Botón Guardar FIJO en el pie del modal con Safe Area garantizada */}
+              {/* Botón Guardar en el pie del modal */}
               <View style={styles.modalStickyFooter}>
                 <Pressable
                   onPress={handleSave}
@@ -2323,6 +2574,67 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  modeTogglePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  modeToggleText: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  toggleUnitBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 5,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  toggleUnitText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  exerciseTypeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: C.borderLight,
+  },
+  exerciseTypeBtnActive: {
+    backgroundColor: C.pastelPurple,
+    borderColor: C.pastelPurple,
+  },
+  exerciseTypeBtnActiveTime: {
+    backgroundColor: '#F97316',
+    borderColor: '#EA580C',
+  },
+  exerciseTypeText: {
+    color: C.sub,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  exerciseTypeTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
 
   // Tabla de Series
   setTableHeadersRow: {
@@ -2380,7 +2692,7 @@ const styles = StyleSheet.create({
     minWidth: 36,
   },
   setUnitLabel: {
-    color: C.subMuted,
+    color: '#64748B',
     fontSize: 11,
     fontWeight: '600',
   },
@@ -2577,8 +2889,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   formModalSheetContent: {
-    height: 430,
-    maxHeight: '84%',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
@@ -2596,11 +2906,7 @@ const styles = StyleSheet.create({
   },
   modalStickyFooter: {
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: C.borderLight,
+    paddingTop: 8,
   },
   primarySaveBtn: {
     borderRadius: 14,

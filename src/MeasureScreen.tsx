@@ -3476,9 +3476,10 @@ function ProgressPhotosSection({
             let maxW = 0;
             let repsAtMax = 0;
             for (const st of found.sets) {
-              if (st.weight > maxW) {
-                maxW = st.weight;
-                repsAtMax = st.reps;
+              const w = st.weight || 0;
+              if (w > maxW) {
+                maxW = w;
+                repsAtMax = st.reps || 0;
               }
             }
             return maxW > 0 ? { maxW, repsAtMax } : undefined;
