@@ -33,6 +33,99 @@ import { DateSelector, PrimaryButton, s } from './components';
 const MUSCLE_GROUPS = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Core'];
 
 /* ==========================================================
+   TEMAS DINÁMICOS POR GRUPO MUSCULAR & TIPO DE MÉTRICA
+========================================================== */
+export type StatTheme = {
+  primary: string;
+  gradient: [string, string];
+  bgGradient: [string, string];
+  icon: any;
+  badgeLabel: string;
+};
+
+export function getMuscleTheme(muscleGroup: string): StatTheme {
+  const g = (muscleGroup || '').toLowerCase();
+  if (g.includes('pecho')) {
+    return {
+      primary: '#EC4899', // Sakura Pink
+      gradient: ['#F472B6', '#DB2777'],
+      bgGradient: ['rgba(244, 114, 182, 0.22)', 'rgba(219, 39, 119, 0.05)'],
+      icon: 'heart-outline',
+      badgeLabel: 'PECHO & EMPUJE',
+    };
+  }
+  if (g.includes('espalda')) {
+    return {
+      primary: '#0284C7', // Oceanic Cyan
+      gradient: ['#38BDF8', '#0369A1'],
+      bgGradient: ['rgba(14, 165, 233, 0.22)', 'rgba(2, 132, 199, 0.05)'],
+      icon: 'shield-outline',
+      badgeLabel: 'ESPALDA & TRACCIÓN',
+    };
+  }
+  if (g.includes('pierna')) {
+    return {
+      primary: '#059669', // Emerald Mint
+      gradient: ['#34D399', '#047857'],
+      bgGradient: ['rgba(16, 185, 129, 0.22)', 'rgba(5, 150, 105, 0.05)'],
+      icon: 'flash-outline',
+      badgeLabel: 'PIERNAS & POTENCIA',
+    };
+  }
+  if (g.includes('hombro')) {
+    return {
+      primary: '#D97706', // Solar Amber
+      gradient: ['#FBBF24', '#B45309'],
+      bgGradient: ['rgba(245, 158, 11, 0.22)', 'rgba(217, 119, 6, 0.05)'],
+      icon: 'diamond-outline',
+      badgeLabel: 'HOMBROS 3D',
+    };
+  }
+  if (g.includes('brazo')) {
+    return {
+      primary: '#7C3AED', // Royal Violet
+      gradient: ['#A78BFA', '#6D28D9'],
+      bgGradient: ['rgba(139, 92, 246, 0.22)', 'rgba(124, 58, 237, 0.05)'],
+      icon: 'barbell-outline',
+      badgeLabel: 'BRAZOS & FUERZA',
+    };
+  }
+  if (g.includes('core')) {
+    return {
+      primary: '#E11D48', // Ruby Coral
+      gradient: ['#FB7185', '#BE123C'],
+      bgGradient: ['rgba(244, 63, 94, 0.22)', 'rgba(225, 29, 72, 0.05)'],
+      icon: 'disc-outline',
+      badgeLabel: 'CORE & CONTROL',
+    };
+  }
+  return {
+    primary: '#8B5CF6',
+    gradient: ['#8B5CF6', '#EC4899'],
+    bgGradient: ['rgba(139, 92, 246, 0.22)', 'rgba(236, 72, 153, 0.05)'],
+    icon: 'trophy-outline',
+    badgeLabel: 'ENTRENAMIENTO',
+  };
+}
+
+/* Estimación de Kcal quemadas por serie de ejercicio (Base para Smartwatch) */
+export function estimateSetKcal(exercise: Exercise | undefined, s: WorkoutSet): number {
+  const reps = Math.max(1, s.reps || 0);
+  const weight = Math.max(0, s.weight || 0);
+  const group = (exercise?.muscleGroup || '').toLowerCase();
+
+  let factor = 1.0;
+  if (group.includes('pierna')) factor = 1.45;
+  else if (group.includes('espalda')) factor = 1.35;
+  else if (group.includes('pecho')) factor = 1.25;
+  else if (group.includes('hombro')) factor = 1.15;
+  else if (group.includes('core')) factor = 1.1;
+
+  const work = 7.0 + (weight * reps * 0.0055);
+  return Math.round(work * factor);
+}
+
+/* ==========================================================
    PANTALLA PRINCIPAL DE ENTRENAMIENTO
 ========================================================== */
 export default function TrainScreen() {
@@ -166,8 +259,8 @@ export default function TrainScreen() {
               onSelectExercise={(id) =>
                 setSelectedExerciseId((prev) => (prev === id ? null : id))
               }
-              onOpenCreateModal={() =>
-                setEditingExercise({ id: uid(), name: '', muscleGroup: 'Pecho' })
+              onOpenCreateModal={(defaultName) =>
+                setEditingExercise({ id: uid(), name: defaultName || '', muscleGroup: 'Pecho' })
               }
               onEditExercise={(ex) => setEditingExercise(ex)}
             />
@@ -207,6 +300,7 @@ export default function TrainScreen() {
           onClose={() => setEditingExercise(null)}
           onSave={(saved) => {
             upsertExercise(saved);
+            setSelectedExerciseId(saved.id);
             setEditingExercise(null);
           }}
         />
@@ -314,24 +408,35 @@ function WorkoutDynamicChart({
 
   // Cálculo de totales del día actual (Registrar entrenamiento)
   const dayStats = useMemo(() => {
+    let totalKcal = 0;
     let totalVolume = 0;
     let totalSets = 0;
     let totalReps = 0;
 
     dayExercises.forEach((we) => {
+      const ex = exercises.find((e) => e.id === we.exerciseId);
       we.sets.forEach((s) => {
         totalSets += 1;
         totalReps += s.reps || 0;
         totalVolume += (s.weight || 0) * (s.reps || 0);
+        totalKcal += estimateSetKcal(ex, s);
       });
     });
 
-    return { totalVolume, totalSets, totalReps };
-  }, [dayExercises]);
+    return { totalKcal, totalVolume, totalSets, totalReps };
+  }, [dayExercises, exercises]);
 
   // Recopilación de estadísticas rotativas históricas (cuando no hay ejercicio seleccionado)
   const autoRotateStats = useMemo(() => {
-    const allRecords: { title: string; subtitle: string; value: string; unit: string; icon: any }[] = [];
+    const allRecords: {
+      title: string;
+      subtitle: string;
+      value: string;
+      unit: string;
+      icon: any;
+      badge: string;
+      theme: StatTheme;
+    }[] = [];
 
     // Calcular PR máx de ejercicios
     const maxWeights: Record<string, { weight: number; reps: number; date: string }> = {};
@@ -350,52 +455,133 @@ function WorkoutDynamicChart({
       });
     });
 
-    // Añadir mejores marcas de ejercicios
+    // Añadir mejores marcas de ejercicios del usuario con su tema dinámico
     Object.entries(maxWeights).forEach(([exId, data]) => {
       const ex = exercises.find((e) => e.id === exId);
       if (ex && data.weight > 0) {
+        const theme = getMuscleTheme(ex.muscleGroup);
         allRecords.push({
-          title: `PR // ${ex.name.toUpperCase()}`,
+          title: `RÉCORD // ${ex.name.toUpperCase()}`,
           subtitle: `${data.reps} reps el ${data.date}`,
           value: `${data.weight}`,
           unit: 'KG MÁX',
-          icon: 'trophy',
+          icon: theme.icon,
+          badge: theme.badgeLabel,
+          theme,
         });
       }
     });
 
     // Añadir volumen total acumulado
-    allRecords.push({
-      title: 'VOLUMEN HISTÓRICO TOTAL',
-      subtitle: 'Energía levantada en todos los entrenamientos',
-      value: grandTotalVolume > 1000 ? `${fmt(grandTotalVolume / 1000)}k` : `${grandTotalVolume}`,
-      unit: 'KG TOTALES',
-      icon: 'barbell',
-    });
+    if (grandTotalVolume > 0) {
+      allRecords.push({
+        title: 'VOLUMEN HISTÓRICO TOTAL',
+        subtitle: 'Energía levantada en todos los entrenamientos',
+        value: grandTotalVolume > 1000 ? `${(grandTotalVolume / 1000).toFixed(1)}k` : `${grandTotalVolume}`,
+        unit: 'KG TOTALES',
+        icon: 'barbell-outline',
+        badge: 'VOLUMEN & TONELAJE',
+        theme: {
+          primary: '#8B5CF6',
+          gradient: ['#A78BFA', '#7C3AED'],
+          bgGradient: ['rgba(139, 92, 246, 0.22)', 'rgba(124, 58, 237, 0.05)'],
+          icon: 'barbell-outline',
+          badgeLabel: 'VOLUMEN TOTAL',
+        },
+      });
+    }
 
     // Añadir series acumuladas
-    allRecords.push({
-      title: 'SERIES TOTALES COMPLETADAS',
-      subtitle: 'Constancia y disciplina acumulada',
-      value: `${grandTotalSets}`,
-      unit: 'SETS',
-      icon: 'flame',
-    });
+    if (grandTotalSets > 0) {
+      allRecords.push({
+        title: 'SERIES TOTALES COMPLETADAS',
+        subtitle: 'Constancia y disciplina acumulada',
+        value: `${grandTotalSets}`,
+        unit: 'SETS',
+        icon: 'ribbon-outline',
+        badge: 'DISCIPLINA ACUMULADA',
+        theme: {
+          primary: '#D97706',
+          gradient: ['#FBBF24', '#B45309'],
+          bgGradient: ['rgba(245, 158, 11, 0.22)', 'rgba(217, 119, 6, 0.05)'],
+          icon: 'ribbon-outline',
+          badgeLabel: 'SERIES TOTALES',
+        },
+      });
+    }
 
-    return allRecords.length > 0
-      ? allRecords
-      : [
-          {
-            title: 'REGISTRA TU PRIMER ENTRENO',
-            subtitle: 'Las estadísticas comenzarán a rotar aquí',
-            value: '0',
-            unit: 'KG',
-            icon: 'barbell',
-          },
-        ];
+    // Tarjetas de demostración enriquecidas para variedad visual inmediata
+    const demoRecords = [
+      {
+        title: 'BENCHMARK // PRESS DE BANCA',
+        subtitle: 'Meta de fuerza para hipertrofia de pecho',
+        value: '80',
+        unit: 'KG PR',
+        icon: 'heart-outline',
+        badge: 'PECHO & EMPUJE',
+        theme: getMuscleTheme('Pecho'),
+      },
+      {
+        title: 'BENCHMARK // SENTADILLA CON BARRA',
+        subtitle: 'Potencia de tren inferior y estabilidad',
+        value: '100',
+        unit: 'KG PR',
+        icon: 'flash-outline',
+        badge: 'PIERNAS & POTENCIA',
+        theme: getMuscleTheme('Piernas'),
+      },
+      {
+        title: 'BENCHMARK // PESO MUERTO',
+        subtitle: 'Tracción total de cadena posterior',
+        value: '120',
+        unit: 'KG PR',
+        icon: 'shield-outline',
+        badge: 'ESPALDA & TRACCIÓN',
+        theme: getMuscleTheme('Espalda'),
+      },
+      {
+        title: 'BENCHMARK // PRESS MILITAR',
+        subtitle: 'Fuerza vertical y desarrollo de hombro 3D',
+        value: '50',
+        unit: 'KG PR',
+        icon: 'diamond-outline',
+        badge: 'HOMBROS 3D',
+        theme: getMuscleTheme('Hombros'),
+      },
+      {
+        title: 'BENCHMARK // CURL DE BÍCEPS',
+        subtitle: 'Aislamiento de brazos y picos de fuerza',
+        value: '35',
+        unit: 'KG PR',
+        icon: 'barbell-outline',
+        badge: 'BRAZOS & BÍCEPS',
+        theme: getMuscleTheme('Brazos'),
+      },
+      {
+        title: 'OBJETIVO // GASTO CALÓRICO',
+        subtitle: 'Calorías estimadas por sesión intensa',
+        value: '380',
+        unit: 'KCAL',
+        icon: 'flame-outline',
+        badge: 'CALORÍAS & SMARTWATCH',
+        theme: {
+          primary: '#F43F5E',
+          gradient: ['#FB7185', '#E11D48'],
+          bgGradient: ['rgba(244, 63, 94, 0.22)', 'rgba(225, 29, 72, 0.05)'],
+          icon: 'flame-outline',
+          badgeLabel: 'ENERGÍA QUEMADA',
+        },
+      },
+    ];
+
+    if (allRecords.length === 0) {
+      return demoRecords;
+    }
+
+    return [...allRecords, ...demoRecords.slice(0, 3)];
   }, [workoutLogs, exercises]);
 
-  // Ciclo de rotación de estadísticas automáticas cada 3.6s
+  // Ciclo de rotación de estadísticas automáticas cada 3.8s
   useEffect(() => {
     if (tab !== 1 || selectedExerciseId !== null) return;
 
@@ -474,7 +660,11 @@ function WorkoutDynamicChart({
           <View style={s.hudBadge}>
             <Ionicons name="sparkles" size={11} color={C.pastelPurple} />
             <Text style={s.hudBadgeText}>
-              {tab === 0 ? '✦ SESIÓN DEL DÍA ✦' : selectedExercise ? `✦ HISTORIAL: ${selectedExercise.name.toUpperCase()} ✦` : '✦ ESTADÍSTICAS GLOBALES ✦'}
+              {tab === 0
+                ? '✦ SESIÓN DEL DÍA ✦'
+                : selectedExercise
+                ? `✦ HISTORIAL: ${selectedExercise.name.toUpperCase()} ✦`
+                : '✦ ESTADÍSTICAS GLOBALES ✦'}
             </Text>
           </View>
 
@@ -491,30 +681,30 @@ function WorkoutDynamicChart({
           )}
         </View>
 
-        {/* MODO 1: GRÁFICA RESUMEN DE SESIÓN DIARIA */}
+        {/* MODO 1: GRÁFICA RESUMEN DE SESIÓN DIARIA (KCAL QUEMADAS EN ROJO) */}
         {tab === 0 && (
           <View style={styles.dayWorkoutSummaryRow}>
-            {/* Medidor Circular de Volumen */}
+            {/* Medidor Circular de Calorías Quemadas en Rojo Anime */}
             <View style={styles.workoutVolRingContainer}>
               <Svg width={116} height={116} style={{ transform: [{ rotate: '-90deg' }] }}>
-                <Circle cx={58} cy={58} r={46} stroke="rgba(203, 213, 225, 0.4)" strokeWidth={10} fill="none" />
+                <Circle cx={58} cy={58} r={46} stroke="rgba(244, 63, 94, 0.12)" strokeWidth={10} fill="none" />
                 <Circle
                   cx={58}
                   cy={58}
                   r={46}
-                  stroke={C.pastelPurple}
+                  stroke="#F43F5E"
                   strokeWidth={10}
                   fill="none"
-                  strokeDasharray={`${Math.min(dayStats.totalVolume / 100, 289)} 289`}
+                  strokeDasharray={`${Math.min((dayStats.totalKcal / 450) * 289, 289)} 289`}
                   strokeLinecap="round"
                 />
               </Svg>
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-                <Ionicons name="barbell" size={16} color={C.pastelPurple} style={{ marginBottom: 2 }} />
-                <Text style={styles.workoutVolNumber}>
-                  {dayStats.totalVolume > 9999 ? `${Math.round(dayStats.totalVolume / 1000)}k` : `${Math.round(dayStats.totalVolume)}`}
+                <Ionicons name="flame" size={20} color="#F43F5E" style={{ marginBottom: 1 }} />
+                <Text style={styles.workoutKcalNumber}>
+                  {dayStats.totalKcal}
                 </Text>
-                <Text style={styles.workoutVolUnit}>KG VOL</Text>
+                <Text style={styles.workoutKcalUnit}>KCAL QUEMADAS</Text>
               </View>
             </View>
 
@@ -522,10 +712,22 @@ function WorkoutDynamicChart({
             <View style={{ flex: 1, marginLeft: 16, gap: 8 }}>
               <View style={styles.metricPillCard}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="layers-outline" size={14} color={C.pastelPurple} />
+                  <Ionicons name="barbell-outline" size={14} color={C.pastelPurple} />
+                  <Text style={styles.metricPillLabel}>Volumen levantado</Text>
+                </View>
+                <Text style={styles.metricPillValue}>
+                  {dayStats.totalVolume > 9999
+                    ? `${(dayStats.totalVolume / 1000).toFixed(1)}k kg`
+                    : `${Math.round(dayStats.totalVolume)} kg`}
+                </Text>
+              </View>
+
+              <View style={styles.metricPillCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="layers-outline" size={14} color={C.pastelMint} />
                   <Text style={styles.metricPillLabel}>Series realizadas</Text>
                 </View>
-                <Text style={styles.metricPillValue}>{dayStats.totalSets} sets</Text>
+                <Text style={[styles.metricPillValue, { color: C.pastelMint }]}>{dayStats.totalSets} sets</Text>
               </View>
 
               <View style={styles.metricPillCard}>
@@ -535,27 +737,39 @@ function WorkoutDynamicChart({
                 </View>
                 <Text style={[styles.metricPillValue, { color: C.pastelPink }]}>{dayStats.totalReps} reps</Text>
               </View>
-
-              <View style={styles.metricPillCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="fitness-outline" size={14} color={C.pastelMint} />
-                  <Text style={styles.metricPillLabel}>Ejercicios distintos</Text>
-                </View>
-                <Text style={[styles.metricPillValue, { color: C.pastelMint }]}>{dayExercises.length} ejer</Text>
-              </View>
             </View>
           </View>
         )}
 
         {/* MODO 2: ESTADÍSTICAS AMPLIADAS */}
         {tab === 1 && (
-          <View style={{ flex: 1, justifyContent: 'center', marginTop: 10 }}>
+          <View style={{ flex: 1, justifyContent: 'center', marginTop: 8 }}>
             {selectedExercise ? (
-              /* GRÁFICA SVG HISTÓRICA DEL EJERCICIO SELECCIONADO */
+              /* GRÁFICA SVG HISTÓRICA DEL EJERCICIO SELECCIONADO CON TEMA DINÁMICO */
               <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <View>
-                    <Text style={styles.selectedExerciseNameHeader}>{selectedExercise.name}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.selectedExerciseNameHeader} numberOfLines={1}>
+                        {selectedExercise.name}
+                      </Text>
+                      {(() => {
+                        const theme = getMuscleTheme(selectedExercise.muscleGroup);
+                        return (
+                          <View
+                            style={[
+                              styles.miniMusclePill,
+                              { backgroundColor: theme.primary + '18', borderColor: theme.primary + '40' },
+                            ]}
+                          >
+                            <Ionicons name={theme.icon} size={11} color={theme.primary} />
+                            <Text style={[styles.miniMusclePillText, { color: theme.primary }]}>
+                              {selectedExercise.muscleGroup}
+                            </Text>
+                          </View>
+                        );
+                      })()}
+                    </View>
                     <Text style={styles.selectedExerciseSub}>Progresión de carga máxima ({rangeLabel})</Text>
                   </View>
                   <Pressable onPress={onClearSelectedExercise} style={styles.closeSelectedBtn}>
@@ -573,26 +787,69 @@ function WorkoutDynamicChart({
                     </Text>
                   </View>
                 ) : (
-                  <WorkoutHistorySVGChart data={historyData} />
+                  <WorkoutHistorySVGChart
+                    data={historyData}
+                    theme={getMuscleTheme(selectedExercise.muscleGroup)}
+                  />
                 )}
               </View>
             ) : (
-              /* CARRUSEL DE ESTADÍSTICAS ROTATIVAS ANIMADAS AUTOMÁTICAS */
+              /* CARRUSEL DE ESTADÍSTICAS ROTATIVAS ANIMADAS AUTOMÁTICAS CON COLORES E ICONOS DINÁMICOS */
               <Animated.View style={[{ alignItems: 'center', justifyContent: 'center', flex: 1 }, { opacity: statFadeAnim }]}>
-                {autoRotateStats[statIndex] && (
-                  <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
-                    <View style={styles.statOrbGlow}>
-                      <Ionicons name={autoRotateStats[statIndex].icon} size={28} color={C.pastelPurple} />
+                {autoRotateStats[statIndex] && (() => {
+                  const currentStat = autoRotateStats[statIndex];
+                  const stTheme = currentStat.theme;
+                  return (
+                    <View style={{ alignItems: 'center', paddingHorizontal: 16, width: '100%' }}>
+                      {/* Tag de grupo con icono y color dinámico */}
+                      <View
+                        style={[
+                          styles.statDynamicBadge,
+                          { backgroundColor: stTheme.primary + '18', borderColor: stTheme.primary + '40' },
+                        ]}
+                      >
+                        <Ionicons name={currentStat.icon} size={12} color={stTheme.primary} />
+                        <Text style={[styles.statDynamicBadgeText, { color: stTheme.primary }]}>
+                          ✦ {currentStat.badge} ✦
+                        </Text>
+                      </View>
+
+                      {/* Orbe resplandeciente con gradiente y color cambiante */}
+                      <LinearGradient
+                        colors={[stTheme.bgGradient[0], stTheme.bgGradient[1]]}
+                        style={[styles.statOrbGlow, { borderColor: stTheme.primary + '35' }]}
+                      >
+                        <Ionicons name={currentStat.icon} size={28} color={stTheme.primary} />
+                      </LinearGradient>
+
+                      {/* Título de la métrica */}
+                      <Text style={[styles.rotStatTitle, { color: stTheme.primary }]}>
+                        {currentStat.title}
+                      </Text>
+
+                      {/* Gran valor con color temático */}
+                      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginVertical: 2 }}>
+                        <Text style={[styles.rotStatBigValue, { color: C.text }]}>{currentStat.value}</Text>
+                        <Text style={[styles.rotStatUnit, { color: stTheme.primary }]}>{currentStat.unit}</Text>
+                      </View>
+
+                      <Text style={styles.rotStatSubtitle}>{currentStat.subtitle}</Text>
+
+                      {/* Indicador de progreso de puntos */}
+                      <View style={styles.carouselDotsRow}>
+                        {autoRotateStats.map((_, dotIdx) => (
+                          <View
+                            key={dotIdx}
+                            style={[
+                              styles.carouselDot,
+                              dotIdx === statIndex && [styles.carouselDotActive, { backgroundColor: stTheme.primary }],
+                            ]}
+                          />
+                        ))}
+                      </View>
                     </View>
-                    <Text style={styles.rotStatTitle}>{autoRotateStats[statIndex].title}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginVertical: 4 }}>
-                      <Text style={styles.rotStatBigValue}>{autoRotateStats[statIndex].value}</Text>
-                      <Text style={styles.rotStatUnit}>{autoRotateStats[statIndex].unit}</Text>
-                    </View>
-                    <Text style={styles.rotStatSubtitle}>{autoRotateStats[statIndex].subtitle}</Text>
-                    <Text style={styles.rotHintText}>✦ Toca un ejercicio abajo para ver su curva detallada ✦</Text>
-                  </View>
-                )}
+                  );
+                })()}
               </Animated.View>
             )}
           </View>
@@ -603,12 +860,14 @@ function WorkoutDynamicChart({
 }
 
 /* ==========================================================
-   GRÁFICA SVG HISTÓRICA DEL EJERCICIO SELECCIONADO
+   GRÁFICA SVG HISTÓRICA DEL EJERCICIO SELECCIONADO (DINÁMICA)
 ========================================================== */
 function WorkoutHistorySVGChart({
   data,
+  theme,
 }: {
   data: { dateStr: string; maxWeight: number; totalVolume: number }[];
+  theme: StatTheme;
 }) {
   const width = Dimensions.get('window').width - 64;
   const height = 150;
@@ -644,8 +903,8 @@ function WorkoutHistorySVGChart({
       <Svg width={width} height={height}>
         <Defs>
           <SvgGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={C.pastelPurple} stopOpacity="0.25" />
-            <Stop offset="1" stopColor={C.pastelPurple} stopOpacity="0.01" />
+            <Stop offset="0" stopColor={theme.primary} stopOpacity="0.28" />
+            <Stop offset="1" stopColor={theme.primary} stopOpacity="0.01" />
           </SvgGradient>
         </Defs>
 
@@ -655,14 +914,14 @@ function WorkoutHistorySVGChart({
         {/* Área sombreada bajo la curva */}
         <Path d={fillD} fill="url(#curveFill)" />
 
-        {/* Curva de progresión */}
-        <Path d={pathD} fill="none" stroke={C.pastelPurple} strokeWidth={3} strokeLinecap="round" />
+        {/* Curva de progresión dinámica */}
+        <Path d={pathD} fill="none" stroke={theme.primary} strokeWidth={3} strokeLinecap="round" />
 
         {/* Puntos y etiquetas de peso */}
         {points.map((p, idx) => (
           <React.Fragment key={idx}>
-            <Circle cx={p.x} cy={p.y} r={5} fill="#FFFFFF" stroke={C.pastelPurple} strokeWidth={2.5} />
-            <Circle cx={p.x} cy={p.y} r={2} fill={C.pastelPurple} />
+            <Circle cx={p.x} cy={p.y} r={5} fill="#FFFFFF" stroke={theme.primary} strokeWidth={2.5} />
+            <Circle cx={p.x} cy={p.y} r={2} fill={theme.primary} />
           </React.Fragment>
         ))}
       </Svg>
@@ -671,7 +930,7 @@ function WorkoutHistorySVGChart({
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, marginTop: -14 }}>
         {points.map((p, idx) => (
           <View key={idx} style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: C.text }}>{p.weight}kg</Text>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: theme.primary }}>{p.weight}kg</Text>
             <Text style={{ fontSize: 9, color: C.subMuted }}>{p.date}</Text>
           </View>
         ))}
@@ -865,7 +1124,7 @@ function WorkoutStatsLibrary({
   workoutLogs: Record<string, WorkoutExercise[]>;
   selectedExerciseId: string | null;
   onSelectExercise: (id: string) => void;
-  onOpenCreateModal: () => void;
+  onOpenCreateModal: (defaultName?: string) => void;
   onEditExercise: (ex: Exercise) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -893,15 +1152,18 @@ function WorkoutStatsLibrary({
     return stats;
   }, [workoutLogs]);
 
+  // Filtrado de ejercicios en tiempo real
   const filtered = useMemo(() => {
     return exercises
       .filter((e) => {
-        const matchesQuery = e.name.toLowerCase().includes(query.toLowerCase());
+        const matchesQuery = !query.trim() || e.name.toLowerCase().includes(query.toLowerCase().trim());
         const matchesGroup = selectedGroup === 'Todos' || e.muscleGroup === selectedGroup;
         return matchesQuery && matchesGroup;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [exercises, query, selectedGroup]);
+
+  const exactMatch = exercises.some((e) => e.name.toLowerCase().trim() === query.toLowerCase().trim());
 
   return (
     <View style={{ marginTop: 6 }}>
@@ -927,22 +1189,49 @@ function WorkoutStatsLibrary({
           </Pressable>
         </View>
 
-        <Pressable onPress={onOpenCreateModal} style={({ pressed }) => [styles.addSquareBtn, pressed && s.btnPressed]}>
+        {/* Botón + pasa el texto del buscador si el usuario escribió algo */}
+        <Pressable
+          onPress={() => onOpenCreateModal(query.trim())}
+          style={({ pressed }) => [styles.addSquareBtn, pressed && s.btnPressed]}
+        >
           <LinearGradient colors={GRADIENTS.primary} style={styles.addSquareGradient}>
             <Ionicons name="add" size={24} color="#FFFFFF" />
           </LinearGradient>
         </Pressable>
       </View>
 
-      {/* Filtro horizontal por Grupo Muscular */}
+      {/* Banner rápido si buscó un ejercicio que no está en la biblioteca */}
+      {query.trim().length > 0 && !exactMatch && (
+        <Pressable
+          onPress={() => onOpenCreateModal(query.trim())}
+          style={({ pressed }) => [styles.quickCreateBanner, pressed && s.btnPressed]}
+        >
+          <LinearGradient
+            colors={['rgba(139, 92, 246, 0.12)', 'rgba(236, 72, 153, 0.12)']}
+            style={styles.quickCreateBannerGradient}
+          >
+            <Ionicons name="add-circle" size={20} color={C.pastelPurple} />
+            <Text style={styles.quickCreateBannerText}>
+              Crear nuevo ejercicio: <Text style={{ color: C.text, fontWeight: '800' }}>"{query.trim()}"</Text>
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={C.pastelPurple} />
+          </LinearGradient>
+        </Pressable>
+      )}
+
+      {/* Filtro horizontal por Grupo Muscular con badges temáticos */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
         {MUSCLE_GROUPS.map((g) => {
           const active = selectedGroup === g;
+          const mTheme = g === 'Todos' ? null : getMuscleTheme(g);
           return (
             <Pressable
               key={g}
               onPress={() => setSelectedGroup(g)}
-              style={[styles.filterGroupPill, active && styles.filterGroupPillActive]}
+              style={[
+                styles.filterGroupPill,
+                active && (mTheme ? { backgroundColor: mTheme.primary, borderColor: mTheme.primary } : styles.filterGroupPillActive),
+              ]}
             >
               <Text style={[styles.filterGroupText, active && styles.filterGroupTextActive]}>{g}</Text>
             </Pressable>
@@ -950,15 +1239,38 @@ function WorkoutStatsLibrary({
         })}
       </ScrollView>
 
+      {/* Empty State de búsqueda con botón grande para agregar directamente */}
+      {filtered.length === 0 && (
+        <View style={styles.emptySearchCard}>
+          <Ionicons name="search-outline" size={32} color={C.subMuted} style={{ marginBottom: 6 }} />
+          <Text style={styles.emptySearchTitle}>Sin resultados para "{query}"</Text>
+          <Text style={styles.emptySearchSubtitle}>
+            ¿Deseas agregar este ejercicio a tu biblioteca con este nombre?
+          </Text>
+          <Pressable
+            onPress={() => onOpenCreateModal(query.trim())}
+            style={({ pressed }) => [styles.emptySearchAddBtn, pressed && s.btnPressed]}
+          >
+            <LinearGradient colors={GRADIENTS.primary} style={styles.emptySearchAddGradient}>
+              <Ionicons name="add-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.emptySearchAddText}>Agregar "{query.trim()}"</Text>
+            </LinearGradient>
+          </Pressable>
+        </View>
+      )}
+
       {/* Contador y Consejo */}
-      <View style={styles.countBadgeRow}>
-        <Text style={styles.countBadgeText}>✦ TOCA UN EJERCICIO PARA GRAFICAR SU PROGRESO ✦</Text>
-      </View>
+      {filtered.length > 0 && (
+        <View style={styles.countBadgeRow}>
+          <Text style={styles.countBadgeText}>✦ TOCA UN EJERCICIO PARA GRAFICAR SU PROGRESO ✦</Text>
+        </View>
+      )}
 
       {/* Lista de Ejercicios */}
       {filtered.map((ex) => {
         const isSelected = selectedExerciseId === ex.id;
         const st = exerciseStatsMap[ex.id];
+        const exTheme = getMuscleTheme(ex.muscleGroup);
 
         return (
           <Pressable
@@ -966,19 +1278,20 @@ function WorkoutStatsLibrary({
             onPress={() => onSelectExercise(ex.id)}
             style={({ pressed }) => [
               styles.exerciseItemCard,
-              isSelected && styles.exerciseItemCardSelected,
+              isSelected && [styles.exerciseItemCardSelected, { borderColor: exTheme.primary }],
               pressed && s.btnPressed,
             ]}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.exerciseItemName, isSelected && { color: C.pastelPurple }]}>{ex.name}</Text>
-                  {isSelected && <Ionicons name="checkmark-circle" size={16} color={C.pastelPurple} />}
+                  <Text style={[styles.exerciseItemName, isSelected && { color: exTheme.primary }]}>{ex.name}</Text>
+                  {isSelected && <Ionicons name="checkmark-circle" size={16} color={exTheme.primary} />}
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                  <View style={styles.muscleBadge}>
-                    <Text style={styles.muscleBadgeText}>{ex.muscleGroup}</Text>
+                  <View style={[styles.muscleBadge, { backgroundColor: exTheme.primary + '15', borderColor: exTheme.primary + '35' }]}>
+                    <Ionicons name={exTheme.icon} size={11} color={exTheme.primary} style={{ marginRight: 3 }} />
+                    <Text style={[styles.muscleBadgeText, { color: exTheme.primary }]}>{ex.muscleGroup}</Text>
                   </View>
                   <Text style={styles.statsMiniText}>
                     {st ? `PR: ${st.maxWeight} kg  •  ${st.totalSets} series` : 'Sin entrenamientos registrados'}
@@ -1150,7 +1463,7 @@ function ExercisePickerModal({
 }
 
 /* ==========================================================
-   MODAL PARA CREAR O EDITAR EJERCICIO
+   MODAL PARA CREAR O EDITAR EJERCICIO (SEGURO & BOTÓN SAVE FIJO)
 ========================================================== */
 function ExerciseFormModal({
   exercise,
@@ -1161,65 +1474,132 @@ function ExerciseFormModal({
   onSave: (ex: Exercise) => void;
   onClose: () => void;
 }) {
-  const [name, setName] = useState(exercise.name);
+  const [name, setName] = useState(exercise.name || '');
   const [muscleGroup, setMuscleGroup] = useState(exercise.muscleGroup || 'Pecho');
+
+  useEffect(() => {
+    setName(exercise.name || '');
+    setMuscleGroup(exercise.muscleGroup || 'Pecho');
+  }, [exercise]);
+
+  const handleSave = () => {
+    if (!name.trim()) {
+      Alert.alert('Nombre requerido', 'Por favor ingresa un nombre para el ejercicio.');
+      return;
+    }
+    onSave({ id: exercise.id, name: name.trim(), muscleGroup });
+  };
 
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.formModalOverlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.formModalSheetContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.formModalSheetContainer}
+        >
           <View style={styles.formModalSheetContent}>
-            <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ padding: 20 }}>
-              <View style={styles.sheetHandleBar} />
-              <View style={styles.formHeaderRow}>
-                <View>
-                  <Text style={styles.formTitle}>{exercise.name ? 'EDITAR EJERCICIO' : 'NUEVO EJERCICIO'}</Text>
-                  <Text style={styles.formSubtitle}>Configura el nombre y grupo muscular</Text>
+            <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ flex: 1 }}>
+              {/* Header con botón de cerrar */}
+              <View style={styles.formModalHeaderPadding}>
+                <View style={styles.sheetHandleBar} />
+                <View style={styles.formHeaderRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formTitle}>
+                      {exercise.name ? 'EDITAR EJERCICIO' : 'NUEVO EJERCICIO'}
+                    </Text>
+                    <Text style={styles.formSubtitle}>Configura el nombre y grupo muscular</Text>
+                  </View>
+                  <Pressable
+                    onPress={onClose}
+                    hitSlop={10}
+                    style={({ pressed }) => [styles.sheetCloseMiniBtn, pressed && s.btnPressed]}
+                  >
+                    <Ionicons name="close" size={20} color={C.text} />
+                  </Pressable>
                 </View>
-                <Pressable onPress={onClose} style={styles.sheetCloseMiniBtn}>
-                  <Ionicons name="close" size={20} color={C.text} />
-                </Pressable>
               </View>
 
-              <Text style={styles.fieldLabel}>Nombre del ejercicio</Text>
-              <View style={[styles.fieldInputBox, { marginBottom: 14 }]}>
-                <TextInput
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Ej. Press Militar con Barra..."
-                  placeholderTextColor={C.subMuted}
-                  style={styles.fieldTextInput}
-                />
-              </View>
+              {/* Contenido scrolleable del formulario */}
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
+                keyboardShouldPersistTaps="always"
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={styles.fieldLabel}>Nombre del ejercicio</Text>
+                  <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
+                    <Text style={{ fontSize: 11, color: C.pastelPurple, fontWeight: '700' }}>Ocultar teclado</Text>
+                  </Pressable>
+                </View>
 
-              <Text style={styles.fieldLabel}>Grupo muscular principal</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4, marginBottom: 20 }}>
-                {MUSCLE_GROUPS.filter((g) => g !== 'Todos').map((g) => {
-                  const active = muscleGroup === g;
-                  return (
-                    <Pressable
-                      key={g}
-                      onPress={() => setMuscleGroup(g)}
-                      style={[styles.filterGroupPill, active && styles.filterGroupPillActive]}
-                    >
-                      <Text style={[styles.filterGroupText, active && styles.filterGroupTextActive]}>{g}</Text>
+                <View style={[styles.fieldInputBox, { marginBottom: 16 }]}>
+                  <Ionicons name="barbell-outline" size={18} color={C.pastelPurple} style={{ marginLeft: 12 }} />
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Ej. Press Militar con Barra..."
+                    placeholderTextColor={C.subMuted}
+                    style={[styles.fieldTextInput, { marginLeft: 8 }]}
+                    autoFocus={!exercise.name}
+                    returnKeyType="done"
+                    onSubmitEditing={() => Keyboard.dismiss()}
+                  />
+                  {name.length > 0 && (
+                    <Pressable onPress={() => setName('')} style={{ padding: 8 }}>
+                      <Ionicons name="close-circle" size={16} color={C.subMuted} />
                     </Pressable>
-                  );
-                })}
+                  )}
+                </View>
+
+                <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Grupo muscular principal</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingVertical: 4, marginBottom: 12 }}
+                >
+                  {MUSCLE_GROUPS.filter((g) => g !== 'Todos').map((g) => {
+                    const active = muscleGroup === g;
+                    const mTheme = getMuscleTheme(g);
+                    return (
+                      <Pressable
+                        key={g}
+                        onPress={() => setMuscleGroup(g)}
+                        style={[
+                          styles.filterGroupPill,
+                          active && {
+                            backgroundColor: mTheme.primary,
+                            borderColor: mTheme.primary,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.filterGroupText, active && styles.filterGroupTextActive]}>
+                          {g}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
               </ScrollView>
 
-              <PrimaryButton
-                icon="checkmark-circle"
-                label="Guardar ejercicio"
-                onPress={() => {
-                  if (!name.trim()) {
-                    Alert.alert('Nombre requerido', 'Ingresa un nombre para el ejercicio.');
-                    return;
-                  }
-                  onSave({ id: exercise.id, name: name.trim(), muscleGroup });
-                }}
-              />
+              {/* Botón Guardar FIJO en el pie del modal con Safe Area garantizada */}
+              <View style={styles.modalStickyFooter}>
+                <Pressable
+                  onPress={handleSave}
+                  style={({ pressed }) => [styles.primarySaveBtn, pressed && s.btnPressed]}
+                >
+                  <LinearGradient
+                    colors={GRADIENTS.primary}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.primarySaveGradient}
+                  >
+                    <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                    <Text style={styles.primarySaveBtnText}>Guardar ejercicio</Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
             </LinearGradient>
           </View>
         </KeyboardAvoidingView>
@@ -1386,6 +1766,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1,
   },
+  workoutKcalNumber: {
+    color: C.text,
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  workoutKcalUnit: {
+    color: '#F43F5E',
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
   metricPillCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1423,6 +1815,50 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: 'rgba(139, 92, 246, 0.25)',
+  },
+  statDynamicBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 3.5,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  statDynamicBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  carouselDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
+  },
+  carouselDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(203, 213, 225, 0.6)',
+  },
+  carouselDotActive: {
+    width: 14,
+    borderRadius: 3,
+  },
+  miniMusclePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  miniMusclePillText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   rotStatTitle: {
     color: C.pastelPurple,
@@ -1751,6 +2187,70 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  quickCreateBanner: {
+    marginBottom: 10,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  quickCreateBannerGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  quickCreateBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: C.sub,
+    fontWeight: '600',
+  },
+  emptySearchCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 22,
+    alignItems: 'center',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  emptySearchTitle: {
+    color: C.text,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  emptySearchSubtitle: {
+    color: C.sub,
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 14,
+    maxWidth: 260,
+  },
+  emptySearchAddBtn: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  emptySearchAddGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  emptySearchAddText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
   // Modales
   formModalOverlay: {
     flex: 1,
@@ -1761,6 +2261,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   formModalSheetContent: {
+    height: 430,
+    maxHeight: '84%',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
@@ -1771,6 +2273,38 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 20,
+  },
+  formModalHeaderPadding: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+  },
+  modalStickyFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: C.borderLight,
+  },
+  primarySaveBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primarySaveGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+  },
+  primarySaveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   sheetHandleBar: {
     width: 38,
@@ -1812,17 +2346,20 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   fieldInputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F8FAFC',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: C.borderLight,
-    paddingHorizontal: 12,
+    paddingHorizontal: 4,
   },
   fieldTextInput: {
+    flex: 1,
     color: C.text,
     fontSize: 14,
     fontWeight: '700',
-    paddingVertical: 9,
+    paddingVertical: 10,
   },
   rangeModalCard: {
     backgroundColor: '#FFFFFF',
