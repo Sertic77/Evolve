@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { C, GRADIENTS } from './src/theme';
 import FoodScreen from './src/FoodScreen';
 import TrainScreen from './src/TrainScreen';
+import MeasureScreen from './src/MeasureScreen';
 
 // 5 Pestañas con HOME en el centro exacto (Índice 2)
 const SIDE_TABS_LEFT = [
@@ -102,6 +103,8 @@ export default function App() {
             <FoodScreen />
           ) : tab === 'train' ? (
             <TrainScreen />
+          ) : tab === 'measure' ? (
+            <MeasureScreen />
           ) : (
             <ComingSoonHUD
               title={currentLabel}
