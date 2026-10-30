@@ -16,12 +16,12 @@ import {
 } from 'react-native';
 import Svg, {
   Path,
-  Rect,
   Circle,
   G,
   Defs,
   LinearGradient as SvgGradient,
   Stop,
+  Line,
 } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -89,7 +89,7 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
   right_arm: {
     key: 'right_arm',
     label: 'Brazo derecho',
-    shortLabel: 'Brazo D',
+    shortLabel: 'Bíceps D',
     category: 'arms',
     interactive: true,
     view: 'both',
@@ -100,7 +100,7 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
   left_arm: {
     key: 'left_arm',
     label: 'Brazo izquierdo',
-    shortLabel: 'Brazo I',
+    shortLabel: 'Bíceps I',
     category: 'arms',
     interactive: true,
     view: 'both',
@@ -177,7 +177,7 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
   right_calf: {
     key: 'right_calf',
     label: 'Pantorilla derecha',
-    shortLabel: 'Pantorrilla D',
+    shortLabel: 'Gemelo D',
     category: 'legs',
     interactive: true,
     view: 'both',
@@ -188,7 +188,7 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
   left_calf: {
     key: 'left_calf',
     label: 'Pantorilla izquierda',
-    shortLabel: 'Pantorrilla I',
+    shortLabel: 'Gemelo I',
     category: 'legs',
     interactive: true,
     view: 'both',
@@ -242,7 +242,7 @@ export default function MeasureScreen() {
   const dayWeight = weightLogs[key];
   const dayPhotos = photoLogs[key] || [];
 
-  // Modelo del croquis: 'male' (Hombre musculoso/atlético) vs 'female' (Mujer esbelta/fit)
+  // Modelo del croquis: 'male' (Hombre musculoso) vs 'female' (Mujer esbelta/fit)
   const [genderModel, setGenderModel] = useState<GenderModel>('male');
   const [genderModalOpen, setGenderModalOpen] = useState(false);
 
@@ -326,26 +326,21 @@ export default function MeasureScreen() {
         >
           {tab === 0 ? (
             /* ==========================================================
-               PESTAÑA 1: MEDIDAS (Calendario + Peso + Croquis + Lista)
+               PESTAÑA 1: MEDIDAS (Calendario + Croquis con Peso integrado + Lista)
             ========================================================== */
             <View style={{ marginTop: 2 }}>
               {/* Botón de Calendario (por defecto hoy) */}
               <DateSelector date={date} onChange={setDate} />
 
-              {/* TARJETA DE PESO CORPORAL (Destacada y editable) */}
-              <BodyWeightCard
-                weight={dayWeight}
-                dateKeyStr={key}
-                onOpenEdit={() => setWeightModalOpen(true)}
-              />
-
-              {/* CROQUIS DEL CUERPO HUMANO TIPO ANIME */}
+              {/* CROQUIS DEL CUERPO HUMANO TIPO ANIME (Con peso integrado en esquina inferior izquierda) */}
               <AnimeBodyMapCard
                 genderModel={genderModel}
                 onOpenModelSelect={() => setGenderModalOpen(true)}
                 bodyView={bodyView}
                 onChangeView={setBodyView}
                 measurements={dayMeasurements}
+                weight={dayWeight}
+                onOpenWeightModal={() => setWeightModalOpen(true)}
                 onSelectPart={handlePartPress}
               />
 
@@ -414,66 +409,6 @@ export default function MeasureScreen() {
         />
       )}
     </View>
-  );
-}
-
-/* ==========================================================
-   TARJETA DE PESO CORPORAL DEL DÍA
-========================================================== */
-function BodyWeightCard({
-  weight,
-  dateKeyStr,
-  onOpenEdit,
-}: {
-  weight?: number;
-  dateKeyStr: string;
-  onOpenEdit: () => void;
-}) {
-  const hasWeight = weight !== undefined && weight > 0;
-
-  return (
-    <Pressable
-      onPress={onOpenEdit}
-      style={({ pressed }) => [
-        measureStyles.weightGlassCard,
-        pressed && s.btnPressed,
-      ]}
-    >
-      <LinearGradient
-        colors={['rgba(255, 255, 255, 0.98)', 'rgba(245, 248, 255, 0.94)']}
-        style={measureStyles.weightCardGradient}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={measureStyles.weightIconOrb}>
-            <Ionicons name="scale-outline" size={24} color={C.pastelPurple} />
-          </View>
-          <View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <Text style={measureStyles.weightTagLabel}>PESO CORPORAL</Text>
-              <View style={measureStyles.weightStatusDot} />
-            </View>
-            <Text style={measureStyles.weightSubLabel}>
-              {hasWeight ? 'Registro completado' : 'Toca para registrar peso del día'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          {hasWeight ? (
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-              <Text style={measureStyles.weightValueNumber}>{weight}</Text>
-              <Text style={measureStyles.weightValueUnit}>KG</Text>
-            </View>
-          ) : (
-            <View style={measureStyles.weightAddBadge}>
-              <Ionicons name="add" size={14} color="#FFFFFF" />
-              <Text style={measureStyles.weightAddBadgeText}>Añadir</Text>
-            </View>
-          )}
-          <Ionicons name="chevron-forward" size={16} color={C.subMuted} />
-        </View>
-      </LinearGradient>
-    </Pressable>
   );
 }
 
@@ -564,6 +499,8 @@ function AnimeBodyMapCard({
   bodyView,
   onChangeView,
   measurements,
+  weight,
+  onOpenWeightModal,
   onSelectPart,
 }: {
   genderModel: GenderModel;
@@ -571,6 +508,8 @@ function AnimeBodyMapCard({
   bodyView: 'front' | 'back';
   onChangeView: (v: 'front' | 'back') => void;
   measurements: DayMeasurements;
+  weight?: number;
+  onOpenWeightModal: () => void;
   onSelectPart: (p: BodyPartKey) => void;
 }) {
   const registeredCount = Object.keys(measurements).length;
@@ -610,7 +549,7 @@ function AnimeBodyMapCard({
                   />
                 </LinearGradient>
                 <View style={{ flex: 1 }}>
-                  <Text style={measureStyles.croquisSelectorTitle}>
+                  <Text style={measureStyles.croquisSelectorTitle} numberOfLines={1}>
                     {genderModel === 'male' ? 'Hombre (Musculoso)' : 'Mujer (Esbelta / Fit)'}
                   </Text>
                   <Text style={measureStyles.croquisSelectorHint}>
@@ -678,7 +617,7 @@ function AnimeBodyMapCard({
           </Pressable>
         </View>
 
-        {/* LIENZO SVG: SILUETA ANIME DEL CUERPO HUMANO */}
+        {/* LIENZO SVG: SILUETA ANIME DEL CUERPO HUMANO CON BURBUJAS Y PESO INTEGRADO */}
         <View style={measureStyles.bodySvgCanvasWrapper}>
           <AnimeBodyVector
             genderModel={genderModel}
@@ -686,6 +625,143 @@ function AnimeBodyMapCard({
             measurements={measurements}
             onSelectPart={onSelectPart}
           />
+
+          {/* BURBUJAS FLOTANTES DE MEDIDA (Frontal y Posterior) */}
+          <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+            {bodyView === 'front' ? (
+              <>
+                {/* 1. Pecho */}
+                <BodyMeasureBubble
+                  label="Pecho"
+                  value={measurements.chest}
+                  top={90}
+                  left={168}
+                  onPress={() => onSelectPart('chest')}
+                />
+
+                {/* 2. Bíceps Derecho */}
+                <BodyMeasureBubble
+                  label="Bíceps D"
+                  value={measurements.right_arm}
+                  top={112}
+                  left={6}
+                  onPress={() => onSelectPart('right_arm')}
+                />
+
+                {/* 3. Bíceps Izquierdo */}
+                <BodyMeasureBubble
+                  label="Bíceps I"
+                  value={measurements.left_arm}
+                  top={112}
+                  right={6}
+                  onPress={() => onSelectPart('left_arm')}
+                />
+
+                {/* 4. Cintura */}
+                <BodyMeasureBubble
+                  label="Cintura"
+                  value={measurements.waist}
+                  top={145}
+                  left={168}
+                  onPress={() => onSelectPart('waist')}
+                />
+
+                {/* 5. Muslo Derecho */}
+                <BodyMeasureBubble
+                  label="Muslo D"
+                  value={measurements.right_thigh}
+                  top={220}
+                  left={24}
+                  onPress={() => onSelectPart('right_thigh')}
+                />
+
+                {/* 6. Muslo Izquierdo */}
+                <BodyMeasureBubble
+                  label="Muslo I"
+                  value={measurements.left_thigh}
+                  top={220}
+                  right={24}
+                  onPress={() => onSelectPart('left_thigh')}
+                />
+
+                {/* 7. Gemelo Derecho (Pantorrilla D) */}
+                <BodyMeasureBubble
+                  label="Gemelo D"
+                  value={measurements.right_calf}
+                  top={322}
+                  left={18}
+                  onPress={() => onSelectPart('right_calf')}
+                />
+
+                {/* 8. Gemelo Izquierdo (Pantorrilla I) */}
+                <BodyMeasureBubble
+                  label="Gemelo I"
+                  value={measurements.left_calf}
+                  top={322}
+                  right={18}
+                  onPress={() => onSelectPart('left_calf')}
+                />
+              </>
+            ) : (
+              <>
+                {/* 1. Espalda */}
+                <BodyMeasureBubble
+                  label="Espalda"
+                  value={measurements.back}
+                  top={96}
+                  left={168}
+                  onPress={() => onSelectPart('back')}
+                />
+
+                {/* 2. Nalgas (Glúteos) */}
+                <BodyMeasureBubble
+                  label="Nalgas"
+                  value={measurements.glutes}
+                  top={162}
+                  left={168}
+                  onPress={() => onSelectPart('glutes')}
+                />
+
+                {/* 3. Antebrazo Derecho */}
+                <BodyMeasureBubble
+                  label="Antebrazo D"
+                  value={measurements.right_forearm}
+                  top={174}
+                  left={6}
+                  onPress={() => onSelectPart('right_forearm')}
+                />
+
+                {/* 4. Antebrazo Izquierdo */}
+                <BodyMeasureBubble
+                  label="Antebrazo I"
+                  value={measurements.left_forearm}
+                  top={174}
+                  right={6}
+                  onPress={() => onSelectPart('left_forearm')}
+                />
+              </>
+            )}
+
+            {/* WIDGET DE PESO INTEGRADO EN LA ESQUINA INFERIOR IZQUIERDA DEL CROQUIS */}
+            <Pressable
+              onPress={onOpenWeightModal}
+              style={({ pressed }) => [
+                measureStyles.integratedWeightWidget,
+                pressed && s.btnPressed,
+              ]}
+            >
+              <View style={measureStyles.integratedWeightIconCircle}>
+                <Ionicons name="scale-outline" size={14} color="#FFFFFF" />
+              </View>
+              <View>
+                <Text style={measureStyles.integratedWeightTag}>PESO</Text>
+                <Text style={measureStyles.integratedWeightValue}>
+                  {weight !== undefined && weight > 0 ? `${weight} kg` : '+ Añadir'}
+                </Text>
+              </View>
+              <Ionicons name="pencil-outline" size={11} color={C.pastelPurple} style={{ marginLeft: 3 }} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Leyenda interactiva inferior */}
@@ -696,7 +772,7 @@ function AnimeBodyMapCard({
           </View>
           <View style={measureStyles.legendItem}>
             <View style={[measureStyles.legendDot, { backgroundColor: 'rgba(167, 139, 250, 0.25)', borderColor: '#A78BFA', borderWidth: 1 }]} />
-            <Text style={measureStyles.legendLabel}>Por medir (Toca aquí)</Text>
+            <Text style={measureStyles.legendLabel}>Por medir (Toca burbuja)</Text>
           </View>
           <View style={measureStyles.legendItem}>
             <View style={[measureStyles.legendDot, { backgroundColor: 'rgba(203, 213, 225, 0.4)' }]} />
@@ -705,6 +781,66 @@ function AnimeBodyMapCard({
         </View>
       </LinearGradient>
     </View>
+  );
+}
+
+/* ==========================================================
+   BURBUJA FLOTANTE INTERACTIVA DE MEDIDA (SIEMPRE VISIBLE)
+========================================================== */
+function BodyMeasureBubble({
+  label,
+  value,
+  top,
+  left,
+  right,
+  onPress,
+}: {
+  label: string;
+  value?: number;
+  top: number;
+  left?: number;
+  right?: number;
+  onPress: () => void;
+}) {
+  const hasVal = value !== undefined && value > 0;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        measureStyles.floatingBubbleContainer,
+        { top },
+        left !== undefined && { left },
+        right !== undefined && { right },
+        pressed && s.btnPressed,
+      ]}
+    >
+      <View
+        style={[
+          measureStyles.floatingBubbleBadge,
+          hasVal
+            ? measureStyles.floatingBubbleBadgeActive
+            : measureStyles.floatingBubbleBadgeEmpty,
+        ]}
+      >
+        <Text
+          style={[
+            measureStyles.floatingBubbleLabel,
+            hasVal && measureStyles.floatingBubbleLabelActive,
+          ]}
+        >
+          {label}
+        </Text>
+        <Text
+          style={[
+            measureStyles.floatingBubbleValue,
+            hasVal && measureStyles.floatingBubbleValueActive,
+          ]}
+        >
+          {hasVal ? `${value} cm` : '+'}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -750,7 +886,7 @@ function GenderModelSelectModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={s.modalBackdrop} onPress={onClose}>
+      <Pressable style={measureStyles.modalBackdropOverlay} onPress={onClose}>
         <Pressable style={measureStyles.selectModelCard} onPress={(e) => e.stopPropagation()}>
           <View style={measureStyles.selectModelHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -808,7 +944,7 @@ function GenderModelSelectModal({
 }
 
 /* ==========================================================
-   VECTOR SVG: SILUETAS ANIME MUSCULOSAS Y ESBELTAS
+   VECTOR SVG: SILUETAS ANIME ANATÓMICAMENTE DETALLADAS
 ========================================================== */
 function AnimeBodyVector({
   genderModel,
@@ -834,10 +970,10 @@ function AnimeBodyVector({
     const isMeasured = val !== undefined && val > 0;
 
     const fillColor = isMeasured
-      ? 'rgba(139, 92, 246, 0.38)'
-      : 'rgba(238, 242, 255, 0.88)';
-    const strokeColor = isMeasured ? '#8B5CF6' : 'rgba(167, 139, 250, 0.65)';
-    const strokeWidth = isMeasured ? 2.4 : 1.5;
+      ? 'rgba(139, 92, 246, 0.4)'
+      : 'rgba(238, 242, 255, 0.9)';
+    const strokeColor = isMeasured ? '#8B5CF6' : 'rgba(167, 139, 250, 0.7)';
+    const strokeWidth = isMeasured ? 2.5 : 1.5;
 
     return (
       <G key={partKey} onPress={() => onSelectPart(partKey)}>
@@ -873,69 +1009,77 @@ function AnimeBodyVector({
           </SvgGradient>
 
           <SvgGradient id="animeHeadGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="rgba(241, 245, 249, 0.95)" />
-            <Stop offset="100%" stopColor="rgba(226, 232, 240, 0.85)" />
+            <Stop offset="0%" stopColor="rgba(241, 245, 249, 0.98)" />
+            <Stop offset="100%" stopColor="rgba(226, 232, 240, 0.9)" />
           </SvgGradient>
         </Defs>
 
-        {/* 1. CABEZA ANIME (No interactúa) */}
+        {/* 1. CABEZA ANIME DETALLADA (No interactúa) */}
         <G>
-          <Circle cx="150" cy="40" r="23" fill="rgba(203, 213, 225, 0.18)" />
+          <Circle cx="150" cy="38" r="23" fill="rgba(203, 213, 225, 0.16)" />
           {isMale ? (
-            /* Cabeza masculina con peinado anime puntiagudo */
-            <Path
-              d="M 150 14 C 134 14, 126 25, 126 40 C 126 53, 135 64, 144 68 L 143 76 L 157 76 L 156 68 C 165 64, 174 53, 174 40 C 174 25, 166 14, 150 14 Z"
-              fill="url(#animeHeadGrad)"
-              stroke="rgba(148, 163, 184, 0.65)"
-              strokeWidth="1.4"
-            />
+            /* Cabeza masculina anime con peinado puntiagudo y mandíbula marcada */
+            <>
+              <Path
+                d="M 150 12 C 132 12, 124 23, 124 39 C 124 53, 133 65, 143 69 L 142 77 L 158 77 L 157 69 C 167 65, 176 53, 176 39 C 176 23, 168 12, 150 12 Z"
+                fill="url(#animeHeadGrad)"
+                stroke="rgba(148, 163, 184, 0.7)"
+                strokeWidth="1.5"
+              />
+              {/* Mechones anime detallados */}
+              <Path d="M 130 26 Q 142 16 150 24 Q 158 16 170 26" stroke="rgba(167, 139, 250, 0.5)" strokeWidth="1.2" fill="none" />
+              <Path d="M 138 34 Q 150 28 162 34" stroke="rgba(167, 139, 250, 0.4)" strokeWidth="1.1" fill="none" />
+            </>
           ) : (
-            /* Cabeza femenina con peinado estilizado y cuello esbelto */
-            <Path
-              d="M 150 15 C 136 15, 128 26, 128 40 C 128 52, 136 63, 145 67 L 146 76 L 154 76 L 155 67 C 164 63, 172 52, 172 40 C 172 26, 164 15, 150 15 Z"
-              fill="url(#animeHeadGrad)"
-              stroke="rgba(148, 163, 184, 0.65)"
-              strokeWidth="1.4"
-            />
+            /* Cabeza femenina anime con mentón fino y peinado suave */
+            <>
+              <Path
+                d="M 150 14 C 135 14, 127 25, 127 39 C 127 52, 135 63, 144 68 L 145 77 L 155 77 L 156 68 C 165 63, 173 52, 173 39 C 173 25, 165 14, 150 14 Z"
+                fill="url(#animeHeadGrad)"
+                stroke="rgba(148, 163, 184, 0.7)"
+                strokeWidth="1.5"
+              />
+              <Path d="M 134 26 C 144 20, 156 20, 166 26" stroke="rgba(244, 114, 182, 0.5)" strokeWidth="1.2" fill="none" />
+            </>
           )}
-          {/* Cuello */}
+          {/* Cuello con trapecios */}
           <Path
-            d={isMale ? 'M 143 72 L 142 82 L 158 82 L 157 72 Z' : 'M 146 72 L 145 82 L 155 82 L 154 72 Z'}
+            d={isMale ? 'M 142 74 L 140 83 L 160 83 L 158 74 Z' : 'M 145 74 L 144 83 L 156 83 L 155 74 Z'}
+            fill="rgba(226, 232, 240, 0.9)"
+            stroke="rgba(148, 163, 184, 0.6)"
+            strokeWidth="1.2"
+          />
+        </G>
+
+        {/* 2. MANOS ANATÓMICAS (No interactúan) */}
+        <G>
+          <Path
+            d="M 44 218 C 42 224, 39 232, 42 238 C 44 242, 49 242, 51 236 L 53 218 Z"
             fill="rgba(226, 232, 240, 0.85)"
-            stroke="rgba(148, 163, 184, 0.5)"
-            strokeWidth="1.2"
+            stroke="rgba(148, 163, 184, 0.6)"
+            strokeWidth="1.3"
+          />
+          <Path
+            d="M 256 218 C 258 224, 261 232, 258 238 C 256 242, 251 242, 249 236 L 247 218 Z"
+            fill="rgba(226, 232, 240, 0.85)"
+            stroke="rgba(148, 163, 184, 0.6)"
+            strokeWidth="1.3"
           />
         </G>
 
-        {/* 2. MANOS (No interactúan) */}
+        {/* 3. PIES ANATÓMICOS (No interactúan) */}
         <G>
           <Path
-            d="M 44 218 C 42 224, 40 231, 43 236 C 45 240, 49 240, 51 235 L 53 218 Z"
-            fill="rgba(226, 232, 240, 0.8)"
-            stroke="rgba(148, 163, 184, 0.5)"
-            strokeWidth="1.2"
+            d="M 114 380 C 112 388, 107 396, 103 401 C 100 404, 107 406, 116 405 C 124 404, 126 399, 125 380 Z"
+            fill="rgba(226, 232, 240, 0.85)"
+            stroke="rgba(148, 163, 184, 0.6)"
+            strokeWidth="1.3"
           />
           <Path
-            d="M 256 218 C 258 224, 260 231, 257 236 C 255 240, 251 240, 249 235 L 247 218 Z"
-            fill="rgba(226, 232, 240, 0.8)"
-            stroke="rgba(148, 163, 184, 0.5)"
-            strokeWidth="1.2"
-          />
-        </G>
-
-        {/* 3. PIES (No interactúan) */}
-        <G>
-          <Path
-            d="M 114 380 C 112 388, 108 396, 104 400 C 101 403, 107 405, 116 404 C 124 403, 126 398, 125 380 Z"
-            fill="rgba(226, 232, 240, 0.8)"
-            stroke="rgba(148, 163, 184, 0.5)"
-            strokeWidth="1.2"
-          />
-          <Path
-            d="M 186 380 C 188 388, 192 396, 196 400 C 199 403, 193 405, 184 404 C 176 403, 174 398, 175 380 Z"
-            fill="rgba(226, 232, 240, 0.8)"
-            stroke="rgba(148, 163, 184, 0.5)"
-            strokeWidth="1.2"
+            d="M 186 380 C 188 388, 193 396, 197 401 C 200 404, 193 406, 184 405 C 176 404, 174 399, 175 380 Z"
+            fill="rgba(226, 232, 240, 0.85)"
+            stroke="rgba(148, 163, 184, 0.6)"
+            strokeWidth="1.3"
           />
         </G>
 
@@ -947,66 +1091,75 @@ function AnimeBodyVector({
             {isMale ? (
               /* --- HOMBRE FRONTAL (Musculoso / V-Taper) --- */
               <>
-                {/* PECHO - Pectorales Marcados */}
+                {/* Clavículas & Trapecios decorativos */}
+                <Line x1="141" y1="83" x2="110" y2="87" stroke="rgba(148, 163, 184, 0.45)" strokeWidth="1.2" />
+                <Line x1="159" y1="83" x2="190" y2="87" stroke="rgba(148, 163, 184, 0.45)" strokeWidth="1.2" />
+
+                {/* PECHO - Pectorales Esculpidos con surco esternal */}
                 {renderMuscleSection(
                   'chest',
-                  'M 139 82 C 114 82, 98 90, 88 102 C 82 116, 90 132, 115 135 C 133 137, 146 130, 150 118 C 154 130, 167 137, 185 135 C 210 132, 218 116, 212 102 C 202 90, 186 82, 161 82 Z',
+                  'M 140 82 C 114 82, 97 90, 86 102 C 80 116, 88 133, 114 136 C 132 138, 146 131, 150 119 C 154 131, 168 138, 186 136 C 212 133, 220 116, 214 102 C 203 90, 186 82, 160 82 Z',
                   150,
                   108
                 )}
 
-                {/* CINTURA - Oblicuos & Core atlético */}
+                {/* CINTURA - Oblicuos & Core Atlético en V */}
                 {renderMuscleSection(
                   'waist',
-                  'M 115 135 C 133 137, 147 130, 150 119 C 153 130, 167 137, 185 135 L 178 178 C 164 182, 136 182, 122 178 Z',
+                  'M 114 136 C 132 138, 147 131, 150 120 C 153 131, 168 138, 186 136 L 178 178 C 164 183, 136 183, 122 178 Z',
                   150,
                   155
                 )}
 
-                {/* BRAZO D - Bíceps esculpido */}
+                {/* Líneas de definición abdominal (Six-pack) */}
+                <Line x1="150" y1="126" x2="150" y2="176" stroke="rgba(167, 139, 250, 0.45)" strokeWidth="1.2" />
+                <Line x1="136" y1="145" x2="164" y2="145" stroke="rgba(167, 139, 250, 0.35)" strokeWidth="1.1" />
+                <Line x1="138" y1="160" x2="162" y2="160" stroke="rgba(167, 139, 250, 0.35)" strokeWidth="1.1" />
+
+                {/* BRAZO D - Deltoides & Bíceps marcado */}
                 {renderMuscleSection(
                   'right_arm',
-                  'M 86 96 C 76 96, 64 107, 60 124 C 55 139, 54 153, 58 159 L 77 159 C 83 148, 88 132, 90 114 Z',
-                  72,
+                  'M 85 96 C 75 96, 63 107, 59 124 C 54 139, 53 153, 57 159 L 76 159 C 82 148, 87 132, 89 114 Z',
+                  71,
                   128
                 )}
 
-                {/* BRAZO I - Bíceps esculpido */}
+                {/* BRAZO I - Deltoides & Bíceps marcado */}
                 {renderMuscleSection(
                   'left_arm',
-                  'M 214 96 C 224 96, 236 107, 240 124 C 245 139, 246 153, 242 159 L 223 159 C 217 148, 212 132, 210 114 Z',
-                  228,
+                  'M 215 96 C 225 96, 237 107, 241 124 C 246 139, 247 153, 243 159 L 224 159 C 218 148, 213 132, 211 114 Z',
+                  229,
                   128
                 )}
 
                 {/* ANTEBRAZO D */}
                 {renderMuscleSection(
                   'right_forearm',
-                  'M 58 161 L 76 161 C 74 180, 68 200, 52 218 L 43 218 C 45 198, 52 176, 58 161 Z',
-                  60,
+                  'M 57 161 L 75 161 C 73 180, 67 200, 51 218 L 43 218 C 45 198, 51 176, 57 161 Z',
+                  59,
                   188
                 )}
 
                 {/* ANTEBRAZO I */}
                 {renderMuscleSection(
                   'left_forearm',
-                  'M 242 161 L 224 161 C 226 180, 232 200, 248 218 L 257 218 C 255 198, 248 176, 242 161 Z',
-                  240,
+                  'M 243 161 L 225 161 C 227 180, 233 200, 249 218 L 257 218 C 255 198, 249 176, 243 161 Z',
+                  241,
                   188
                 )}
 
-                {/* MUSLO D - Cuádriceps con corte lateral */}
+                {/* MUSLO D - Cuádriceps con barrido de vasto lateral y medial */}
                 {renderMuscleSection(
                   'right_thigh',
-                  'M 122 179 L 148 180 L 144 246 C 141 268, 137 284, 128 290 L 108 290 C 101 278, 98 250, 102 220 C 106 195, 114 184, 122 179 Z',
+                  'M 122 179 L 148 180 L 144 246 C 141 268, 137 284, 128 290 L 108 290 C 101 278, 97 250, 101 220 C 105 195, 114 184, 122 179 Z',
                   124,
                   234
                 )}
 
-                {/* MUSLO I - Cuádriceps con corte lateral */}
+                {/* MUSLO I - Cuádriceps con barrido de vasto lateral y medial */}
                 {renderMuscleSection(
                   'left_thigh',
-                  'M 178 179 L 152 180 L 156 246 C 159 268, 163 284, 172 290 L 192 290 C 199 278, 202 250, 198 220 C 194 195, 186 184, 178 179 Z',
+                  'M 178 179 L 152 180 L 156 246 C 159 268, 163 284, 172 290 L 192 290 C 199 278, 203 250, 199 220 C 195 195, 186 184, 178 179 Z',
                   176,
                   234
                 )}
@@ -1030,6 +1183,9 @@ function AnimeBodyVector({
             ) : (
               /* --- MUJER FRONTAL (Esbelta / Fit Hourglass) --- */
               <>
+                <Line x1="143" y1="83" x2="116" y2="86" stroke="rgba(244, 114, 182, 0.4)" strokeWidth="1.1" />
+                <Line x1="157" y1="83" x2="184" y2="86" stroke="rgba(244, 114, 182, 0.4)" strokeWidth="1.1" />
+
                 {/* PECHO - Tonificado y Femenino */}
                 {renderMuscleSection(
                   'chest',
@@ -1045,6 +1201,9 @@ function AnimeBodyVector({
                   150,
                   152
                 )}
+
+                {/* Línea sutil de abdomen plano femenino */}
+                <Line x1="150" y1="124" x2="150" y2="172" stroke="rgba(244, 114, 182, 0.35)" strokeWidth="1.1" />
 
                 {/* BRAZO D - Esbelto y Tonificado */}
                 {renderMuscleSection(
@@ -1094,7 +1253,7 @@ function AnimeBodyVector({
                   234
                 )}
 
-                {/* PANTORRILLA D */}
+                {/* PANTORRILLA D - Estilizada */}
                 {renderMuscleSection(
                   'right_calf',
                   'M 110 292 L 126 292 C 128 312, 130 342, 124 378 L 114 378 C 106 346, 104 318, 110 292 Z',
@@ -1102,7 +1261,7 @@ function AnimeBodyVector({
                   334
                 )}
 
-                {/* PANTORRILLA I */}
+                {/* PANTORRILLA I - Estilizada */}
                 {renderMuscleSection(
                   'left_calf',
                   'M 190 292 L 174 292 C 172 312, 170 342, 176 378 L 186 378 C 194 346, 196 318, 190 292 Z',
@@ -1122,13 +1281,17 @@ function AnimeBodyVector({
             {isMale ? (
               /* --- HOMBRE POSTERIOR (Espalda V-Taper, Glúteos) --- */
               <>
-                {/* ESPALDA - Gran Dorsal y Trapecios */}
+                {/* ESPALDA - Gran Dorsal y Trapecios en V */}
                 {renderMuscleSection(
                   'back',
                   'M 141 82 L 159 82 C 184 84, 204 92, 214 104 C 220 118, 210 138, 188 146 C 174 150, 150 152, 150 152 C 150 152, 126 150, 112 146 C 90 138, 80 118, 86 104 C 96 92, 116 84, 141 82 Z',
                   150,
                   116
                 )}
+
+                {/* Escápulas y corte dorsal */}
+                <Line x1="150" y1="84" x2="150" y2="150" stroke="rgba(167, 139, 250, 0.45)" strokeWidth="1.2" />
+                <Path d="M 132 108 Q 140 120 150 126 Q 160 120 168 108" stroke="rgba(167, 139, 250, 0.35)" strokeWidth="1.1" fill="none" />
 
                 {/* NALGAS / GLÚTEOS - Redondeados y firmes */}
                 {renderMuscleSection(
@@ -1186,7 +1349,7 @@ function AnimeBodyVector({
                   248
                 )}
 
-                {/* PANTORRILLA D - Gemelos */}
+                {/* PANTORRILLA D - Gemelos posteriores */}
                 {renderMuscleSection(
                   'right_calf',
                   'M 108 292 L 128 292 C 132 314, 134 342, 125 378 L 113 378 C 103 346, 102 318, 108 292 Z',
@@ -1194,7 +1357,7 @@ function AnimeBodyVector({
                   334
                 )}
 
-                {/* PANTORRILLA I - Gemelos */}
+                {/* PANTORRILLA I - Gemelos posteriores */}
                 {renderMuscleSection(
                   'left_calf',
                   'M 192 292 L 172 292 C 168 314, 166 342, 175 378 L 187 378 C 197 346, 198 318, 192 292 Z',
@@ -1212,6 +1375,8 @@ function AnimeBodyVector({
                   150,
                   114
                 )}
+
+                <Line x1="150" y1="84" x2="150" y2="146" stroke="rgba(244, 114, 182, 0.4)" strokeWidth="1.1" />
 
                 {/* NALGAS / GLÚTEOS - Curvatura pronunciada y estética */}
                 {renderMuscleSection(
@@ -1289,153 +1454,7 @@ function AnimeBodyVector({
           </G>
         )}
       </Svg>
-
-      {/* CHIPS FLOTANTES CLICKEABLES CON LAS MEDIDAS REGISTRADAS */}
-      {view === 'front' ? (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          {/* Pecho Chip */}
-          {measurements.chest !== undefined && (
-            <FloatingMeasureChip
-              label="Pecho"
-              value={measurements.chest}
-              top={92}
-              left={175}
-              onPress={() => onSelectPart('chest')}
-            />
-          )}
-
-          {/* Cintura Chip */}
-          {measurements.waist !== undefined && (
-            <FloatingMeasureChip
-              label="Cintura"
-              value={measurements.waist}
-              top={145}
-              left={180}
-              onPress={() => onSelectPart('waist')}
-            />
-          )}
-
-          {/* Brazo Derecho */}
-          {measurements.right_arm !== undefined && (
-            <FloatingMeasureChip
-              label="Bíceps D"
-              value={measurements.right_arm}
-              top={118}
-              left={8}
-              onPress={() => onSelectPart('right_arm')}
-            />
-          )}
-
-          {/* Brazo Izquierdo */}
-          {measurements.left_arm !== undefined && (
-            <FloatingMeasureChip
-              label="Bíceps I"
-              value={measurements.left_arm}
-              top={118}
-              left={220}
-              onPress={() => onSelectPart('left_arm')}
-            />
-          )}
-
-          {/* Muslo Derecho */}
-          {measurements.right_thigh !== undefined && (
-            <FloatingMeasureChip
-              label="Muslo D"
-              value={measurements.right_thigh}
-              top={224}
-              left={38}
-              onPress={() => onSelectPart('right_thigh')}
-            />
-          )}
-
-          {/* Muslo Izquierdo */}
-          {measurements.left_thigh !== undefined && (
-            <FloatingMeasureChip
-              label="Muslo I"
-              value={measurements.left_thigh}
-              top={224}
-              left={192}
-              onPress={() => onSelectPart('left_thigh')}
-            />
-          )}
-        </View>
-      ) : (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          {/* Espalda Chip */}
-          {measurements.back !== undefined && (
-            <FloatingMeasureChip
-              label="Espalda"
-              value={measurements.back}
-              top={105}
-              left={180}
-              onPress={() => onSelectPart('back')}
-            />
-          )}
-
-          {/* Nalgas Chip */}
-          {measurements.glutes !== undefined && (
-            <FloatingMeasureChip
-              label="Nalgas"
-              value={measurements.glutes}
-              top={172}
-              left={180}
-              onPress={() => onSelectPart('glutes')}
-            />
-          )}
-
-          {/* Pantorrilla Derecha */}
-          {measurements.right_calf !== undefined && (
-            <FloatingMeasureChip
-              label="Gemelo D"
-              value={measurements.right_calf}
-              top={324}
-              left={36}
-              onPress={() => onSelectPart('right_calf')}
-            />
-          )}
-
-          {/* Pantorrilla Izquierda */}
-          {measurements.left_calf !== undefined && (
-            <FloatingMeasureChip
-              label="Gemelo I"
-              value={measurements.left_calf}
-              top={324}
-              left={192}
-              onPress={() => onSelectPart('left_calf')}
-            />
-          )}
-        </View>
-      )}
     </View>
-  );
-}
-
-/* ==========================================================
-   CHIP FLOTANTE DE MEDIDA SOBRE EL CROQUIS
-========================================================== */
-function FloatingMeasureChip({
-  label,
-  value,
-  top,
-  left,
-  onPress,
-}: {
-  label: string;
-  value: number;
-  top: number;
-  left: number;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[measureStyles.floatingChipContainer, { top, left }]}
-    >
-      <View style={measureStyles.floatingChipBadge}>
-        <Text style={measureStyles.floatingChipLabel}>{label}</Text>
-        <Text style={measureStyles.floatingChipValue}>{value} cm</Text>
-      </View>
-    </Pressable>
   );
 }
 
@@ -1540,7 +1559,7 @@ function MeasurementsSummaryGrid({
 }
 
 /* ==========================================================
-   MODAL PARA AGREGAR O EDITAR LA MEDIDA (Anti-Keyboard Overlay)
+   MODAL PARA AGREGAR O EDITAR LA MEDIDA (PERFECTO Y CENTRADO)
 ========================================================== */
 function MeasurementEditModal({
   visible,
@@ -1561,7 +1580,7 @@ function MeasurementEditModal({
 }) {
   const info = BODY_PARTS_INFO[partKey];
   const [valStr, setValStr] = useState<string>(
-    currentValue !== undefined ? String(currentValue) : String(info.defaultAvg || 30)
+    currentValue !== undefined ? String(currentValue) : ''
   );
 
   const numVal = parseFloat(valStr) || (info.defaultAvg || 30);
@@ -1584,11 +1603,11 @@ function MeasurementEditModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={s.modalBackdrop} onPress={onClose}>
+      <Pressable style={measureStyles.modalBackdropOverlay} onPress={onClose}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-          style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 30 : 0}
+          style={measureStyles.modalKeyboardContainer}
         >
           <ScrollView
             contentContainerStyle={measureStyles.modalScrollWrapper}
@@ -1598,18 +1617,18 @@ function MeasurementEditModal({
             <Pressable style={measureStyles.modalDialogCard} onPress={(e) => e.stopPropagation()}>
               {/* Cabecera del Modal */}
               <View style={measureStyles.modalHeaderRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                   <View style={measureStyles.modalIconCircle}>
                     <Ionicons name={info.icon} size={20} color={C.pastelPurple} />
                   </View>
-                  <View>
-                    <Text style={measureStyles.modalTitle}>{info.label}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={measureStyles.modalTitle} numberOfLines={1}>{info.label}</Text>
                     <Text style={measureStyles.modalSubtitle}>Fecha: {dateKeyStr}</Text>
                   </View>
                 </View>
 
-                <Pressable onPress={onClose} style={measureStyles.modalCloseBtn}>
-                  <Ionicons name="close" size={20} color={C.sub} />
+                <Pressable onPress={onClose} style={measureStyles.modalCloseBtn} hitSlop={10}>
+                  <Ionicons name="close" size={22} color={C.sub} />
                 </Pressable>
               </View>
 
@@ -1654,7 +1673,7 @@ function MeasurementEditModal({
                 </View>
               </View>
 
-              {/* Botones de Acción (Siempre Visibles) */}
+              {/* Botones de Acción (Siempre Visibles y centrados) */}
               <View style={measureStyles.modalActionsRow}>
                 {currentValue !== undefined && (
                   <Pressable
@@ -1691,7 +1710,7 @@ function MeasurementEditModal({
 }
 
 /* ==========================================================
-   MODAL PARA AGREGAR / EDITAR PESO CORPORAL
+   MODAL PARA AGREGAR / EDITAR PESO CORPORAL (CENTRADO)
 ========================================================== */
 function WeightEditModal({
   visible,
@@ -1709,7 +1728,7 @@ function WeightEditModal({
   onDelete: () => void;
 }) {
   const [valStr, setValStr] = useState<string>(
-    currentWeight !== undefined ? String(currentWeight) : '75.0'
+    currentWeight !== undefined ? String(currentWeight) : ''
   );
 
   const numVal = parseFloat(valStr) || 75.0;
@@ -1732,11 +1751,11 @@ function WeightEditModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={s.modalBackdrop} onPress={onClose}>
+      <Pressable style={measureStyles.modalBackdropOverlay} onPress={onClose}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-          style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 30 : 0}
+          style={measureStyles.modalKeyboardContainer}
         >
           <ScrollView
             contentContainerStyle={measureStyles.modalScrollWrapper}
@@ -1746,18 +1765,18 @@ function WeightEditModal({
             <Pressable style={measureStyles.modalDialogCard} onPress={(e) => e.stopPropagation()}>
               {/* Header */}
               <View style={measureStyles.modalHeaderRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                   <View style={[measureStyles.modalIconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
                     <Ionicons name="scale-outline" size={20} color="#10B981" />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={measureStyles.modalTitle}>Peso Corporal</Text>
                     <Text style={measureStyles.modalSubtitle}>Fecha: {dateKeyStr}</Text>
                   </View>
                 </View>
 
-                <Pressable onPress={onClose} style={measureStyles.modalCloseBtn}>
-                  <Ionicons name="close" size={20} color={C.sub} />
+                <Pressable onPress={onClose} style={measureStyles.modalCloseBtn} hitSlop={10}>
+                  <Ionicons name="close" size={22} color={C.sub} />
                 </Pressable>
               </View>
 
@@ -1969,78 +1988,6 @@ const measureStyles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  // Tarjeta de Peso Corporal
-  weightGlassCard: {
-    borderRadius: 18,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: C.borderLight,
-    overflow: 'hidden',
-    backgroundColor: C.bgCard,
-    shadowColor: C.pastelPurple,
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  weightCardGradient: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  weightIconOrb: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(167, 139, 250, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  weightTagLabel: {
-    color: C.pastelPurple,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  weightStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  weightSubLabel: {
-    color: C.sub,
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  weightValueNumber: {
-    color: C.text,
-    fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  weightValueUnit: {
-    color: C.pastelPurple,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  weightAddBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: C.pastelPurple,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  weightAddBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-
   // Tarjeta de Croquis
   croquisGlassCard: {
     borderRadius: 22,
@@ -2183,6 +2130,7 @@ const measureStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 4,
+    position: 'relative',
   },
   svgContainer: {
     width: 300,
@@ -2192,32 +2140,95 @@ const measureStyles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Chips flotantes sobre la silueta
-  floatingChipContainer: {
+  // Burbujas de medida sobre la silueta (Interactivas)
+  floatingBubbleContainer: {
     position: 'absolute',
     zIndex: 10,
   },
-  floatingChipBadge: {
-    backgroundColor: '#FFFFFF',
+  floatingBubbleBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
-    borderWidth: 1.2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 52,
+  },
+  floatingBubbleBadgeActive: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
     borderColor: '#8B5CF6',
     shadowColor: '#8B5CF6',
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
     elevation: 3,
-    alignItems: 'center',
   },
-  floatingChipLabel: {
+  floatingBubbleBadgeEmpty: {
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1.2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(167, 139, 250, 0.6)',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  floatingBubbleLabel: {
     color: C.sub,
     fontSize: 8.5,
     fontWeight: '700',
   },
-  floatingChipValue: {
+  floatingBubbleLabelActive: {
+    color: C.text,
+    fontWeight: '800',
+  },
+  floatingBubbleValue: {
+    color: C.pastelPurple,
+    fontSize: 10.5,
+    fontWeight: '900',
+  },
+  floatingBubbleValueActive: {
     color: '#8B5CF6',
     fontSize: 11,
+    fontWeight: '900',
+  },
+
+  // Widget de Peso integrado en la esquina inferior izquierda del croquis
+  integratedWeightWidget: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.16,
+    shadowRadius: 6,
+    elevation: 3,
+    zIndex: 15,
+  },
+  integratedWeightIconCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  integratedWeightTag: {
+    color: '#10B981',
+    fontSize: 8.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  integratedWeightValue: {
+    color: C.text,
+    fontSize: 12,
     fontWeight: '900',
   },
 
@@ -2341,22 +2352,35 @@ const measureStyles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Modal de Edición
+  // Modal Backdrop y Diálogo Centrado (Anti-Overflow & Anti-Keyboard Overlay)
+  modalBackdropOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalKeyboardContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalScrollWrapper: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    width: '100%',
   },
   modalDialogCard: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 340,
+    alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.16,
     shadowRadius: 20,
     elevation: 8,
   },
@@ -2376,7 +2400,7 @@ const measureStyles = StyleSheet.create({
   },
   modalTitle: {
     color: C.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
   },
   modalSubtitle: {
@@ -2394,7 +2418,7 @@ const measureStyles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 12,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 18,
     borderWidth: 1,
     borderColor: C.borderLight,
   },
@@ -2412,7 +2436,7 @@ const measureStyles = StyleSheet.create({
   },
   numberInputBig: {
     color: C.text,
-    fontSize: 40,
+    fontSize: 38,
     fontWeight: '900',
     textAlign: 'center',
     minWidth: 100,
@@ -2429,7 +2453,7 @@ const measureStyles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 6,
-    marginTop: 12,
+    marginTop: 10,
   },
   stepperBtn: {
     backgroundColor: '#FFFFFF',
@@ -2467,12 +2491,13 @@ const measureStyles = StyleSheet.create({
   // Modal Selector de Modelo
   selectModelCard: {
     width: '90%',
-    maxWidth: 380,
+    maxWidth: 350,
+    alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.16,
     shadowRadius: 20,
     elevation: 8,
   },
@@ -2484,7 +2509,7 @@ const measureStyles = StyleSheet.create({
   },
   selectModelTitle: {
     color: C.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
   },
   selectModelDescription: {
@@ -2511,21 +2536,21 @@ const measureStyles = StyleSheet.create({
     elevation: 3,
   },
   modelOptionIconGradient: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modelOptionTitle: {
     color: C.text,
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '900',
   },
   modelOptionSubtitle: {
     color: C.sub,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 10.5,
+    lineHeight: 14,
     marginTop: 2,
   },
   activeModelTag: {
