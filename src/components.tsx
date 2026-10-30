@@ -972,7 +972,7 @@ function ItemRow({
             style={({ pressed }) => [s.gramsUnitBadge, pressed && s.btnPressed]}
           >
             <Text style={s.gramsUnitText}>{currentUnit}</Text>
-            <Ionicons name="swap-vertical" size={10} color={C.pastelPurple} />
+            <Ionicons name="swap-vertical" size={10} color="#94A3B8" />
           </Pressable>
         </View>
 
@@ -1667,16 +1667,16 @@ export const s = StyleSheet.create({
     gap: 3,
     marginLeft: 4,
     paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    paddingVertical: 3,
+    borderRadius: 7,
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.25)',
+    borderColor: '#CBD5E1',
   },
   gramsUnitText: {
-    color: C.pastelPurple,
+    color: '#64748B',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   deleteItemBtn: {
     padding: 6,

@@ -1955,7 +1955,7 @@ function ExerciseFormModal({
           style={styles.formModalSheetContainer}
         >
           <View style={styles.formModalSheetContent}>
-            <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ flex: 1 }}>
+            <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ paddingBottom: Platform.OS === 'ios' ? 24 : 16 }}>
               {/* Header con botón de cerrar */}
               <View style={styles.formModalHeaderPadding}>
                 <View style={styles.sheetHandleBar} />
@@ -1976,13 +1976,8 @@ function ExerciseFormModal({
                 </View>
               </View>
 
-              {/* Contenido scrolleable del formulario */}
-              <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
-                keyboardShouldPersistTaps="always"
-                showsVerticalScrollIndicator={false}
-              >
+              {/* Contenido del formulario visible completo sin scroll-Y innecesario */}
+              <View style={{ paddingHorizontal: 20 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <Text style={styles.fieldLabel}>Nombre del ejercicio</Text>
                   <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
@@ -1990,7 +1985,7 @@ function ExerciseFormModal({
                   </Pressable>
                 </View>
 
-                <View style={[styles.fieldInputBox, { marginBottom: 16 }]}>
+                <View style={[styles.fieldInputBox, { marginBottom: 14 }]}>
                   <Ionicons name="barbell-outline" size={18} color={C.pastelPurple} style={{ marginLeft: 12 }} />
                   <TextInput
                     value={name}
@@ -2011,7 +2006,7 @@ function ExerciseFormModal({
 
                 {/* Selector de Tipo de Ejercicio */}
                 <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Tipo de Medición</Text>
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
                   <Pressable
                     onPress={() => setExerciseType('reps')}
                     style={[
@@ -2061,7 +2056,7 @@ function ExerciseFormModal({
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 8, paddingVertical: 4, marginBottom: 12 }}
+                  contentContainerStyle={{ gap: 8, paddingVertical: 4, marginBottom: 16 }}
                 >
                   {MUSCLE_GROUPS.filter((g) => g !== 'Todos').map((g) => {
                     const active = muscleGroup === g;
@@ -2090,9 +2085,9 @@ function ExerciseFormModal({
                     );
                   })}
                 </ScrollView>
-              </ScrollView>
+              </View>
 
-              {/* Botón Guardar FIJO en el pie del modal con Safe Area garantizada */}
+              {/* Botón Guardar en el pie del modal */}
               <View style={styles.modalStickyFooter}>
                 <Pressable
                   onPress={handleSave}
@@ -2894,8 +2889,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   formModalSheetContent: {
-    height: 430,
-    maxHeight: '84%',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
@@ -2913,11 +2906,7 @@ const styles = StyleSheet.create({
   },
   modalStickyFooter: {
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: C.borderLight,
+    paddingTop: 8,
   },
   primarySaveBtn: {
     borderRadius: 14,

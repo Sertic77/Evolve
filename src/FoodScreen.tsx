@@ -626,7 +626,7 @@ function IngredientsList() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.ingredientCardTitle}>{ing.name}</Text>
               <View style={styles.servingBadge}>
-                <Ionicons name="scale-outline" size={11} color={C.pastelPurple} />
+                <Ionicons name="scale-outline" size={11} color="#94A3B8" />
                 <Text style={styles.servingBadgeText}>por {ing.servingGrams}{ing.unit || 'g'}</Text>
               </View>
             </View>
@@ -779,7 +779,7 @@ function IngredientFormModal({
                       <Ionicons
                         name={u.icon as any}
                         size={13}
-                        color={active ? '#FFFFFF' : C.sub}
+                        color={active ? '#334155' : '#94A3B8'}
                       />
                       <Text style={[styles.unitPillText, active && styles.unitPillTextActive]}>
                         {u.label}
@@ -1296,15 +1296,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    backgroundColor: 'transparent',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: '#CBD5E1',
   },
   servingBadgeText: {
-    color: C.pastelPurple,
+    color: '#64748B',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -1379,25 +1379,26 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: C.borderLight,
+    borderColor: '#E2E8F0',
   },
   unitPillBtnActive: {
-    backgroundColor: C.pastelPurple,
-    borderColor: C.pastelPurple,
-    shadowColor: C.pastelPurple,
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#94A3B8',
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   unitPillText: {
-    color: C.sub,
+    color: '#94A3B8',
     fontSize: 12,
     fontWeight: '700',
   },
   unitPillTextActive: {
-    color: '#FFFFFF',
+    color: C.text,
     fontWeight: '800',
   },
 
