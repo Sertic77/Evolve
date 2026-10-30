@@ -349,13 +349,16 @@ function WorkoutDynamicChart({
   const floatAnim1 = useRef(new Animated.Value(0)).current;
   const floatAnim2 = useRef(new Animated.Value(0)).current;
 
-  // Animación viva de respiración y resplandor para la llama de Kcal
-  const flameAnim = useRef(new Animated.Value(1)).current;
-  const flameGlowAnim = useRef(new Animated.Value(0.8)).current;
+  // Animación viva de movimiento, flotación, inclinación y respiración para la llama de Kcal
+  const flameScale = useRef(new Animated.Value(1)).current;
+  const flameTranslateY = useRef(new Animated.Value(0)).current;
+  const flameRotate = useRef(new Animated.Value(0)).current;
+  const flameAura = useRef(new Animated.Value(0.4)).current;
 
   // Rotación automática de estadísticas cuando no hay ejercicio seleccionado
   const [statIndex, setStatIndex] = useState(0);
   const statFadeAnim = useRef(new Animated.Value(1)).current;
+  const statSlideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(heightAnim, {
@@ -366,41 +369,84 @@ function WorkoutDynamicChart({
     }).start();
   }, [tab]);
 
+  // Animación continua y viva de la llamita de fuego
   useEffect(() => {
-    const flameLoop = Animated.loop(
+    const pulseLoop = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(flameAnim, {
-            toValue: 1.22,
-            duration: 850,
-            easing: Easing.inOut(Easing.quad),
+          Animated.timing(flameScale, {
+            toValue: 1.25,
+            duration: 750,
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
-          Animated.timing(flameGlowAnim, {
-            toValue: 1,
-            duration: 850,
-            easing: Easing.inOut(Easing.quad),
+          Animated.timing(flameAura, {
+            toValue: 0.85,
+            duration: 750,
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
-          Animated.timing(flameAnim, {
+          Animated.timing(flameScale, {
             toValue: 0.94,
-            duration: 850,
-            easing: Easing.inOut(Easing.quad),
+            duration: 750,
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
-          Animated.timing(flameGlowAnim, {
-            toValue: 0.65,
-            duration: 850,
-            easing: Easing.inOut(Easing.quad),
+          Animated.timing(flameAura, {
+            toValue: 0.35,
+            duration: 750,
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
         ]),
       ]),
     );
-    flameLoop.start();
-    return () => flameLoop.stop();
+
+    const bobbingLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(flameTranslateY, {
+          toValue: -4,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(flameTranslateY, {
+          toValue: 2,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    const tiltLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(flameRotate, {
+          toValue: 1,
+          duration: 480,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(flameRotate, {
+          toValue: -1,
+          duration: 480,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    pulseLoop.start();
+    bobbingLoop.start();
+    tiltLoop.start();
+
+    return () => {
+      pulseLoop.stop();
+      bobbingLoop.stop();
+      tiltLoop.stop();
+    };
   }, []);
 
   useEffect(() => {
@@ -622,28 +668,47 @@ function WorkoutDynamicChart({
     return [...allRecords, ...demoRecords.slice(0, 3)];
   }, [workoutLogs, exercises]);
 
-  // Ciclo de rotación de estadísticas automáticas cada 3.8s
+  // Ciclo de rotación de estadísticas automáticas cada 4s (ULTRA SMOOTH, SIN PARPADEO)
   useEffect(() => {
     if (tab !== 1 || selectedExerciseId !== null) return;
 
     const interval = setInterval(() => {
-      Animated.sequence([
+      // 1. Transición de salida: fade out y ligero ascenso suave
+      Animated.parallel([
         Animated.timing(statFadeAnim, {
           toValue: 0,
           duration: 250,
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-        Animated.timing(statFadeAnim, {
-          toValue: 1,
-          duration: 350,
-          easing: Easing.out(Easing.cubic),
+        Animated.timing(statSlideAnim, {
+          toValue: -8,
+          duration: 250,
+          easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        // 2. Cambiamos el índice cuando la opacidad es 0 EXACTA (cero parpadeo)
+        setStatIndex((prev) => (prev + 1) % autoRotateStats.length);
+        statSlideAnim.setValue(8);
 
-      setStatIndex((prev) => (prev + 1) % autoRotateStats.length);
-    }, 3800);
+        // 3. Transición de entrada: fade in y regreso suave a posición
+        Animated.parallel([
+          Animated.timing(statFadeAnim, {
+            toValue: 1,
+            duration: 350,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(statSlideAnim, {
+            toValue: 0,
+            duration: 350,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [tab, selectedExerciseId, autoRotateStats.length]);
@@ -711,6 +776,12 @@ function WorkoutDynamicChart({
   const transX2 = floatAnim2.interpolate({ inputRange: [0, 1], outputRange: [20, -25] });
   const transY2 = floatAnim2.interpolate({ inputRange: [0, 1], outputRange: [15, -15] });
 
+  // Interpolación de oscilación angular de la llama de fuego
+  const flameRotateDeg = flameRotate.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-6deg', '0deg', '6deg'],
+  });
+
   const rangeLabel = timeRangeDays === 7 ? '7 días' : timeRangeDays === 30 ? '30 días' : timeRangeDays === 90 ? '3 meses' : 'Todo';
 
   return (
@@ -749,7 +820,7 @@ function WorkoutDynamicChart({
           )}
         </View>
 
-        {/* MODO 1: GRÁFICA RESUMEN DE SESIÓN DIARIA (KCAL QUEMADAS EN ROJO + LLAMA GRANDE ANIMADA) */}
+        {/* MODO 1: GRÁFICA RESUMEN DE SESIÓN DIARIA (KCAL QUEMADAS EN ROJO + LLAMA VIVA EN MOVIMIENTO) */}
         {tab === 0 && (
           <View style={styles.dayWorkoutSummaryRow}>
             {/* Medidor Circular de Calorías Quemadas en Rojo Anime */}
@@ -768,17 +839,33 @@ function WorkoutDynamicChart({
                 />
               </Svg>
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-                <Animated.View
-                  style={{
-                    transform: [{ scale: flameAnim }],
-                    opacity: flameGlowAnim,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 2,
-                  }}
-                >
-                  <Ionicons name="flame" size={30} color="#F43F5E" />
-                </Animated.View>
+                {/* Contenedor de la llamita viva en movimiento constante */}
+                <View style={{ width: 44, height: 42, alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
+                  {/* Halo resplandeciente animado */}
+                  <Animated.View
+                    style={[
+                      styles.flameHaloGlow,
+                      {
+                        transform: [{ scale: flameScale }],
+                        opacity: flameAura,
+                      },
+                    ]}
+                  />
+
+                  {/* Llama con movimiento completo (flotación, balanceo e intensidad) */}
+                  <Animated.View
+                    style={{
+                      transform: [
+                        { translateY: flameTranslateY },
+                        { rotate: flameRotateDeg },
+                        { scale: flameScale },
+                      ],
+                    }}
+                  >
+                    <Ionicons name="flame" size={32} color="#F43F5E" />
+                  </Animated.View>
+                </View>
+
                 <Text style={styles.workoutKcalNumber}>
                   {dayStats.totalKcal}
                 </Text>
@@ -906,8 +993,16 @@ function WorkoutDynamicChart({
                 )}
               </View>
             ) : (
-              /* CARRUSEL DE ESTADÍSTICAS ROTATIVAS ANIMADAS AUTOMÁTICAS CON COLORES E ICONOS DINÁMICOS */
-              <Animated.View style={[{ alignItems: 'center', justifyContent: 'center', flex: 1 }, { opacity: statFadeAnim }]}>
+              /* CARRUSEL DE ESTADÍSTICAS ROTATIVAS ANIMADAS AUTOMÁTICAS CON COLORES E ICONOS DINÁMICOS (ULTRA SMOOTH) */
+              <Animated.View
+                style={[
+                  { alignItems: 'center', justifyContent: 'center', flex: 1, width: '100%' },
+                  {
+                    opacity: statFadeAnim,
+                    transform: [{ translateY: statSlideAnim }],
+                  },
+                ]}
+              >
                 {autoRotateStats[statIndex] && (() => {
                   const currentStat = autoRotateStats[statIndex];
                   const stTheme = currentStat.theme;
@@ -1918,6 +2013,13 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
     fontWeight: '800',
     letterSpacing: 0.8,
+  },
+  flameHaloGlow: {
+    position: 'absolute',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(244, 63, 94, 0.25)',
   },
   metricPillCard: {
     flexDirection: 'row',
