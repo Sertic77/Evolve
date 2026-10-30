@@ -195,6 +195,7 @@ export default function TrainScreen() {
           styles.scrollContent,
           tab === 1 && { paddingBottom: 320 },
         ]}
+        stickyHeaderIndices={[2]}
         automaticallyAdjustKeyboardInsets={true}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
@@ -232,8 +233,10 @@ export default function TrainScreen() {
           onOpenRangePicker={() => setRangeModalOpen(true)}
         />
 
-        {/* Selector Maestro de Modo (Píldora deslizante ultra smooth) */}
-        <TrainNavigationSegmented value={tab} onChange={setTab} />
+        {/* Selector Maestro de Modo (Sticky al hacer scroll down) */}
+        <View style={styles.stickyTabsContainer}>
+          <TrainNavigationSegmented value={tab} onChange={setTab} />
+        </View>
 
         {/* Contenido Animado según pestaña */}
         <Animated.View
@@ -1916,6 +1919,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 130,
+  },
+  stickyTabsContainer: {
+    backgroundColor: C.bg,
+    paddingTop: 2,
+    paddingBottom: 8,
+    zIndex: 25,
   },
   topHeader: {
     flexDirection: 'row',

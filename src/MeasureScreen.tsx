@@ -797,8 +797,8 @@ function AnimeBodyMapCard({
             <Text style={measureStyles.legendLabel}>Medido</Text>
           </View>
           <View style={measureStyles.legendItem}>
-            <View style={[measureStyles.legendDot, { backgroundColor: 'rgba(167, 139, 250, 0.25)', borderColor: '#A78BFA', borderWidth: 1 }]} />
-            <Text style={measureStyles.legendLabel}>Por medir (Toca músculo o burbuja)</Text>
+            <View style={[measureStyles.legendDot, { backgroundColor: 'rgba(15, 23, 42, 0.72)', borderColor: '#94A3B8', borderWidth: 1.2 }]} />
+            <Text style={measureStyles.legendLabel}>Por medir (Área oscura)</Text>
           </View>
           <View style={measureStyles.legendItem}>
             <View style={[measureStyles.legendDot, { backgroundColor: 'rgba(203, 213, 225, 0.4)' }]} />
@@ -1010,6 +1010,26 @@ function AnimeBodyVector({
     const val = measurements[partKey];
     const isMeasured = val !== undefined && val > 0;
     const showHighlight = isMeasured && isPrimaryForView;
+    const showUnmeasuredPrimary = !isMeasured && isPrimaryForView;
+
+    // Si tiene medida: brillo neón violeta/magenta; si NO tiene valor definido: área oscura/opaca claramente visible
+    const pathFill = showHighlight
+      ? 'rgba(232, 121, 249, 0.30)'
+      : showUnmeasuredPrimary
+      ? 'rgba(15, 23, 42, 0.56)'
+      : isMeasured
+      ? 'rgba(232, 121, 249, 0.14)'
+      : 'rgba(15, 23, 42, 0.36)';
+
+    const pathStroke = showHighlight
+      ? '#F0ABFC'
+      : showUnmeasuredPrimary
+      ? 'rgba(148, 163, 184, 0.82)'
+      : isMeasured
+      ? 'rgba(240, 171, 252, 0.45)'
+      : 'rgba(148, 163, 184, 0.48)';
+
+    const pathStrokeWidth = showHighlight ? 2.6 : showUnmeasuredPrimary ? 1.8 : 1.2;
 
     return (
       <G key={`${view}_${partKey}`}>
@@ -1027,29 +1047,30 @@ function AnimeBodyVector({
         <Path
           d={d}
           onPress={() => onSelectPart(partKey)}
-          fill={showHighlight ? 'rgba(232, 121, 249, 0.28)' : 'rgba(255, 255, 255, 0.008)'}
-          stroke={showHighlight ? '#F0ABFC' : 'transparent'}
-          strokeWidth={showHighlight ? 2.6 : 0}
+          fill={pathFill}
+          stroke={pathStroke}
+          strokeWidth={pathStrokeWidth}
+          strokeDasharray={!isMeasured ? '6,4' : undefined}
           strokeLinejoin="round"
           strokeLinecap="round"
         />
         {isPrimaryForView && (
           <G pointerEvents="none">
-            {showHighlight && (
-              <Circle
-                cx={centerX}
-                cy={centerY}
-                r={11}
-                fill="rgba(232, 121, 249, 0.32)"
-              />
-            )}
+            <Circle
+              cx={centerX}
+              cy={centerY}
+              r={showHighlight ? 11 : 9}
+              fill={showHighlight ? 'rgba(232, 121, 249, 0.32)' : 'rgba(15, 23, 42, 0.72)'}
+              stroke={showHighlight ? 'none' : 'rgba(148, 163, 184, 0.75)'}
+              strokeWidth={showHighlight ? 0 : 1.2}
+            />
             <Circle
               cx={centerX}
               cy={centerY}
               r={showHighlight ? 5.5 : 3.8}
-              fill={showHighlight ? '#E879F9' : 'rgba(248, 250, 252, 0.75)'}
-              stroke={showHighlight ? '#FFFFFF' : 'rgba(196, 181, 253, 0.7)'}
-              strokeWidth={1.6}
+              fill={showHighlight ? '#E879F9' : 'rgba(226, 232, 240, 0.88)'}
+              stroke={showHighlight ? '#FFFFFF' : 'rgba(15, 23, 42, 0.9)'}
+              strokeWidth={1.5}
             />
           </G>
         )}
@@ -1213,11 +1234,11 @@ function AnimeBodyVector({
 ========================================================== */
 type TimeFilterRange = '7D' | '30D' | '90D' | 'ALL';
 
-const TIME_FILTER_OPTIONS: { key: TimeFilterRange; label: string }[] = [
-  { key: '7D', label: '7 días' },
-  { key: '30D', label: '30 días' },
-  { key: '90D', label: '90 días' },
-  { key: 'ALL', label: 'Todo' },
+const TIME_FILTER_OPTIONS: { key: TimeFilterRange; label: string; shortLabel: string }[] = [
+  { key: '7D', label: 'Últimos 7 días', shortLabel: 'Últimos 7 días' },
+  { key: '30D', label: 'Últimos 30 días', shortLabel: 'Últimos 30 días' },
+  { key: '90D', label: 'Últimos 90 días', shortLabel: 'Últimos 90 días' },
+  { key: 'ALL', label: 'Todo el historial', shortLabel: 'Todo el historial' },
 ];
 
 const CHARTABLE_PARTS: BodyPartKey[] = [
@@ -1247,6 +1268,7 @@ function BodyPartGrowthChartCard({
   onOpenEditModal: (p: BodyPartKey) => void;
 }) {
   const [timeFilter, setTimeFilter] = useState<TimeFilterRange>('ALL');
+  const [timeDropdownOpen, setTimeDropdownOpen] = useState(false);
   const { width: screenWidth } = useWindowDimensions();
   const chartWidth = Math.max(260, Math.min(360, screenWidth - 64));
   const chartHeight = 155;
@@ -1330,12 +1352,15 @@ function BodyPartGrowthChartCard({
   const isPositiveGrowth = delta > 0;
   const isFavorable = isWaist ? delta <= 0 : delta >= 0;
 
+  const activeTimeOption =
+    TIME_FILTER_OPTIONS.find((o) => o.key === timeFilter) || TIME_FILTER_OPTIONS[3];
+
   return (
     <View style={measureStyles.growthChartCard}>
       {/* Fondo con glassmorphism suave */}
       <LinearGradient colors={GRADIENTS.cardGlass} style={measureStyles.growthChartGradient}>
-        {/* Cabecera: Título + Selector de Rango de Tiempo (7D, 30D, 90D, Todo) */}
-        <View style={measureStyles.chartHeaderRow}>
+        {/* Cabecera: Título + Botón Dropdown de Rango de Tiempo */}
+        <View style={[measureStyles.chartHeaderRow, { zIndex: 40 }]}>
           <View style={{ flex: 1, marginRight: 8 }}>
             <View style={measureStyles.chartTagBadge}>
               <Ionicons name="trending-up-outline" size={12} color="#8B5CF6" />
@@ -1344,30 +1369,60 @@ function BodyPartGrowthChartCard({
             <Text style={measureStyles.chartTitle}>Gráfica de Crecimiento</Text>
           </View>
 
-          {/* Selector de Rango Temporal */}
-          <View style={measureStyles.timeFilterBar}>
-            {TIME_FILTER_OPTIONS.map((tf) => {
-              const active = timeFilter === tf.key;
-              return (
-                <Pressable
-                  key={tf.key}
-                  onPress={() => setTimeFilter(tf.key)}
-                  style={[
-                    measureStyles.timeFilterBtn,
-                    active && measureStyles.timeFilterBtnActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      measureStyles.timeFilterBtnText,
-                      active && measureStyles.timeFilterBtnTextActive,
-                    ]}
-                  >
-                    {tf.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          {/* Botón Dropdown de Selección de Tiempo */}
+          <View style={measureStyles.timeDropdownWrapper}>
+            <Pressable
+              onPress={() => setTimeDropdownOpen((prev) => !prev)}
+              style={({ pressed }) => [
+                measureStyles.timeDropdownBtn,
+                timeDropdownOpen && measureStyles.timeDropdownBtnActive,
+                pressed && s.btnPressed,
+              ]}
+            >
+              <Ionicons name="calendar-outline" size={13} color="#8B5CF6" />
+              <Text style={measureStyles.timeDropdownBtnText} numberOfLines={1}>
+                {activeTimeOption.shortLabel}
+              </Text>
+              <Ionicons
+                name={timeDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color="#8B5CF6"
+              />
+            </Pressable>
+
+            {timeDropdownOpen && (
+              <View style={measureStyles.timeDropdownMenu}>
+                {TIME_FILTER_OPTIONS.map((tf) => {
+                  const active = timeFilter === tf.key;
+                  return (
+                    <Pressable
+                      key={tf.key}
+                      onPress={() => {
+                        setTimeFilter(tf.key);
+                        setTimeDropdownOpen(false);
+                      }}
+                      style={({ pressed }) => [
+                        measureStyles.timeDropdownOption,
+                        active && measureStyles.timeDropdownOptionActive,
+                        pressed && { opacity: 0.75 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          measureStyles.timeDropdownOptionText,
+                          active && measureStyles.timeDropdownOptionTextActive,
+                        ]}
+                      >
+                        {tf.label}
+                      </Text>
+                      {active && (
+                        <Ionicons name="checkmark-circle" size={15} color="#8B5CF6" />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
           </View>
         </View>
 
@@ -2202,32 +2257,69 @@ const measureStyles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
-  timeFilterBar: {
+  timeDropdownWrapper: {
+    position: 'relative',
+    zIndex: 50,
+  },
+  timeDropdownBtn: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(241, 245, 249, 0.95)',
-    borderRadius: 12,
-    padding: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.8)',
-  },
-  timeFilterBtn: {
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 9,
-  },
-  timeFilterBtnActive: {
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#FFFFFF',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.35)',
     shadowColor: '#8B5CF6',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
     elevation: 2,
   },
-  timeFilterBtnText: {
-    color: C.sub,
-    fontSize: 10,
-    fontWeight: '700',
+  timeDropdownBtnActive: {
+    borderColor: '#8B5CF6',
+    backgroundColor: '#FAF5FF',
   },
-  timeFilterBtnTextActive: {
+  timeDropdownBtnText: {
+    color: '#8B5CF6',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  timeDropdownMenu: {
+    position: 'absolute',
+    top: 38,
+    right: 0,
+    width: 175,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.35)',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+    zIndex: 100,
+  },
+  timeDropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(226, 232, 240, 0.5)',
+  },
+  timeDropdownOptionActive: {
+    backgroundColor: 'rgba(139, 92, 246, 0.08)',
+  },
+  timeDropdownOptionText: {
+    color: C.text,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  timeDropdownOptionTextActive: {
     color: '#8B5CF6',
     fontWeight: '800',
   },

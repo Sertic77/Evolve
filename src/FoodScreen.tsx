@@ -148,6 +148,7 @@ export default function FoodScreen() {
           styles.scrollContent,
           tab === 1 && { paddingBottom: 320 }, // <--- Espacio amplio para scrollear libremente sobre el teclado
         ]}
+        stickyHeaderIndices={[2]}
         automaticallyAdjustKeyboardInsets={true}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
@@ -174,11 +175,13 @@ export default function FoodScreen() {
         {/* Resumen de Macros Animado */}
         <MacroSummary m={total} />
 
-        {/* Selector Maestro de Pestaña Principal (Nivel 1 con Gap Reducido) */}
-        <MainNavigationSegmented
-          value={tab}
-          onChange={setTab}
-        />
+        {/* Selector Maestro de Pestaña Principal (Sticky al hacer scroll down) */}
+        <View style={styles.stickyTabsContainer}>
+          <MainNavigationSegmented
+            value={tab}
+            onChange={setTab}
+          />
+        </View>
 
         {/* Contenido animado ultra smooth según pestaña */}
         <Animated.View
@@ -927,6 +930,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 130,
+  },
+  stickyTabsContainer: {
+    backgroundColor: C.bg,
+    paddingTop: 2,
+    paddingBottom: 8,
+    zIndex: 25,
   },
   topHeader: {
     flexDirection: 'row',
