@@ -283,7 +283,7 @@ export function MacroSummary({ m }: { m: Macros }) {
   );
 }
 
-/* ---------------- Selector Maestro Principal (Nivel 1) ---------------- */
+/* ---------------- Selector Maestro Principal con Píldora Deslizante Animada (Nivel 1) ---------------- */
 export function MainNavigationSegmented({
   value,
   onChange,
@@ -292,82 +292,75 @@ export function MainNavigationSegmented({
   onChange: (i: number) => void;
 }) {
   const options = [
-    { label: 'Agregar comidas', icon: 'restaurant-outline', activeIcon: 'restaurant' },
-    { label: 'Ingredientes y comidas', icon: 'library-outline', activeIcon: 'library' },
+    { label: 'Agregar comidas', icon: 'restaurant-outline' },
+    { label: 'Ingredientes y comidas', icon: 'library-outline' },
   ];
 
+  const [containerWidth, setContainerWidth] = useState(0);
+  const slideAnim = useRef(new Animated.Value(value)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: value,
+      friction: 8,
+      tension: 65,
+      useNativeDriver: true,
+    }).start();
+  }, [value]);
+
+  const pillWidth = containerWidth > 0 ? (containerWidth - 8) / 2 : 0;
+
+  const translateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [4, pillWidth + 4],
+  });
+
   return (
-    <View style={s.mainSegmentedContainer}>
+    <View
+      style={s.mainSegmentedContainer}
+      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+    >
+      {/* Píldora Deslizante Animada Ultra Smooth */}
+      {containerWidth > 0 && (
+        <Animated.View
+          style={[
+            s.slidingPill,
+            {
+              width: pillWidth,
+              transform: [{ translateX }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={['#8B5CF6', '#EC4899']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={s.slidingPillGradient}
+          />
+        </Animated.View>
+      )}
+
       {options.map((opt, i) => {
         const active = value === i;
         return (
           <Pressable
             key={opt.label}
             onPress={() => onChange(i)}
-            style={({ pressed }) => [
-              s.mainSegmentedBtn,
-              pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
-            ]}
+            style={s.mainSegmentedBtn}
           >
-            {active ? (
-              <LinearGradient
-                colors={['#8B5CF6', '#EC4899']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={s.mainSegmentedActiveGradient}
-              >
-                <Ionicons
-                  name={opt.activeIcon as any}
-                  size={17}
-                  color="#FFFFFF"
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={s.mainSegmentedActiveText}>{opt.label}</Text>
-              </LinearGradient>
-            ) : (
-              <View style={s.mainSegmentedInactiveBtn}>
-                <Ionicons
-                  name={opt.icon as any}
-                  size={16}
-                  color={C.sub}
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={s.mainSegmentedInactiveText}>{opt.label}</Text>
-              </View>
-            )}
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-/* ---------------- Sub-Selector Secundario de Biblioteca (Nivel 2) ---------------- */
-export function SubSegmented({
-  options,
-  value,
-  onChange,
-}: {
-  options: string[];
-  value: number;
-  onChange: (i: number) => void;
-}) {
-  return (
-    <View style={s.subSegmentedContainer}>
-      {options.map((opt, i) => {
-        const active = value === i;
-        return (
-          <Pressable
-            key={opt}
-            onPress={() => onChange(i)}
-            style={({ pressed }) => [
-              s.subSegmentedBtn,
-              active && s.subSegmentedBtnActive,
-              pressed && { opacity: 0.8 },
-            ]}
-          >
-            <Text style={[s.subSegmentedText, active && s.subSegmentedTextActive]}>
-              {opt}
+            <Ionicons
+              name={opt.icon as any}
+              size={16}
+              color={active ? '#FFFFFF' : C.sub}
+              style={{ marginRight: 6 }}
+            />
+            <Text
+              style={[
+                s.mainSegmentedText,
+                active ? s.mainSegmentedTextActive : s.mainSegmentedTextInactive,
+              ]}
+            >
+              {opt.label}
             </Text>
           </Pressable>
         );
@@ -376,7 +369,7 @@ export function SubSegmented({
   );
 }
 
-/* ---------------- Selector Segmentado Tradicional ---------------- */
+/* ---------------- Selector Segmentado Tradicional (Restaurado) ---------------- */
 export function Segmented({
   options,
   value,
@@ -951,7 +944,7 @@ export const s = StyleSheet.create({
   // Tarjetas Glass Pastel
   glassCard: {
     borderRadius: 22,
-    marginBottom: 16,
+    marginBottom: 8, // <--- Gap disminuido para acercarlo al selector
     borderWidth: 1,
     borderColor: C.borderLight,
     overflow: 'hidden',
@@ -1093,89 +1086,61 @@ export const s = StyleSheet.create({
     borderRadius: 3,
   },
 
-  // Selector Maestro Principal (Nivel 1)
+  // Selector Maestro Principal (Nivel 1 con Píldora Deslizante)
   mainSegmentedContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 5,
+    borderRadius: 13, // <--- Border radius más pequeño pedido por el usuario
+    padding: 4,
     borderWidth: 1.5,
-    borderColor: 'rgba(139, 92, 246, 0.28)',
-    marginTop: -4, // <--- Gap reducido pegado a la gráfica
-    marginBottom: 14,
+    borderColor: 'rgba(139, 92, 246, 0.22)',
+    marginTop: 0, // <--- Gap pegado a la gráfica
+    marginBottom: 10,
     shadowColor: '#8B5CF6',
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+    position: 'relative',
+    height: 48,
+    alignItems: 'center',
+  },
+  slidingPill: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    left: 0,
+    borderRadius: 9.5, // <--- Radio interior proporcional
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
     elevation: 4,
+  },
+  slidingPillGradient: {
+    flex: 1,
+    borderRadius: 9.5,
   },
   mainSegmentedBtn: {
     flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  mainSegmentedActiveGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 16,
-    shadowColor: '#8B5CF6',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    height: '100%',
+    zIndex: 2,
   },
-  mainSegmentedActiveText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 13.5,
+  mainSegmentedText: {
+    fontSize: 13,
     letterSpacing: 0.2,
   },
-  mainSegmentedInactiveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+  mainSegmentedTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '900',
   },
-  mainSegmentedInactiveText: {
+  mainSegmentedTextInactive: {
     color: '#475569',
     fontWeight: '700',
-    fontSize: 13,
-  },
-
-  // Sub-Selector Secundario de Biblioteca (Nivel 2)
-  subSegmentedContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(241, 245, 249, 0.9)',
-    borderRadius: 14,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(203, 213, 225, 0.7)',
-    marginVertical: 10,
-  },
-  subSegmentedBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  subSegmentedBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  subSegmentedText: {
-    color: C.sub,
-    fontWeight: '600',
-    fontSize: 12.5,
-  },
-  subSegmentedTextActive: {
-    color: '#1E1B4B',
-    fontWeight: '800',
   },
 
   // Segmented Tradicional

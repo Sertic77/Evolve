@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Keyboard,
+  Animated,
+  Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,7 +31,6 @@ import {
 import {
   MacroSummary,
   MainNavigationSegmented,
-  SubSegmented,
   Segmented,
   DateSelector,
   MealBlockCard,
@@ -69,6 +70,29 @@ export default function FoodScreen() {
     () => meals.reduce((acc, m) => addMacros(acc, itemsTotal(m.items, ingredients)), ZERO),
     [meals, ingredients],
   );
+
+  // Animación suave de transición de contenido entre pestañas
+  const contentFadeAnim = useRef(new Animated.Value(1)).current;
+  const contentSlideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    contentFadeAnim.setValue(0);
+    contentSlideAnim.setValue(6);
+    Animated.parallel([
+      Animated.timing(contentFadeAnim, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentSlideAnim, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [tab]);
 
   // Asigna un ingrediente directamente a un target (bloque/item)
   const assignIngredientToTarget = (
@@ -156,30 +180,37 @@ export default function FoodScreen() {
           onChange={setTab}
         />
 
-        {/* Contenido según pestaña */}
-        {tab === 0 ? (
-          <DayLog
-            date={date}
-            setDate={setDate}
-            meals={meals}
-            dayKey={key}
-            onOpenPicker={(blockId, itemId) =>
-              setPickerTarget({ blockId, itemId, isSavedMealDraft: false })
-            }
-          />
-        ) : (
-          <Library
-            draft={savedMealDraft}
-            setDraft={setSavedMealDraft}
-            onOpenPickerForDraft={(itemId) =>
-              setPickerTarget({
-                blockId: savedMealDraft?.id || '',
-                itemId,
-                isSavedMealDraft: true,
-              })
-            }
-          />
-        )}
+        {/* Contenido animado ultra smooth según pestaña */}
+        <Animated.View
+          style={{
+            opacity: contentFadeAnim,
+            transform: [{ translateY: contentSlideAnim }],
+          }}
+        >
+          {tab === 0 ? (
+            <DayLog
+              date={date}
+              setDate={setDate}
+              meals={meals}
+              dayKey={key}
+              onOpenPicker={(blockId, itemId) =>
+                setPickerTarget({ blockId, itemId, isSavedMealDraft: false })
+              }
+            />
+          ) : (
+            <Library
+              draft={savedMealDraft}
+              setDraft={setSavedMealDraft}
+              onOpenPickerForDraft={(itemId) =>
+                setPickerTarget({
+                  blockId: savedMealDraft?.id || '',
+                  itemId,
+                  isSavedMealDraft: true,
+                })
+              }
+            />
+          )}
+        </Animated.View>
       </ScrollView>
 
       {/* MODAL GLOBAL DE BÚSQUEDA DE INGREDIENTES */}
@@ -439,7 +470,7 @@ function Library({
 
   return (
     <View style={{ marginTop: 2 }}>
-      <SubSegmented
+      <Segmented
         options={['Ingredientes', 'Comidas guardadas']}
         value={subTab}
         onChange={setSubTab}
