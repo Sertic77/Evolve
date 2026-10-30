@@ -12,12 +12,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Dimensions,
 } from 'react-native';
+import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Line, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { C, GRADIENTS } from './theme';
-import { DateSelector, s } from './components';
-import { useStore, dateKey, Supplement, isSupplementActiveOnDate } from './store';
+import { DateSelector, PrimaryButton, s } from './components';
+import { useStore, dateKey, Supplement, isSupplementActiveOnDate, HealthMetricDefinition, HealthLogEntry, uid } from './store';
 import {
   formatAlarmTime12h,
   parseAlarmTime,
@@ -392,7 +394,7 @@ export default function WellnessScreen() {
 
           <View style={wellnessStyles.headerBadgeMini}>
             <Ionicons
-              name={tab === 0 ? 'moon-outline' : 'medkit-outline'}
+              name={tab === 0 ? 'moon-outline' : tab === 1 ? 'medkit-outline' : 'pulse-outline'}
               size={14}
               color={C.pastelPurple}
             />
@@ -447,7 +449,7 @@ export default function WellnessScreen() {
                 </LinearGradient>
               </View>
             </View>
-          ) : (
+          ) : tab === 1 ? (
             /* ==========================================================
                PESTAÑA 2: SUPLEMENTOS
             ========================================================== */
@@ -827,6 +829,11 @@ export default function WellnessScreen() {
                 </Text>
               </Pressable>
             </View>
+          ) : (
+            /* ==========================================================
+               PESTAÑA 3: SALUD Y BIOMARCADORES
+            ========================================================== */
+            <HealthSection date={date} setDate={setDate} />
           )}
         </Animated.View>
       </ScrollView>
@@ -1436,6 +1443,7 @@ function WellnessModeSegmented({
   const options = [
     { label: 'Sueño', icon: 'moon-outline' },
     { label: 'Suplementos', icon: 'medkit-outline' },
+    { label: 'Salud', icon: 'pulse-outline' },
   ];
 
   const [containerWidth, setContainerWidth] = useState(0);
@@ -1450,10 +1458,10 @@ function WellnessModeSegmented({
     }).start();
   }, [value]);
 
-  const pillWidth = containerWidth > 0 ? (containerWidth - 8) / 2 : 0;
+  const pillWidth = containerWidth > 0 ? (containerWidth - 8) / options.length : 0;
   const translateX = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [4, pillWidth + 4],
+    inputRange: options.map((_, i) => i),
+    outputRange: options.map((_, i) => 4 + i * pillWidth),
   });
 
   return (
@@ -1482,15 +1490,16 @@ function WellnessModeSegmented({
           >
             <Ionicons
               name={opt.icon as any}
-              size={16}
+              size={15}
               color={active ? '#FFFFFF' : C.sub}
-              style={{ marginRight: 6 }}
+              style={{ marginRight: 4 }}
             />
             <Text
               style={[
                 s.mainSegmentedText,
                 active ? s.mainSegmentedTextActive : s.mainSegmentedTextInactive,
               ]}
+              numberOfLines={1}
             >
               {opt.label}
             </Text>
@@ -2544,5 +2553,1055 @@ const wellnessStyles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '800',
     color: C.sub,
+  },
+});
+
+
+/* ==========================================================
+   FUNCIÓN DE EVALUACIÓN CLÍNICA DE SALUD (ORIENTATIVA)
+========================================================== */
+function getHealthStatus(metricId: string, val?: number, val2?: number) {
+  if (val === undefined || val === null || val <= 0) return null;
+  if (metricId === 'presion') {
+    const sys = val;
+    const dia = val2 || 0;
+    if (sys < 120 && dia < 80) return { label: 'Óptima', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' };
+    if (sys <= 129 && dia < 80) return { label: 'Normal', color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.12)' };
+    if ((sys >= 130 && sys <= 139) || (dia >= 80 && dia <= 89))
+      return { label: 'Elevada (HTA 1)', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' };
+    return { label: 'Alta (HTA 2)', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)' };
+  }
+  if (metricId === 'azucar') {
+    if (val < 70) return { label: 'Baja (Hipoglucemia)', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' };
+    if (val <= 100) return { label: 'Normal', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' };
+    if (val <= 125) return { label: 'Pre-alerta', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' };
+    return { label: 'Elevada', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)' };
+  }
+  if (metricId === 'colesterol') {
+    if (val < 200) return { label: 'Deseable', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' };
+    if (val <= 239) return { label: 'Límite', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' };
+    return { label: 'Alto', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)' };
+  }
+  if (metricId === 'trigliceridos') {
+    if (val < 150) return { label: 'Normal', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' };
+    if (val <= 199) return { label: 'Límite alto', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' };
+    return { label: 'Alto', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)' };
+  }
+  return { label: 'Registrado', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' };
+}
+
+/* ==========================================================
+   GRÁFICA SVG DINÁMICA DE SALUD
+========================================================== */
+function HealthMetricsSVGChart({
+  metric,
+  logs,
+  currentDateKey,
+}: {
+  metric: HealthMetricDefinition;
+  logs: Record<string, Record<string, HealthLogEntry>>;
+  currentDateKey: string;
+}) {
+  const screenWidth = Dimensions.get('window').width;
+  const width = Math.max(280, screenWidth - 68);
+  const height = 150;
+  const paddingX = 26;
+  const paddingY = 24;
+
+  const entries: Array<{ dateStr: string; val: number; val2?: number }> = [];
+  Object.keys(logs)
+    .sort()
+    .forEach((d) => {
+      const entry = logs[d]?.[metric.id];
+      if (entry && entry.value !== undefined && entry.value > 0) {
+        entries.push({ dateStr: d, val: entry.value, val2: entry.secondaryValue });
+      }
+    });
+
+  if (entries.length === 0) {
+    return (
+      <View style={healthStyles.emptyChartBox}>
+        <Ionicons name="pulse-outline" size={34} color="#CBD5E1" />
+        <Text style={healthStyles.emptyChartTitle}>Sin registros previos de {metric.name}</Text>
+        <Text style={healthStyles.emptyChartSub}>
+          Ingresa el valor del día en la lista de abajo para comenzar a graficar la tendencia.
+        </Text>
+      </View>
+    );
+  }
+
+  const allVals = entries.flatMap((e) => [e.val, e.val2 || e.val]);
+  const minVal = Math.max(0, Math.min(...allVals) - 10);
+  const maxVal = Math.max(...allVals) + 10;
+  const range = maxVal - minVal || 1;
+
+  const points = entries.map((e, i) => {
+    const x =
+      entries.length === 1
+        ? width / 2
+        : paddingX + (i / (entries.length - 1)) * (width - paddingX * 2);
+    const y = height - paddingY - ((e.val - minVal) / range) * (height - paddingY * 2);
+    const y2 =
+      e.val2 !== undefined
+        ? height - paddingY - ((e.val2 - minVal) / range) * (height - paddingY * 2)
+        : undefined;
+    return { x, y, y2, val: e.val, val2: e.val2, dateStr: e.dateStr };
+  });
+
+  let pathD = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const cpX = prev.x + (curr.x - prev.x) / 2;
+    pathD += ` C ${cpX} ${prev.y}, ${cpX} ${curr.y}, ${curr.x} ${curr.y}`;
+  }
+
+  const fillD = `${pathD} L ${points[points.length - 1].x} ${height - 18} L ${points[0].x} ${height - 18} Z`;
+
+  let pathD2 = '';
+  if (metric.isDualValue && points[0].y2 !== undefined) {
+    pathD2 = `M ${points[0].x} ${points[0].y2}`;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      if (curr.y2 !== undefined && prev.y2 !== undefined) {
+        const cpX = prev.x + (curr.x - prev.x) / 2;
+        pathD2 += ` C ${cpX} ${prev.y2}, ${cpX} ${curr.y2}, ${curr.x} ${curr.y2}`;
+      }
+    }
+  }
+
+  return (
+    <View style={{ width, height, marginTop: 8 }}>
+      {metric.isDualValue && (
+        <View style={healthStyles.dualLegendRow}>
+          <View style={healthStyles.legendItem}>
+            <View style={[healthStyles.legendDot, { backgroundColor: '#EC4899' }]} />
+            <Text style={healthStyles.legendText}>Sistólica</Text>
+          </View>
+          <View style={healthStyles.legendItem}>
+            <View style={[healthStyles.legendDot, { backgroundColor: '#8B5CF6' }]} />
+            <Text style={healthStyles.legendText}>Diastólica</Text>
+          </View>
+        </View>
+      )}
+
+      <Svg width={width} height={height}>
+        <Defs>
+          <SvgGradient id="healthCurveGrad" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={metric.color} stopOpacity="0.24" />
+            <Stop offset="1" stopColor={metric.color} stopOpacity="0.01" />
+          </SvgGradient>
+        </Defs>
+
+        {/* Línea base */}
+        <Line
+          x1={paddingX}
+          y1={height - 18}
+          x2={width - paddingX}
+          y2={height - 18}
+          stroke="rgba(203, 213, 225, 0.4)"
+          strokeWidth={1}
+        />
+
+        {/* Área rellena bajo la curva */}
+        {!metric.isDualValue && points.length > 1 && (
+          <Path d={fillD} fill="url(#healthCurveGrad)" />
+        )}
+
+        {/* Curva principal */}
+        {points.length > 1 && (
+          <Path
+            d={pathD}
+            fill="none"
+            stroke={metric.color}
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
+        )}
+
+        {/* Curva 2 (para Diastólica) */}
+        {metric.isDualValue && points.length > 1 && pathD2 ? (
+          <Path
+            d={pathD2}
+            fill="none"
+            stroke="#8B5CF6"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+          />
+        ) : null}
+
+        {/* Puntos y valores */}
+        {points.map((p, idx) => {
+          const isSelectedDate = p.dateStr === currentDateKey;
+          const labelDate = p.dateStr.slice(5).replace('-', '/');
+          return (
+            <React.Fragment key={idx}>
+              {isSelectedDate && (
+                <Circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={8}
+                  fill="none"
+                  stroke={metric.color}
+                  strokeWidth={1.5}
+                  strokeDasharray="2 2"
+                />
+              )}
+              <Circle
+                cx={p.x}
+                cy={p.y}
+                r={isSelectedDate ? 5 : 4}
+                fill="#FFFFFF"
+                stroke={metric.color}
+                strokeWidth={2.5}
+              />
+              <SvgText
+                x={p.x}
+                y={p.y - 7}
+                fontSize={9.5}
+                fontWeight="bold"
+                fill="#334155"
+                textAnchor="middle"
+              >
+                {p.val}
+              </SvgText>
+
+              {p.y2 !== undefined && (
+                <>
+                  <Circle
+                    cx={p.x}
+                    cy={p.y2}
+                    r={isSelectedDate ? 5 : 4}
+                    fill="#FFFFFF"
+                    stroke="#8B5CF6"
+                    strokeWidth={2.5}
+                  />
+                  <SvgText
+                    x={p.x}
+                    y={p.y2 + 13}
+                    fontSize={9.5}
+                    fontWeight="bold"
+                    fill="#64748B"
+                    textAnchor="middle"
+                  >
+                    {p.val2}
+                  </SvgText>
+                </>
+              )}
+
+              {p.y2 === undefined && (
+                <SvgText
+                  x={p.x}
+                  y={height - 4}
+                  fontSize={8.5}
+                  fontWeight="600"
+                  fill="#94A3B8"
+                  textAnchor="middle"
+                >
+                  {labelDate}
+                </SvgText>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </Svg>
+    </View>
+  );
+}
+
+/* ==========================================================
+   MODAL PARA AGREGAR NUEVA MÉTRICA DE SALUD
+========================================================== */
+function AddHealthMetricModal({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (m: Omit<HealthMetricDefinition, 'id'>) => void;
+}) {
+  const [name, setName] = useState('');
+  const [unit, setUnit] = useState('mg/dL');
+  const [idealRange, setIdealRange] = useState('');
+  const [isDual, setIsDual] = useState(false);
+
+  const QUICK_UNITS = ['mg/dL', 'mmHg', '%', 'bpm', 'g/dL', 'mmol/L'];
+  const COLORS = ['#EC4899', '#06B6D4', '#F59E0B', '#8B5CF6', '#10B981', '#6366F1'];
+  const [selectedColor, setSelectedColor] = useState(COLORS[0]);
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <View style={healthStyles.modalBackdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={healthStyles.modalSheet}
+        >
+          <View style={healthStyles.modalSheetContent}>
+            <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ padding: 20 }}>
+              <View style={healthStyles.sheetHandleBar} />
+
+              <View style={healthStyles.modalHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={healthStyles.modalTitle}>NUEVA MÉTRICA DE SALUD</Text>
+                  <Text style={healthStyles.modalSubtitle}>
+                    Personaliza el biomarcador para tu seguimiento médico
+                  </Text>
+                </View>
+                <Pressable onPress={onClose} hitSlop={10} style={{ padding: 4 }}>
+                  <Ionicons name="close" size={20} color={C.text} />
+                </Pressable>
+              </View>
+
+              {/* Nombre */}
+              <Text style={healthStyles.fieldLabel}>Nombre del biomarcador</Text>
+              <View style={[healthStyles.fieldInputBox, { marginBottom: 12 }]}>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Ej. Saturación O2, Ácido Úrico, Hemoglobina..."
+                  placeholderTextColor="#94A3B8"
+                  style={healthStyles.fieldTextInput}
+                  autoFocus
+                />
+              </View>
+
+              {/* Unidad de medida rápida */}
+              <Text style={healthStyles.fieldLabel}>Unidad de medida</Text>
+              <View style={healthStyles.quickUnitsRow}>
+                {QUICK_UNITS.map((u) => {
+                  const active = unit === u;
+                  return (
+                    <Pressable
+                      key={u}
+                      onPress={() => setUnit(u)}
+                      style={[
+                        healthStyles.unitChip,
+                        active && healthStyles.unitChipActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          healthStyles.unitChipText,
+                          active && healthStyles.unitChipTextActive,
+                        ]}
+                      >
+                        {u}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Rango ideal */}
+              <Text style={healthStyles.fieldLabel}>Rango o meta deseable (Opcional)</Text>
+              <View style={[healthStyles.fieldInputBox, { marginBottom: 14 }]}>
+                <TextInput
+                  value={idealRange}
+                  onChangeText={setIdealRange}
+                  placeholder="Ej. 95 - 100%, < 6 mg/dL..."
+                  placeholderTextColor="#94A3B8"
+                  style={healthStyles.fieldTextInput}
+                />
+              </View>
+
+              {/* Selección de color */}
+              <Text style={healthStyles.fieldLabel}>Color identificativo</Text>
+              <View style={healthStyles.colorRow}>
+                {COLORS.map((c) => (
+                  <Pressable
+                    key={c}
+                    onPress={() => setSelectedColor(c)}
+                    style={[
+                      healthStyles.colorDot,
+                      { backgroundColor: c },
+                      selectedColor === c && healthStyles.colorDotActive,
+                    ]}
+                  />
+                ))}
+              </View>
+
+              {/* Botón Guardar */}
+              <View style={{ marginTop: 18 }}>
+                <PrimaryButton
+                  label="Guardar métrica"
+                  icon="checkmark-circle"
+                  onPress={() => {
+                    if (!name.trim()) {
+                      Alert.alert('Nombre requerido', 'Ingresa el nombre del biomarcador o métrica.');
+                      return;
+                    }
+                    onSave({
+                      name: name.trim(),
+                      unit: unit.trim() || 'mg/dL',
+                      idealRange: idealRange.trim() || undefined,
+                      icon: 'fitness-outline',
+                      color: selectedColor,
+                      isDualValue: isDual,
+                      custom: true,
+                    });
+                  }}
+                />
+              </View>
+            </LinearGradient>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
+/* ==========================================================
+   PESTAÑA 3: SECCIÓN SALUD Y BIOMARCADORES
+========================================================== */
+function HealthSection({
+  date,
+  setDate,
+}: {
+  date: Date;
+  setDate: (d: Date) => void;
+}) {
+  const {
+    healthMetrics,
+    healthLogs,
+    setHealthLog,
+    addHealthMetric,
+    deleteHealthMetric,
+  } = useStore();
+
+  const [selectedChartMetricId, setSelectedChartMetricId] = useState<string>('presion');
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const key = dateKey(date);
+  const dayData = healthLogs[key] || {};
+  const selectedMetric =
+    healthMetrics.find((m) => m.id === selectedChartMetricId) || healthMetrics[0];
+
+  const updateMetricValue = (
+    metricId: string,
+    val?: number,
+    secondaryVal?: number,
+    notes?: string,
+  ) => {
+    const existing = dayData[metricId] || {};
+    setHealthLog(key, metricId, {
+      ...existing,
+      value: val !== undefined ? val : existing.value,
+      secondaryValue: secondaryVal !== undefined ? secondaryVal : existing.secondaryValue,
+      notes: notes !== undefined ? notes : existing.notes,
+    });
+  };
+
+  return (
+    <View style={{ marginTop: 2 }}>
+      {/* 1. GRÁFICA DE DATOS ARRIBA */}
+      <View style={healthStyles.chartOuterCard}>
+        <LinearGradient
+          colors={['#FFFFFF', '#F8FAFF']}
+          style={healthStyles.chartGradientWrap}
+        >
+          {/* Header de la Gráfica */}
+          <View style={healthStyles.chartHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <View style={healthStyles.chartTagBadge}>
+                <Ionicons name="analytics-outline" size={12} color="#8B5CF6" />
+                <Text style={healthStyles.chartTagText}>EVOLUCIÓN CLÍNICA Y TENDENCIA</Text>
+              </View>
+              <Text style={healthStyles.chartTitleText}>{selectedMetric.name}</Text>
+            </View>
+
+            <View style={healthStyles.idealPill}>
+              <Text style={healthStyles.idealPillLabel}>Meta ideal</Text>
+              <Text style={healthStyles.idealPillVal}>{selectedMetric.idealRange || '-'}</Text>
+            </View>
+          </View>
+
+          {/* Selector de Píldoras para alternar la métrica en la gráfica */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={healthStyles.metricPillsRow}
+          >
+            {healthMetrics.map((m) => {
+              const active = selectedChartMetricId === m.id;
+              return (
+                <Pressable
+                  key={m.id}
+                  onPress={() => setSelectedChartMetricId(m.id)}
+                  style={[
+                    healthStyles.metricPillBtn,
+                    active && {
+                      backgroundColor: m.color,
+                      borderColor: m.color,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={m.icon as any}
+                    size={13}
+                    color={active ? '#FFFFFF' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      healthStyles.metricPillText,
+                      active && healthStyles.metricPillTextActive,
+                    ]}
+                  >
+                    {m.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          {/* Gráfica SVG Dinámica */}
+          <HealthMetricsSVGChart
+            metric={selectedMetric}
+            logs={healthLogs}
+            currentDateKey={key}
+          />
+        </LinearGradient>
+      </View>
+
+      {/* 2. BOTÓN DE CALENDARIO DEBAJO */}
+      <View style={{ marginTop: 8 }}>
+        <DateSelector date={date} onChange={setDate} />
+      </View>
+
+      {/* 3. LISTADO DE MÉTRICAS */}
+      <View style={{ marginTop: 4 }}>
+        <View style={healthStyles.listHeaderRow}>
+          <Text style={healthStyles.listHeaderTitle}>
+            ✦ REGISTRO DEL DÍA (
+            {date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()}
+            )
+          </Text>
+          <Text style={healthStyles.listHeaderSub}>Toca los valores para registrar</Text>
+        </View>
+
+        {healthMetrics.map((m) => {
+          const entry = dayData[m.id];
+          const val = entry?.value;
+          const val2 = entry?.secondaryValue;
+          const status = getHealthStatus(m.id, val, val2);
+
+          return (
+            <View key={m.id} style={healthStyles.metricCard}>
+              <LinearGradient
+                colors={['#FFFFFF', '#F8FAFF']}
+                style={healthStyles.metricCardGradient}
+              >
+                {/* Cabecera de la Tarjeta */}
+                <View style={healthStyles.cardTopRow}>
+                  <View style={healthStyles.cardIconTitleWrap}>
+                    <View style={[healthStyles.metricIconOrb, { backgroundColor: m.color + '18' }]}>
+                      <Ionicons name={m.icon as any} size={18} color={m.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <Text style={healthStyles.metricCardName}>{m.name}</Text>
+                        {status && (
+                          <View style={[healthStyles.statusPill, { backgroundColor: status.bg }]}>
+                            <Text style={[healthStyles.statusPillText, { color: status.color }]}>
+                              {status.label}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={healthStyles.metricIdealSub}>
+                        Meta deseable: <Text style={{ fontWeight: '700' }}>{m.idealRange || '-'}</Text>
+                      </Text>
+                    </View>
+                  </View>
+
+                  {m.custom && (
+                    <Pressable
+                      onPress={() => {
+                        Alert.alert('Eliminar métrica', `¿Eliminar "${m.name}" de tus métricas de salud?`, [
+                          { text: 'Cancelar', style: 'cancel' },
+                          { text: 'Eliminar', style: 'destructive', onPress: () => deleteHealthMetric(m.id) },
+                        ]);
+                      }}
+                      hitSlop={8}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons name="trash-outline" size={17} color={C.danger} />
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* Input de valores con el estilo solicitado: SIN COLOR, SOLO BORDE Y GRIS CLARO */}
+                {m.isDualValue ? (
+                  <View style={healthStyles.dualInputsRow}>
+                    <View style={healthStyles.inputWrapBox}>
+                      <Text style={healthStyles.inputMiniLabel}>{m.primaryLabel || 'Sistólica'}</Text>
+                      <View style={healthStyles.cleanInputBox}>
+                        <TextInput
+                          value={val !== undefined && val !== null ? String(val) : ''}
+                          keyboardType="decimal-pad"
+                          placeholder="120"
+                          placeholderTextColor="#94A3B8"
+                          style={healthStyles.numTextInput}
+                          onChangeText={(t) => {
+                            const num = parseFloat(t.replace(',', '.')) || 0;
+                            updateMetricValue(m.id, num > 0 ? num : undefined, val2);
+                          }}
+                        />
+                        <View style={healthStyles.cleanUnitBadge}>
+                          <Text style={healthStyles.cleanUnitText}>{m.unit}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <Text style={healthStyles.slashSeparator}>/</Text>
+
+                    <View style={healthStyles.inputWrapBox}>
+                      <Text style={healthStyles.inputMiniLabel}>{m.secondaryLabel || 'Diastólica'}</Text>
+                      <View style={healthStyles.cleanInputBox}>
+                        <TextInput
+                          value={val2 !== undefined && val2 !== null ? String(val2) : ''}
+                          keyboardType="decimal-pad"
+                          placeholder="80"
+                          placeholderTextColor="#94A3B8"
+                          style={healthStyles.numTextInput}
+                          onChangeText={(t) => {
+                            const num = parseFloat(t.replace(',', '.')) || 0;
+                            updateMetricValue(m.id, val, num > 0 ? num : undefined);
+                          }}
+                        />
+                        <View style={healthStyles.cleanUnitBadge}>
+                          <Text style={healthStyles.cleanUnitText}>{m.unit}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={healthStyles.singleInputRow}>
+                    <View style={[healthStyles.cleanInputBox, { flex: 1 }]}>
+                      <TextInput
+                        value={val !== undefined && val !== null ? String(val) : ''}
+                        keyboardType="decimal-pad"
+                        placeholder="Ej. 95"
+                        placeholderTextColor="#94A3B8"
+                        style={healthStyles.numTextInput}
+                        onChangeText={(t) => {
+                          const num = parseFloat(t.replace(',', '.')) || 0;
+                          updateMetricValue(m.id, num > 0 ? num : undefined);
+                        }}
+                      />
+                      <View style={healthStyles.cleanUnitBadge}>
+                        <Text style={healthStyles.cleanUnitText}>{m.unit}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </LinearGradient>
+            </View>
+          );
+        })}
+
+        {/* 4. BOTÓN PARA AGREGAR NUEVA MÉTRICA */}
+        <Pressable
+          onPress={() => setModalOpen(true)}
+          style={({ pressed }) => [healthStyles.addMetricDashedBtn, pressed && s.btnPressed]}
+        >
+          <Ionicons name="add-circle-outline" size={18} color="#8B5CF6" />
+          <Text style={healthStyles.addMetricDashedText}>+ Agregar otra métrica de salud</Text>
+        </Pressable>
+      </View>
+
+      {/* Modal para agregar métrica personalizada */}
+      {modalOpen && (
+        <AddHealthMetricModal
+          onClose={() => setModalOpen(false)}
+          onSave={(newMetric) => {
+            addHealthMetric(newMetric);
+            setModalOpen(false);
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+/* ==========================================================
+   ESTILOS DE LA SECCIÓN SALUD
+========================================================== */
+const healthStyles = StyleSheet.create({
+  sheetHandleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  chartOuterCard: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  chartGradientWrap: {
+    padding: 16,
+  },
+  chartHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  chartTagBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
+  chartTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#8B5CF6',
+    letterSpacing: 0.6,
+  },
+  chartTitleText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: C.text,
+  },
+  idealPill: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'flex-end',
+  },
+  idealPillLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+  },
+  idealPillVal: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#334155',
+    marginTop: 1,
+  },
+  metricPillsRow: {
+    gap: 8,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  metricPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  metricPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  metricPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  emptyChartBox: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyChartTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: C.text,
+    marginTop: 8,
+  },
+  emptyChartSub: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: C.subMuted,
+    textAlign: 'center',
+    maxWidth: 240,
+    marginTop: 3,
+  },
+  dualLegendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 6,
+    paddingHorizontal: 6,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  listHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 8,
+    paddingHorizontal: 4,
+  },
+  listHeaderTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#8B5CF6',
+    letterSpacing: 0.6,
+  },
+  listHeaderSub: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: C.subMuted,
+  },
+  metricCard: {
+    borderRadius: 18,
+    marginBottom: 10,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  metricCardGradient: {
+    padding: 14,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardIconTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  metricIconOrb: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricCardName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.text,
+  },
+  statusPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  metricIdealSub: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: C.subMuted,
+    marginTop: 2,
+  },
+  dualInputsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inputWrapBox: {
+    flex: 1,
+  },
+  inputMiniLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: C.sub,
+    marginBottom: 4,
+    paddingLeft: 2,
+  },
+  slashSeparator: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#CBD5E1',
+    marginTop: 18,
+  },
+  singleInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cleanInputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  numTextInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.text,
+    paddingVertical: 4,
+  },
+  cleanUnitBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  cleanUnitText: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  addMetricDashedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    marginTop: 6,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+    backgroundColor: 'rgba(139, 92, 246, 0.04)',
+  },
+  addMetricDashedText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#8B5CF6',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    width: '100%',
+  },
+  modalSheetContent: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.25)',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: C.text,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: C.sub,
+    marginTop: 2,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: C.sub,
+    marginBottom: 6,
+  },
+  fieldInputBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 12,
+  },
+  fieldTextInput: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: C.text,
+    paddingVertical: 10,
+  },
+  quickUnitsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  unitChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  unitChipActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#94A3B8',
+    borderWidth: 1.5,
+  },
+  unitChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  unitChipTextActive: {
+    color: C.text,
+    fontWeight: '800',
+  },
+  colorRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 4,
+  },
+  colorDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  colorDotActive: {
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
 });

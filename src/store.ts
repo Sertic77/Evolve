@@ -72,6 +72,63 @@ export type ProgressPhoto = {
 /* ==========================================================
    TIPOS DE BIENESTAR (SUEÑO Y SUPLEMENTOS)
 ========================================================== */
+export type HealthMetricDefinition = {
+  id: string;
+  name: string;
+  unit: string;
+  icon: string;
+  color: string;
+  isDualValue?: boolean;
+  primaryLabel?: string;
+  secondaryLabel?: string;
+  idealRange?: string;
+  custom?: boolean;
+};
+
+export type HealthLogEntry = {
+  value?: number;
+  secondaryValue?: number;
+  notes?: string;
+};
+
+export const SEED_HEALTH_METRICS: HealthMetricDefinition[] = [
+  {
+    id: 'presion',
+    name: 'Presión Arterial',
+    unit: 'mmHg',
+    icon: 'heart-outline',
+    color: '#EC4899',
+    isDualValue: true,
+    primaryLabel: 'Sistólica',
+    secondaryLabel: 'Diastólica',
+    idealRange: '< 120/80 mmHg',
+  },
+  {
+    id: 'azucar',
+    name: 'Glucosa / Azúcar',
+    unit: 'mg/dL',
+    icon: 'water-outline',
+    color: '#06B6D4',
+    idealRange: '70 - 100 mg/dL',
+  },
+  {
+    id: 'colesterol',
+    name: 'Colesterol Total',
+    unit: 'mg/dL',
+    icon: 'flask-outline',
+    color: '#F59E0B',
+    idealRange: '< 200 mg/dL',
+  },
+  {
+    id: 'trigliceridos',
+    name: 'Triglicéridos',
+    unit: 'mg/dL',
+    icon: 'analytics-outline',
+    color: '#8B5CF6',
+    idealRange: '< 150 mg/dL',
+  },
+];
+
 export type Supplement = {
   id: string;
   name: string;
@@ -92,6 +149,39 @@ export function isSupplementActiveOnDate(supp: Supplement, dateStr: string): boo
 }
 
 export const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const genRecentDateKey = (daysAgo: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return dateKey(d);
+};
+
+export const SEED_HEALTH_LOGS: Record<string, Record<string, HealthLogEntry>> = {
+  [genRecentDateKey(6)]: {
+    presion: { value: 122, secondaryValue: 82 },
+    azucar: { value: 98 },
+    colesterol: { value: 188 },
+    trigliceridos: { value: 145 },
+  },
+  [genRecentDateKey(4)]: {
+    presion: { value: 120, secondaryValue: 80 },
+    azucar: { value: 95 },
+    colesterol: { value: 184 },
+    trigliceridos: { value: 142 },
+  },
+  [genRecentDateKey(2)]: {
+    presion: { value: 118, secondaryValue: 79 },
+    azucar: { value: 92 },
+    colesterol: { value: 180 },
+    trigliceridos: { value: 139 },
+  },
+  [genRecentDateKey(0)]: {
+    presion: { value: 119, secondaryValue: 78 },
+    azucar: { value: 94 },
+    colesterol: { value: 178 },
+    trigliceridos: { value: 138 },
+  },
+};
+
 export const ZERO: Macros = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
 export const dateKey = (d: Date) =>
@@ -203,6 +293,13 @@ type State = {
     alarmSound?: string,
   ) => void;
   toggleSupplementDose: (date: string, supplementId: string, doseIndex: number, targetCount: number) => void;
+
+  // Bienestar: Salud
+  healthMetrics: HealthMetricDefinition[];
+  healthLogs: Record<string, Record<string, HealthLogEntry>>;
+  setHealthLog: (date: string, metricId: string, entry: HealthLogEntry) => void;
+  addHealthMetric: (metric: Omit<HealthMetricDefinition, 'id'>) => void;
+  deleteHealthMetric: (id: string) => void;
 };
 
 export const useStore = create<State>()(
@@ -569,6 +666,38 @@ export const useStore = create<State>()(
             },
           };
         }),
+
+      // Bienestar: Salud
+      healthMetrics: SEED_HEALTH_METRICS,
+      healthLogs: SEED_HEALTH_LOGS,
+
+      setHealthLog: (date, metricId, entry) =>
+        set((s) => ({
+          healthLogs: {
+            ...s.healthLogs,
+            [date]: {
+              ...(s.healthLogs[date] || {}),
+              [metricId]: entry,
+            },
+          },
+        })),
+
+      addHealthMetric: (metric) =>
+        set((s) => ({
+          healthMetrics: [
+            ...s.healthMetrics,
+            {
+              ...metric,
+              id: uid(),
+              custom: true,
+            },
+          ],
+        })),
+
+      deleteHealthMetric: (id) =>
+        set((s) => ({
+          healthMetrics: s.healthMetrics.filter((m) => m.id !== id),
+        })),
     }),
     { name: 'evolve-app-data', storage: createJSONStorage(() => AsyncStorage) },
   ),
