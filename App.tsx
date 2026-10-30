@@ -9,6 +9,8 @@ import FoodScreen from './src/FoodScreen';
 import TrainScreen from './src/TrainScreen';
 import MeasureScreen from './src/MeasureScreen';
 import WellnessScreen from './src/WellnessScreen';
+import HomeScreen from './src/HomeScreen';
+import { useStore, getActivePalette } from './src/store';
 
 // 5 Pestañas con HOME en el centro exacto (Índice 2)
 const SIDE_TABS_LEFT = [
@@ -66,7 +68,10 @@ function ComingSoonHUD({ title, icon, subtitle }: { title: string; icon: any; su
 }
 
 export default function App() {
-  const [tab, setTab] = useState<string>('train');
+  const [tab, setTab] = useState<string>('home');
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
 
   const getSubtitle = (key: string) => {
     switch (key) {
@@ -121,7 +126,7 @@ export default function App() {
         <View style={styles.tabBarContainer}>
           {/* Barra Base Horizontal */}
           <LinearGradient
-            colors={GRADIENTS.tabBar}
+            colors={palette.isDark ? ['#1E293B', '#0F172A'] : ['rgba(255, 255, 255, 0.98)', 'rgba(248, 250, 255, 0.96)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
             style={styles.tabBarGradient}
@@ -139,13 +144,13 @@ export default function App() {
                     <Ionicons
                       name={(active ? t.icon : `${t.icon}-outline`) as any}
                       size={20}
-                      color={active ? C.pastelPurple : C.sub}
+                      color={active ? palette.primary : palette.textSub}
                     />
                   </View>
                   <Text
                     style={[
                       styles.tabLabel,
-                      { color: active ? C.pastelPurple : C.sub },
+                      { color: active ? palette.primary : palette.textSub },
                       active && styles.tabLabelActive,
                     ]}
                   >
@@ -171,13 +176,13 @@ export default function App() {
                     <Ionicons
                       name={(active ? t.icon : `${t.icon}-outline`) as any}
                       size={20}
-                      color={active ? C.pastelPurple : C.sub}
+                      color={active ? palette.primary : palette.textSub}
                     />
                   </View>
                   <Text
                     style={[
                       styles.tabLabel,
-                      { color: active ? C.pastelPurple : C.sub },
+                      { color: active ? palette.primary : palette.textSub },
                       active && styles.tabLabelActive,
                     ]}
                   >
@@ -198,7 +203,7 @@ export default function App() {
               ]}
             >
               <LinearGradient
-                colors={tab === 'home' ? GRADIENTS.floatingHomeActive : GRADIENTS.floatingHomeInactive}
+                colors={tab === 'home' ? [palette.primary, palette.secondary] : (palette.isDark ? ['#334155', '#1E293B'] : ['#E2E8F0', '#CBD5E1'])}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.floatingHomeGradient}
@@ -213,7 +218,7 @@ export default function App() {
             <Text
               style={[
                 styles.floatingHomeLabel,
-                { color: tab === 'home' ? C.pastelPurple : C.sub },
+                { color: tab === 'home' ? palette.primary : palette.textSub },
               ]}
             >
               Home

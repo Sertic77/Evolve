@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -90,6 +91,163 @@ export type HealthLogEntry = {
   secondaryValue?: number;
   notes?: string;
 };
+
+/* ==========================================================
+   CONFIGURACIÓN Y PERSONALIZACIÓN (PALETAS, TIPOGRAFÍA, HOME)
+========================================================== */
+export type ColorPalette = {
+  id: string;
+  name: string;
+  isDark?: boolean;
+  primary: string;
+  secondary: string;
+  bg: string;
+  cardBg: string;
+  text: string;
+  textSub: string;
+  border: string;
+  accent: string;
+  custom?: boolean;
+};
+
+export type FontStyleOption = 'system' | 'serif' | 'monospace' | 'rounded';
+
+export type TypographySettings = {
+  titles: FontStyleOption;
+  subtitles: FontStyleOption;
+  body: FontStyleOption;
+  data: FontStyleOption;
+};
+
+export type HomeVisibleWidgets = {
+  profile: boolean;
+  calories: boolean;
+  workout: boolean;
+  supplements: boolean;
+  health: boolean;
+  body: boolean;
+};
+
+export const PRESET_PALETTES: ColorPalette[] = [
+  {
+    id: 'default',
+    name: 'Anime Pastel (Default)',
+    isDark: false,
+    primary: '#8B5CF6',
+    secondary: '#F472B6',
+    bg: '#F3F5FA',
+    cardBg: '#FFFFFF',
+    text: '#1E1B4B',
+    textSub: '#64748B',
+    border: 'rgba(203, 213, 225, 0.6)',
+    accent: '#8B5CF6',
+  },
+  {
+    id: 'dark',
+    name: 'Modo Nocturno (Midnight)',
+    isDark: true,
+    primary: '#818CF8',
+    secondary: '#EC4899',
+    bg: '#0F172A',
+    cardBg: '#1E293B',
+    text: '#F8FAFC',
+    textSub: '#94A3B8',
+    border: '#334155',
+    accent: '#818CF8',
+  },
+  {
+    id: 'sunset',
+    name: 'Atardecer Cálido',
+    isDark: false,
+    primary: '#FB7185',
+    secondary: '#F59E0B',
+    bg: '#FFF7ED',
+    cardBg: '#FFFFFF',
+    text: '#431407',
+    textSub: '#9A3412',
+    border: '#FED7AA',
+    accent: '#FB7185',
+  },
+  {
+    id: 'emerald',
+    name: 'Menta & Esmeralda',
+    isDark: false,
+    primary: '#10B981',
+    secondary: '#06B6D4',
+    bg: '#F0FDF4',
+    cardBg: '#FFFFFF',
+    text: '#064E3B',
+    textSub: '#047857',
+    border: '#A7F3D0',
+    accent: '#10B981',
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk Neón',
+    isDark: true,
+    primary: '#06B6D4',
+    secondary: '#EC4899',
+    bg: '#18181B',
+    cardBg: '#27272A',
+    text: '#FAFAFA',
+    textSub: '#A1A1AA',
+    border: '#3F3F46',
+    accent: '#06B6D4',
+  },
+  {
+    id: 'ocean',
+    name: 'Océano Profundo',
+    isDark: false,
+    primary: '#3B82F6',
+    secondary: '#2DD4BF',
+    bg: '#F0F9FF',
+    cardBg: '#FFFFFF',
+    text: '#0C4A6E',
+    textSub: '#0284C7',
+    border: '#BAE6FD',
+    accent: '#3B82F6',
+  },
+];
+
+export const DEFAULT_TYPOGRAPHY: TypographySettings = {
+  titles: 'system',
+  subtitles: 'system',
+  body: 'system',
+  data: 'system',
+};
+
+export const DEFAULT_HOME_WIDGETS: HomeVisibleWidgets = {
+  profile: true,
+  calories: true,
+  workout: true,
+  supplements: true,
+  health: true,
+  body: true,
+};
+
+export function getFontFamily(fontOption: FontStyleOption): string | undefined {
+  switch (fontOption) {
+    case 'serif':
+      return Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
+    case 'monospace':
+      return Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' });
+    case 'rounded':
+      return Platform.select({ ios: 'Arial Rounded MT Bold', android: 'sans-serif-medium', default: 'sans-serif' });
+    case 'system':
+    default:
+      return Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' });
+  }
+}
+
+export function getActivePalette(state?: { activePaletteId?: string; customPalettes?: ColorPalette[] }): ColorPalette {
+  if (!state) return PRESET_PALETTES[0];
+  const activeId = state.activePaletteId || 'default';
+  const custom = state.customPalettes?.find((p) => p.id === activeId);
+  if (custom) return custom;
+  const preset = PRESET_PALETTES.find((p) => p.id === activeId);
+  return preset || PRESET_PALETTES[0];
+}
+
 
 export const SEED_HEALTH_METRICS: HealthMetricDefinition[] = [
   {
@@ -303,6 +461,17 @@ type State = {
   setHealthLog: (date: string, metricId: string, entry: HealthLogEntry) => void;
   addHealthMetric: (metric: Omit<HealthMetricDefinition, 'id'>) => void;
   deleteHealthMetric: (id: string) => void;
+  // Personalización
+  activePaletteId: string;
+  customPalettes: ColorPalette[];
+  typography: TypographySettings;
+  homeWidgets: HomeVisibleWidgets;
+
+  setActivePalette: (id: string) => void;
+  addCustomPalette: (palette: Omit<ColorPalette, 'id' | 'custom'>) => void;
+  deleteCustomPalette: (id: string) => void;
+  setTypography: (settings: Partial<TypographySettings>) => void;
+  toggleHomeWidget: (widgetKey: keyof HomeVisibleWidgets) => void;
 };
 
 export const useStore = create<State>()(
@@ -704,6 +873,45 @@ export const useStore = create<State>()(
         set((s) => ({
           healthMetrics: (s.healthMetrics || SEED_HEALTH_METRICS).filter((m) => m.id !== id),
         })),
+
+      // Personalización
+      activePaletteId: 'default',
+      customPalettes: [],
+      typography: DEFAULT_TYPOGRAPHY,
+      homeWidgets: DEFAULT_HOME_WIDGETS,
+
+      setActivePalette: (id) => set({ activePaletteId: id }),
+
+      addCustomPalette: (palette) =>
+        set((s) => {
+          const newP: ColorPalette = { ...palette, id: uid(), custom: true };
+          return {
+            customPalettes: [...(s.customPalettes || []), newP],
+            activePaletteId: newP.id,
+          };
+        }),
+
+      deleteCustomPalette: (id) =>
+        set((s) => ({
+          customPalettes: (s.customPalettes || []).filter((p) => p.id !== id),
+          activePaletteId: s.activePaletteId === id ? 'default' : s.activePaletteId,
+        })),
+
+      setTypography: (settings) =>
+        set((s) => ({
+          typography: { ...(s.typography || DEFAULT_TYPOGRAPHY), ...settings },
+        })),
+
+      toggleHomeWidget: (widgetKey) =>
+        set((s) => {
+          const current = s.homeWidgets || DEFAULT_HOME_WIDGETS;
+          return {
+            homeWidgets: {
+              ...current,
+              [widgetKey]: !current[widgetKey],
+            },
+          };
+        }),
     }),
     {
       name: 'evolve-app-data',
@@ -719,6 +927,10 @@ export const useStore = create<State>()(
           persistedState && persistedState.healthLogs && Object.keys(persistedState.healthLogs).length > 0
             ? persistedState.healthLogs
             : SEED_HEALTH_LOGS,
+        activePaletteId: persistedState?.activePaletteId || 'default',
+        customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
+        typography: { ...DEFAULT_TYPOGRAPHY, ...(persistedState?.typography || {}) },
+        homeWidgets: { ...DEFAULT_HOME_WIDGETS, ...(persistedState?.homeWidgets || {}) },
       }),
     },
   ),
