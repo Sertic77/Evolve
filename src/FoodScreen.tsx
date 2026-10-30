@@ -468,6 +468,29 @@ function Library({
 }) {
   const [subTab, setSubTab] = useState(0);
 
+  // Animación suave de transición de contenido para la biblioteca
+  const subContentFadeAnim = useRef(new Animated.Value(1)).current;
+  const subContentSlideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    subContentFadeAnim.setValue(0);
+    subContentSlideAnim.setValue(6);
+    Animated.parallel([
+      Animated.timing(subContentFadeAnim, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(subContentSlideAnim, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [subTab]);
+
   return (
     <View style={{ marginTop: 2 }}>
       <Segmented
@@ -475,15 +498,22 @@ function Library({
         value={subTab}
         onChange={setSubTab}
       />
-      {subTab === 0 ? (
-        <IngredientsList />
-      ) : (
-        <SavedMealsList
-          draft={draft}
-          setDraft={setDraft}
-          onOpenPickerForDraft={onOpenPickerForDraft}
-        />
-      )}
+      <Animated.View
+        style={{
+          opacity: subContentFadeAnim,
+          transform: [{ translateY: subContentSlideAnim }],
+        }}
+      >
+        {subTab === 0 ? (
+          <IngredientsList />
+        ) : (
+          <SavedMealsList
+            draft={draft}
+            setDraft={setDraft}
+            onOpenPickerForDraft={onOpenPickerForDraft}
+          />
+        )}
+      </Animated.View>
     </View>
   );
 }

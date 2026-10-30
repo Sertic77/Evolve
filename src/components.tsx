@@ -292,7 +292,7 @@ export function MainNavigationSegmented({
   onChange: (i: number) => void;
 }) {
   const options = [
-    { label: 'Agregar comidas', icon: 'restaurant-outline' },
+    { label: 'Registrar comidas', icon: 'restaurant-outline' },
     { label: 'Ingredientes y comidas', icon: 'library-outline' },
   ];
 
@@ -369,7 +369,7 @@ export function MainNavigationSegmented({
   );
 }
 
-/* ---------------- Selector Segmentado Tradicional (Restaurado) ---------------- */
+/* ---------------- Selector Segmentado Tradicional con Píldora Deslizante Animada ---------------- */
 export function Segmented({
   options,
   value,
@@ -379,31 +379,66 @@ export function Segmented({
   value: number;
   onChange: (i: number) => void;
 }) {
+  const [containerWidth, setContainerWidth] = useState(0);
+  const slideAnim = useRef(new Animated.Value(value)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: value,
+      friction: 8,
+      tension: 65,
+      useNativeDriver: true,
+    }).start();
+  }, [value]);
+
+  const pillWidth = containerWidth > 0 ? (containerWidth - 8) / options.length : 0;
+
+  const translateX = slideAnim.interpolate({
+    inputRange: options.map((_, idx) => idx),
+    outputRange: options.map((_, idx) => 4 + idx * pillWidth),
+  });
+
   return (
-    <View style={s.segmentedContainer}>
+    <View
+      style={s.segmentedContainer}
+      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+    >
+      {/* Píldora Deslizante Animada Pastel */}
+      {containerWidth > 0 && (
+        <Animated.View
+          style={[
+            s.segmentedSlidingPill,
+            {
+              width: pillWidth,
+              transform: [{ translateX }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={GRADIENTS.primary}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={s.segmentedSlidingPillGradient}
+          />
+        </Animated.View>
+      )}
+
       {options.map((opt, i) => {
         const active = value === i;
         return (
           <Pressable
             key={opt}
             onPress={() => onChange(i)}
-            style={({ pressed }) => [
-              s.segmentedBtn,
-              pressed && { opacity: 0.8 },
-            ]}
+            style={s.segmentedBtn}
           >
-            {active ? (
-              <LinearGradient
-                colors={GRADIENTS.primary}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={s.segmentedActiveGradient}
-              >
-                <Text style={s.segmentedActiveText}>{opt}</Text>
-              </LinearGradient>
-            ) : (
-              <Text style={s.segmentedInactiveText}>{opt}</Text>
-            )}
+            <Text
+              style={[
+                s.segmentedText,
+                active ? s.segmentedTextActive : s.segmentedTextInactive,
+              ]}
+            >
+              {opt}
+            </Text>
           </Pressable>
         );
       })}
@@ -1143,7 +1178,7 @@ export const s = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Segmented Tradicional
+  // Segmented Tradicional con Píldora Deslizante Pastel
   segmentedContainer: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -1156,30 +1191,44 @@ export const s = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 2,
+    position: 'relative',
+    height: 44,
+    alignItems: 'center',
+  },
+  segmentedSlidingPill: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    left: 0,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  segmentedSlidingPillGradient: {
+    flex: 1,
+    borderRadius: 12,
   },
   segmentedBtn: {
     flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  segmentedActiveGradient: {
-    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    height: '100%',
+    zIndex: 2,
   },
-  segmentedActiveText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+  segmentedText: {
     fontSize: 13,
     letterSpacing: 0.2,
   },
-  segmentedInactiveText: {
+  segmentedTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  segmentedTextInactive: {
     color: C.sub,
     fontWeight: '600',
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: 10,
   },
 
   // Date Selector
