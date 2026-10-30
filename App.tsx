@@ -8,10 +8,11 @@ import { C, GRADIENTS } from './src/theme';
 import FoodScreen from './src/FoodScreen';
 import TrainScreen from './src/TrainScreen';
 import MeasureScreen from './src/MeasureScreen';
+import WellnessScreen from './src/WellnessScreen';
 
 // 5 Pestañas con HOME en el centro exacto (Índice 2)
 const SIDE_TABS_LEFT = [
-  { key: 'sleep', label: 'Sueño', icon: 'moon' },
+  { key: 'sleep', label: 'Bienestar', icon: 'moon' },
   { key: 'food', label: 'Comida', icon: 'nutrition' },
 ] as const;
 
@@ -99,7 +100,9 @@ export default function App() {
 
         {/* Pantalla Activa */}
         <View style={styles.mainContent}>
-          {tab === 'food' ? (
+          {tab === 'sleep' ? (
+            <WellnessScreen />
+          ) : tab === 'food' ? (
             <FoodScreen />
           ) : tab === 'train' ? (
             <TrainScreen />

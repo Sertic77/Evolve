@@ -37,7 +37,9 @@
           "savePhotosPermission": "Permite a Evolve guardar tus GIFs de progreso en tu dispositivo."
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-notifications",
+      "expo-audio"
     ]
   }
 }

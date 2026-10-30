@@ -41,6 +41,13 @@ import {
   BodyPartKey,
   DayMeasurements,
   ProgressPhoto,
+  MealBlock,
+  Ingredient,
+  Exercise,
+  WorkoutExercise,
+  itemsTotal,
+  addMacros,
+  ZERO,
 } from './store';
 
 /* ==========================================================
@@ -240,6 +247,10 @@ export default function MeasureScreen() {
     measurementLogs,
     weightLogs,
     photoLogs,
+    logs,
+    ingredients,
+    exercises,
+    workoutLogs,
     setPartMeasurement,
     deletePartMeasurement,
     setDayWeight,
@@ -247,6 +258,8 @@ export default function MeasureScreen() {
     addProgressPhoto,
     deleteProgressPhoto,
   } = useStore();
+
+  const [isGifFullscreen, setIsGifFullscreen] = useState<boolean>(false);
 
   const dayMeasurements = measurementLogs[key] || {};
   const dayWeight = weightLogs[key];
@@ -330,8 +343,14 @@ export default function MeasureScreen() {
           </View>
         </View>
 
-        {/* SELECTOR DE MODO: MEDIDAS vs FOTOS (Sticky al hacer scroll down) */}
-        <View style={measureStyles.stickyTabsContainer}>
+        {/* SELECTOR DE MODO: MEDIDAS vs FOTOS (Sticky al hacer scroll down, se oculta en pantalla completa) */}
+        <View
+          style={[
+            measureStyles.stickyTabsContainer,
+            isGifFullscreen && { opacity: 0, height: 0, paddingBottom: 0, overflow: 'hidden' },
+          ]}
+          pointerEvents={isGifFullscreen ? 'none' : 'auto'}
+        >
           <MeasureModeSegmented value={tab} onChange={setTab} />
         </View>
 
@@ -386,6 +405,13 @@ export default function MeasureScreen() {
               dayPhotos={dayPhotos}
               photoLogs={photoLogs}
               weightLogs={weightLogs}
+              measurementLogs={measurementLogs}
+              foodLogs={logs}
+              ingredients={ingredients}
+              exercises={exercises}
+              workoutLogs={workoutLogs}
+              isFullscreen={isGifFullscreen}
+              onSetFullscreen={setIsGifFullscreen}
               onSavePhoto={(angle, uri) =>
                 addProgressPhoto(key, {
                   id: uid(),
@@ -2180,12 +2206,1034 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
+/* ==========================================================
+   RENDERIZADOR CINEMATOGRÁFICO DE MÉTRICAS Y CODIFICADOR .MP4 (H.264)
+========================================================== */
+export interface GifResolvedMetric {
+  key: string;
+  label: string;
+  valueText: string;
+  colorHex: string;
+  rgb: [number, number, number];
+}
+
+// Fuente bitmap 5x7 compacta para estampar texto nítido dentro de cada fotograma RGBA del video .mp4
+const BITMAP_FONT_5X7: Record<string, number[]> = {
+  ' ': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+  '0': [0x0e, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0e],
+  '1': [0x04, 0x0c, 0x04, 0x04, 0x04, 0x04, 0x0e],
+  '2': [0x0e, 0x11, 0x01, 0x06, 0x08, 0x10, 0x1f],
+  '3': [0x1f, 0x02, 0x04, 0x06, 0x01, 0x11, 0x0e],
+  '4': [0x02, 0x06, 0x0a, 0x12, 0x1f, 0x02, 0x02],
+  '5': [0x1f, 0x10, 0x1e, 0x01, 0x01, 0x11, 0x0e],
+  '6': [0x06, 0x08, 0x10, 0x1e, 0x11, 0x11, 0x0e],
+  '7': [0x1f, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08],
+  '8': [0x0e, 0x11, 0x11, 0x0e, 0x11, 0x11, 0x0e],
+  '9': [0x0e, 0x11, 0x11, 0x0f, 0x01, 0x02, 0x0c],
+  A: [0x0e, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11],
+  B: [0x1e, 0x11, 0x11, 0x1e, 0x11, 0x11, 0x1e],
+  C: [0x0e, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0e],
+  D: [0x1c, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1c],
+  E: [0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x1f],
+  F: [0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x10],
+  G: [0x0e, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0f],
+  H: [0x11, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11],
+  I: [0x0e, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0e],
+  J: [0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0c],
+  K: [0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11],
+  L: [0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1f],
+  M: [0x11, 0x1b, 0x15, 0x15, 0x11, 0x11, 0x11],
+  N: [0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11],
+  O: [0x0e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e],
+  P: [0x1e, 0x11, 0x11, 0x1e, 0x10, 0x10, 0x10],
+  Q: [0x0e, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0d],
+  R: [0x1e, 0x11, 0x11, 0x1e, 0x14, 0x12, 0x11],
+  S: [0x0f, 0x10, 0x10, 0x0e, 0x01, 0x01, 0x1e],
+  T: [0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
+  U: [0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e],
+  V: [0x11, 0x11, 0x11, 0x11, 0x11, 0x0a, 0x04],
+  W: [0x11, 0x11, 0x11, 0x15, 0x15, 0x1b, 0x11],
+  X: [0x11, 0x11, 0x0a, 0x04, 0x0a, 0x11, 0x11],
+  Y: [0x11, 0x11, 0x0a, 0x04, 0x04, 0x04, 0x04],
+  Z: [0x1f, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1f],
+  ':': [0x00, 0x04, 0x04, 0x00, 0x04, 0x04, 0x00],
+  '.': [0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x06],
+  '-': [0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00],
+  '+': [0x00, 0x04, 0x04, 0x1f, 0x04, 0x04, 0x00],
+  '/': [0x01, 0x02, 0x02, 0x04, 0x08, 0x08, 0x10],
+  '%': [0x19, 0x19, 0x02, 0x04, 0x08, 0x13, 0x13],
+  '#': [0x0a, 0x1f, 0x0a, 0x0a, 0x1f, 0x0a, 0x0a],
+  '(': [0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02],
+  ')': [0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08],
+};
+
+function normalizeBitmapText(input: string): string {
+  return input
+    .toUpperCase()
+    .replace(/Á/g, 'A')
+    .replace(/É/g, 'E')
+    .replace(/Í/g, 'I')
+    .replace(/Ó/g, 'O')
+    .replace(/Ú/g, 'U')
+    .replace(/Ü/g, 'U')
+    .replace(/Ñ/g, 'N');
+}
+
+// Degradado vertical suave para integrar las métricas orgánicamente dentro del video
+function drawVerticalGradientScrim(
+  data: Uint8Array,
+  width: number,
+  height: number,
+  yStart: number,
+  yEnd: number,
+  r: number,
+  g: number,
+  b: number,
+  alphaStart: number,
+  alphaEnd: number
+) {
+  const sY = Math.max(0, Math.floor(yStart));
+  const eY = Math.min(height, Math.floor(yEnd));
+  const span = Math.max(1, eY - sY);
+
+  for (let y = sY; y < eY; y++) {
+    const t = (y - sY) / span;
+    // Curva suave (smoothstep) para que no se note ningún corte brusco sobre la foto
+    const smoothT = t * t * (3 - 2 * t);
+    const alpha = alphaStart + (alphaEnd - alphaStart) * smoothT;
+    if (alpha <= 0.005) continue;
+    const invA = 1 - alpha;
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      data[idx] = Math.round(data[idx] * invA + r * alpha);
+      data[idx + 1] = Math.round(data[idx + 1] * invA + g * alpha);
+      data[idx + 2] = Math.round(data[idx + 2] * invA + b * alpha);
+      data[idx + 3] = 255;
+    }
+  }
+}
+
+// Tarjeta redondeada estilo cristal (frosted glass) integrada en el video
+function drawRoundedRectRgba(
+  data: Uint8Array,
+  width: number,
+  height: number,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+  radius: number,
+  r: number,
+  g: number,
+  b: number,
+  alpha: number,
+  borderRgb?: [number, number, number],
+  borderAlpha = 0.22
+) {
+  const startX = Math.max(0, Math.floor(x0));
+  const startY = Math.max(0, Math.floor(y0));
+  const endX = Math.min(width, Math.floor(x0 + w));
+  const endY = Math.min(height, Math.floor(y0 + h));
+  const rad = Math.max(1, Math.min(radius, Math.floor(w / 2), Math.floor(h / 2)));
+
+  for (let y = startY; y < endY; y++) {
+    for (let x = startX; x < endX; x++) {
+      let dx = 0;
+      let dy = 0;
+      if (x < x0 + rad) dx = x0 + rad - x - 0.5;
+      else if (x >= x0 + w - rad) dx = x - (x0 + w - rad - 0.5);
+      if (y < y0 + rad) dy = y0 + rad - y - 0.5;
+      else if (y >= y0 + h - rad) dy = y - (y0 + h - rad - 0.5);
+
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > rad + 0.5) continue;
+
+      const isBorder =
+        borderRgb &&
+        ((dist >= rad - 1.1 && dist <= rad + 0.5) ||
+          (dx === 0 && (y === startY || y === endY - 1)) ||
+          (dy === 0 && (x === startX || x === endX - 1)));
+
+      const idx = (y * width + x) * 4;
+      if (isBorder && borderRgb) {
+        const invB = 1 - borderAlpha;
+        data[idx] = Math.round(data[idx] * invB + borderRgb[0] * borderAlpha);
+        data[idx + 1] = Math.round(data[idx + 1] * invB + borderRgb[1] * borderAlpha);
+        data[idx + 2] = Math.round(data[idx + 2] * invB + borderRgb[2] * borderAlpha);
+      } else {
+        const invA = 1 - alpha;
+        data[idx] = Math.round(data[idx] * invA + r * alpha);
+        data[idx + 1] = Math.round(data[idx + 1] * invA + g * alpha);
+        data[idx + 2] = Math.round(data[idx + 2] * invA + b * alpha);
+      }
+      data[idx + 3] = 255;
+    }
+  }
+}
+
+function drawBitmapString(
+  data: Uint8Array,
+  width: number,
+  height: number,
+  rawText: string,
+  x0: number,
+  y0: number,
+  scale: number,
+  r: number,
+  g: number,
+  b: number,
+  withShadow = true
+) {
+  const text = normalizeBitmapText(rawText);
+
+  const renderPass = (offsetX: number, offsetY: number, cr: number, cg: number, cb: number, alpha: number) => {
+    let cursorX = Math.floor(x0 + offsetX);
+    const startY = Math.floor(y0 + offsetY);
+    const invA = 1 - alpha;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const glyph = BITMAP_FONT_5X7[ch] || BITMAP_FONT_5X7[' '];
+      for (let row = 0; row < 7; row++) {
+        const rowBits = glyph[row];
+        for (let col = 0; col < 5; col++) {
+          if ((rowBits >> (4 - col)) & 1) {
+            for (let sy = 0; sy < scale; sy++) {
+              const py = startY + row * scale + sy;
+              if (py < 0 || py >= height) continue;
+              for (let sx = 0; sx < scale; sx++) {
+                const px = cursorX + col * scale + sx;
+                if (px < 0 || px >= width) continue;
+                const idx = (py * width + px) * 4;
+                if (alpha >= 0.99) {
+                  data[idx] = cr;
+                  data[idx + 1] = cg;
+                  data[idx + 2] = cb;
+                } else {
+                  data[idx] = Math.round(data[idx] * invA + cr * alpha);
+                  data[idx + 1] = Math.round(data[idx + 1] * invA + cg * alpha);
+                  data[idx + 2] = Math.round(data[idx + 2] * invA + cb * alpha);
+                }
+                data[idx + 3] = 255;
+              }
+            }
+          }
+        }
+      }
+      cursorX += 6 * scale;
+    }
+  };
+
+  if (withShadow) {
+    renderPass(1, 1, 5, 8, 18, 0.72);
+  }
+  renderPass(0, 0, r, g, b, 1);
+}
+
+// Estampa la fecha y las métricas con acabado cinematográfico integrado en el video (sin ángulo ni texto inicio/final)
+function burnVideoMetricsOntoRgbaFrame(
+  data: Uint8Array,
+  width: number,
+  height: number,
+  frameInfo: {
+    formattedDate: string;
+    metrics: GifResolvedMetric[];
+  }
+) {
+  const k = Math.max(1, Math.round(width / 352));
+
+  // 1. Degradado superior sutil + cápsula traslúcida únicamente con la fecha
+  drawVerticalGradientScrim(data, width, height, 0, 56 * k, 7, 11, 20, 0.58, 0.0);
+
+  const dateText = frameInfo.formattedDate;
+  const datePillW = (dateText.length * 12 + 28) * k;
+  const datePillH = 26 * k;
+  drawRoundedRectRgba(
+    data,
+    width,
+    height,
+    12 * k,
+    12 * k,
+    datePillW,
+    datePillH,
+    8 * k,
+    15,
+    23,
+    42,
+    0.64,
+    [240, 171, 252],
+    0.34
+  );
+  // Punto luminoso junto a la fecha
+  drawRoundedRectRgba(data, width, height, 20 * k, 21 * k, 6 * k, 8 * k, 3 * k, 232, 121, 249, 1);
+  drawBitmapString(data, width, height, dateText, 31 * k, 18 * k, 2 * k, 255, 255, 255, true);
+
+  // 2. Degradado inferior cinematográfico + tarjetas de métricas en grid 2 columnas integradas al video
+  const metrics = frameInfo.metrics;
+  if (metrics.length > 0) {
+    const cols = metrics.length === 1 ? 1 : 2;
+    const rows = Math.ceil(metrics.length / cols);
+    const cardH = 34 * k;
+    const gapX = 8 * k;
+    const gapY = 7 * k;
+    const padX = 12 * k;
+    const bottomPad = 14 * k;
+    const totalGridH = rows * cardH + (rows - 1) * gapY;
+    const scrimTop = Math.max(60 * k, height - totalGridH - bottomPad - 46 * k);
+
+    // Sombreado degradado suave desde transparente hasta oscuro en la base del video
+    drawVerticalGradientScrim(data, width, height, scrimTop, height, 8, 12, 24, 0.0, 0.92);
+
+    const availW = width - padX * 2;
+    const cardW = cols === 1 ? availW : Math.floor((availW - gapX) / 2);
+    const startGridY = height - totalGridH - bottomPad;
+
+    for (let i = 0; i < metrics.length; i++) {
+      const m = metrics[i];
+      const rIdx = Math.floor(i / cols);
+      const cIdx = i % cols;
+      const isLastOdd = cols === 2 && i === metrics.length - 1 && metrics.length % 2 === 1;
+      const thisCardW = isLastOdd ? availW : cardW;
+      const cx = padX + cIdx * (cardW + gapX);
+      const cy = startGridY + rIdx * (cardH + gapY);
+
+      if (cy < 45 * k || cy + cardH > height) continue;
+
+      // Tarjeta glassmorphic traslúcida
+      drawRoundedRectRgba(
+        data,
+        width,
+        height,
+        cx,
+        cy,
+        thisCardW,
+        cardH,
+        7 * k,
+        22,
+        32,
+        54,
+        0.64,
+        [255, 255, 255],
+        0.18
+      );
+
+      // Barra vertical neón de acento a la izquierda de cada métrica
+      drawRoundedRectRgba(
+        data,
+        width,
+        height,
+        cx + 5 * k,
+        cy + 6 * k,
+        3 * k,
+        cardH - 12 * k,
+        k,
+        m.rgb[0],
+        m.rgb[1],
+        m.rgb[2],
+        1
+      );
+
+      // Nombre de la métrica arriba
+      drawBitmapString(
+        data,
+        width,
+        height,
+        m.label.slice(0, 18),
+        cx + 13 * k,
+        cy + 5 * k,
+        1 * k,
+        226,
+        232,
+        240,
+        true
+      );
+
+      // Valor de la métrica abajo en grande y brillante
+      drawBitmapString(
+        data,
+        width,
+        height,
+        m.valueText.slice(0, 13),
+        cx + 13 * k,
+        cy + 15 * k,
+        2 * k,
+        m.rgb[0],
+        m.rgb[1],
+        m.rgb[2],
+        true
+      );
+    }
+  }
+}
+
+/* ==========================================================
+   CODIFICADOR MP4 (H.264 / AVC1) EN JAVASCRIPT PURO
+========================================================== */
+class H264BitWriter {
+  buf: Uint8Array;
+  len = 0;
+  currByte = 0;
+  bitPos = 0;
+
+  constructor(initialCapacity = 300 * 1024) {
+    this.buf = new Uint8Array(initialCapacity);
+  }
+
+  ensureCapacity(extra: number) {
+    if (this.len + extra > this.buf.length) {
+      const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + extra));
+      next.set(this.buf);
+      this.buf = next;
+    }
+  }
+
+  writeBit(bit: number) {
+    this.currByte = (this.currByte << 1) | (bit & 1);
+    this.bitPos++;
+    if (this.bitPos === 8) {
+      this.ensureCapacity(1);
+      this.buf[this.len++] = this.currByte;
+      this.currByte = 0;
+      this.bitPos = 0;
+    }
+  }
+
+  writeBits(val: number, count: number) {
+    for (let i = count - 1; i >= 0; i--) {
+      this.writeBit((val >>> i) & 1);
+    }
+  }
+
+  writeByteAligned(b: number) {
+    this.ensureCapacity(1);
+    this.buf[this.len++] = b & 0xff;
+  }
+
+  writeUE(val: number) {
+    const codeNum = val + 1;
+    let bits = 0;
+    let tmp = codeNum;
+    while (tmp > 0) {
+      bits++;
+      tmp >>>= 1;
+    }
+    for (let i = 0; i < bits - 1; i++) {
+      this.writeBit(0);
+    }
+    this.writeBits(codeNum, bits);
+  }
+
+  writeSE(val: number) {
+    const mapped = val <= 0 ? -2 * val : 2 * val - 1;
+    this.writeUE(mapped);
+  }
+
+  alignZero() {
+    while (this.bitPos !== 0) {
+      this.writeBit(0);
+    }
+  }
+
+  writeRbspTrailingBits() {
+    this.writeBit(1);
+    this.alignZero();
+  }
+
+  toUint8Array(): Uint8Array {
+    return this.buf.subarray(0, this.len);
+  }
+}
+
+function rbspToEbsp(rbsp: Uint8Array): Uint8Array {
+  const out = new Uint8Array(rbsp.length + Math.floor(rbsp.length / 64) + 16);
+  out[0] = rbsp[0];
+  let outIdx = 1;
+  let zeroCount = 0;
+  for (let i = 1; i < rbsp.length; i++) {
+    const b = rbsp[i];
+    if (zeroCount === 2 && b <= 3) {
+      out[outIdx++] = 0x03;
+      zeroCount = 0;
+    }
+    out[outIdx++] = b;
+    if (b === 0) zeroCount++;
+    else zeroCount = 0;
+  }
+  return out.slice(0, outIdx);
+}
+
+function buildH264SpsNal(width: number, height: number): Uint8Array {
+  const bw = new H264BitWriter(64);
+  bw.writeBits(0x67, 8); // nal_ref_idc = 3, nal_unit_type = 7 (SPS)
+  bw.writeBits(66, 8);   // profile_idc = 66 (Baseline Profile)
+  bw.writeBits(0x80, 8); // constraint_set0_flag = 1
+  bw.writeBits(41, 8);   // level_idc = 41 (Level 4.1)
+  bw.writeUE(0);         // seq_parameter_set_id = 0
+  bw.writeUE(4);         // log2_max_frame_num_minus4 = 4 (8-bit frame_num)
+  bw.writeUE(0);         // pic_order_cnt_type = 0
+  bw.writeUE(4);         // log2_max_pic_order_cnt_lsb_minus4 = 4 (8-bit poc_lsb)
+  bw.writeUE(1);         // max_num_ref_frames = 1
+  bw.writeBit(0);        // gaps_in_frame_num_value_allowed_flag = 0
+  bw.writeUE(width / 16 - 1);
+  bw.writeUE(height / 16 - 1);
+  bw.writeBit(1);        // frame_mbs_only_flag = 1
+  bw.writeBit(1);        // direct_8x8_inference_flag = 1
+  bw.writeBit(0);        // frame_cropping_flag = 0
+  bw.writeBit(0);        // vui_parameters_present_flag = 0
+  bw.writeRbspTrailingBits();
+  return rbspToEbsp(bw.toUint8Array());
+}
+
+function buildH264PpsNal(): Uint8Array {
+  const bw = new H264BitWriter(64);
+  bw.writeBits(0x68, 8); // nal_ref_idc = 3, nal_unit_type = 8 (PPS)
+  bw.writeUE(0);         // pic_parameter_set_id = 0
+  bw.writeUE(0);         // seq_parameter_set_id = 0
+  bw.writeBit(0);        // entropy_coding_mode_flag = 0 (CAVLC)
+  bw.writeBit(0);        // bottom_field_pic_order_in_frame_present_flag = 0
+  bw.writeUE(0);         // num_slice_groups_minus1 = 0
+  bw.writeUE(0);         // num_ref_idx_l0_default_active_minus1 = 0
+  bw.writeUE(0);         // num_ref_idx_l1_default_active_minus1 = 0
+  bw.writeBit(0);        // weighted_pred_flag = 0
+  bw.writeBits(0, 2);    // weighted_bipred_idc = 0
+  bw.writeSE(-14);       // pic_init_qp_minus26 = -14 (QP = 12 para alta fidelidad)
+  bw.writeSE(0);         // pic_init_qs_minus26 = 0
+  bw.writeSE(0);         // chroma_qp_index_offset = 0
+  bw.writeBit(1);        // deblocking_filter_control_present_flag = 1
+  bw.writeBit(0);        // constrained_intra_pred_flag = 0
+  bw.writeBit(0);        // redundant_pic_cnt_present_flag = 0
+  bw.writeRbspTrailingBits();
+  return rbspToEbsp(bw.toUint8Array());
+}
+
+// Codificador CAVLC para coeficientes DC de bloque 4x4 Luma (0 <= nC < 2) y 2x2 Chroma DC (nC = -1)
+function writeH264CavlcSingleCoeff(
+  bw: H264BitWriter,
+  coeff: number,
+  isChromaDC: boolean
+): number {
+  if (coeff === 0) {
+    if (isChromaDC) {
+      bw.writeBits(1, 2); // 01: TotalCoeff = 0, TrailingOnes = 0 (Chroma DC Table 9-5)
+    } else {
+      bw.writeBit(1);     // 1: TotalCoeff = 0, TrailingOnes = 0 (0 <= nC < 2 Table 9-5)
+    }
+    return 0;
+  }
+
+  const absVal = Math.abs(coeff);
+  if (absVal === 1) {
+    // TotalCoeff = 1, TrailingOnes = 1
+    if (isChromaDC) {
+      bw.writeBit(1);     // 1
+    } else {
+      bw.writeBits(1, 2); // 01
+    }
+    bw.writeBit(coeff < 0 ? 1 : 0); // sign of TrailingOne
+    bw.writeBit(1);                 // total_zeros = 0 (Table 9-7 / 9-9a para TotalCoeff = 1)
+    return 1;
+  }
+
+  // TotalCoeff = 1, TrailingOnes = 0
+  if (isChromaDC) {
+    bw.writeBits(7, 6); // 000111
+  } else {
+    bw.writeBits(5, 6); // 000101
+  }
+
+  // Level coding (i = 0, TrailingOnes = 0 < 3 -> levelCode -= 2, suffixLength = 0)
+  const levelCode = (coeff > 0 ? (coeff << 1) - 2 : -(coeff << 1) - 1) - 2;
+  if (levelCode < 14) {
+    for (let z = 0; z < levelCode; z++) bw.writeBit(0);
+    bw.writeBit(1);
+  } else if (levelCode < 30) {
+    for (let z = 0; z < 14; z++) bw.writeBit(0);
+    bw.writeBit(1);
+    bw.writeBits(levelCode - 14, 4);
+  } else {
+    for (let z = 0; z < 15; z++) bw.writeBit(0);
+    bw.writeBit(1);
+    bw.writeBits(levelCode - 30, 12);
+  }
+
+  bw.writeBit(1); // total_zeros = 0 (Table 9-7 / 9-9a para TotalCoeff = 1)
+  return 1;
+}
+
+// Codifica un fotograma clave IDR usando predicción estándar Intra_4x4 + CAVLC (100% compatible con decodificadores hardware de WhatsApp en Android y iOS)
+function buildH264IdrSliceNal(
+  rgba: Uint8Array,
+  width: number,
+  height: number,
+  idrPicId: number
+): Uint8Array {
+  const bw = new H264BitWriter(width * height);
+  bw.writeBits(0x65, 8); // nal_ref_idc = 3, nal_unit_type = 5 (IDR Picture)
+  bw.writeUE(0);         // first_mb_in_slice = 0
+  bw.writeUE(7);         // slice_type = 7 (I-slice)
+  bw.writeUE(0);         // pic_parameter_set_id = 0
+  bw.writeBits(0, 8);    // frame_num = 0 (8 bits)
+  bw.writeUE(idrPicId);  // idr_pic_id
+  bw.writeBits(0, 8);    // pic_order_cnt_lsb = 0 (8 bits)
+  bw.writeBit(0);        // no_output_of_prior_pics_flag = 0
+  bw.writeBit(0);        // long_term_reference_flag = 0
+  bw.writeSE(0);         // slice_qp_delta = 0
+  bw.writeUE(1);         // disable_deblocking_filter_idc = 1
+
+  const mbW = width / 16;
+  const mbH = height / 16;
+  const cW = width / 2;
+  const cH = height / 2;
+
+  // Planos YUV420p originales (BT.601)
+  const origY = new Uint8Array(width * height);
+  const origU = new Uint8Array(cW * cH);
+  const origV = new Uint8Array(cW * cH);
+
+  for (let y = 0; y < height; y++) {
+    const rowOff = y * width;
+    for (let x = 0; x < width; x++) {
+      const idx = (rowOff + x) * 4;
+      const r = rgba[idx];
+      const g = rgba[idx + 1];
+      const b = rgba[idx + 2];
+      origY[rowOff + x] = Math.max(16, Math.min(235, ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16));
+      if ((y & 1) === 0 && (x & 1) === 0) {
+        const cIdx = (y >> 1) * cW + (x >> 1);
+        origU[cIdx] = Math.max(16, Math.min(240, ((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128));
+        origV[cIdx] = Math.max(16, Math.min(240, ((112 * r - 94 * g - 18 * b + 128) >> 8) + 128));
+      }
+    }
+  }
+
+  // Planos reconstruidos exactamente como el decodificador H.264 para mantener predicción DC sin deriva
+  const recY = new Uint8Array(width * height);
+  const recU = new Uint8Array(cW * cH);
+  const recV = new Uint8Array(cW * cH);
+
+  for (let mbY = 0; mbY < mbH; mbY++) {
+    for (let mbX = 0; mbX < mbW; mbX++) {
+      // 1. mb_type = 0 (I_4x4)
+      bw.writeUE(0);
+      // 2. prev_intra4x4_pred_mode_flag = 1 para los 16 sub-bloques 4x4 (Intra_4x4_DC = 2)
+      bw.writeBits(0xffff, 16);
+      // 3. intra_chroma_pred_mode = 0 (Intra_Chroma_DC)
+      bw.writeUE(0);
+      // 4. coded_block_pattern = 31 (cbp_luma = 15, cbp_chroma = 1) -> codeNum = 1 en Tabla 9-4
+      bw.writeUE(1);
+      // 5. mb_qp_delta = 0
+      bw.writeSE(0);
+
+      // 6. 16 bloques Luma 4x4 en orden jerárquico H.264
+      for (let blkIdx = 0; blkIdx < 16; blkIdx++) {
+        const blkX = ((blkIdx & 4) >> 1) | (blkIdx & 1);
+        const blkY = ((blkIdx & 8) >> 2) | ((blkIdx & 2) >> 1);
+        const gx = mbX * 4 + blkX;
+        const gy = mbY * 4 + blkY;
+        const px = gx * 4;
+        const py = gy * 4;
+
+        const hasLeft = gx > 0;
+        const hasTop = gy > 0;
+        let predDC = 128;
+        if (hasLeft && hasTop) {
+          const sumL =
+            recY[py * width + (px - 1)] +
+            recY[(py + 1) * width + (px - 1)] +
+            recY[(py + 2) * width + (px - 1)] +
+            recY[(py + 3) * width + (px - 1)];
+          const sumT =
+            recY[(py - 1) * width + px] +
+            recY[(py - 1) * width + px + 1] +
+            recY[(py - 1) * width + px + 2] +
+            recY[(py - 1) * width + px + 3];
+          predDC = (sumL + sumT + 4) >> 3;
+        } else if (hasLeft) {
+          const sumL =
+            recY[py * width + (px - 1)] +
+            recY[(py + 1) * width + (px - 1)] +
+            recY[(py + 2) * width + (px - 1)] +
+            recY[(py + 3) * width + (px - 1)];
+          predDC = (sumL + 2) >> 2;
+        } else if (hasTop) {
+          const sumT =
+            recY[(py - 1) * width + px] +
+            recY[(py - 1) * width + px + 1] +
+            recY[(py - 1) * width + px + 2] +
+            recY[(py - 1) * width + px + 3];
+          predDC = (sumT + 2) >> 2;
+        }
+
+        let sumDiff = 0;
+        for (let r = 0; r < 4; r++) {
+          const rowBase = (py + r) * width + px;
+          for (let c = 0; c < 4; c++) {
+            sumDiff += origY[rowBase + c] - predDC;
+          }
+        }
+
+        const z0 = Math.round(sumDiff / 10);
+        writeH264CavlcSingleCoeff(bw, z0, false);
+
+        const val = Math.max(0, Math.min(255, predDC + ((z0 * 40 + 32) >> 6)));
+        for (let r = 0; r < 4; r++) {
+          const rowBase = (py + r) * width + px;
+          for (let c = 0; c < 4; c++) {
+            recY[rowBase + c] = val;
+          }
+        }
+      }
+
+      // 7. Bloques Chroma DC (Cb y Cr, 8x8 cada uno)
+      const cx = mbX * 8;
+      const cy = mbY * 8;
+      const hasChromaLeft = mbX > 0;
+      const hasChromaTop = mbY > 0;
+
+      const encodeChromaPlane = (origC: Uint8Array, recC: Uint8Array) => {
+        const preds = [128, 128, 128, 128];
+        let top0 = 0;
+        let top1 = 0;
+        let left0 = 0;
+        let left1 = 0;
+        if (hasChromaTop) {
+          for (let i = 0; i < 4; i++) {
+            top0 += recC[(cy - 1) * cW + cx + i];
+            top1 += recC[(cy - 1) * cW + cx + 4 + i];
+          }
+        }
+        if (hasChromaLeft) {
+          for (let i = 0; i < 4; i++) {
+            left0 += recC[(cy + i) * cW + (cx - 1)];
+            left1 += recC[(cy + 4 + i) * cW + (cx - 1)];
+          }
+        }
+        if (hasChromaLeft && hasChromaTop) preds[0] = (left0 + top0 + 4) >> 3;
+        else if (hasChromaLeft) preds[0] = (left0 + 2) >> 2;
+        else if (hasChromaTop) preds[0] = (top0 + 2) >> 2;
+
+        if (hasChromaTop) preds[1] = (top1 + 2) >> 2;
+        else if (hasChromaLeft) preds[1] = (left0 + 2) >> 2;
+
+        if (hasChromaLeft) preds[2] = (left1 + 2) >> 2;
+        else if (hasChromaTop) preds[2] = (top0 + 2) >> 2;
+
+        if (hasChromaLeft && hasChromaTop) preds[3] = (left1 + top1 + 4) >> 3;
+        else if (hasChromaLeft) preds[3] = (left1 + 2) >> 2;
+        else if (hasChromaTop) preds[3] = (top1 + 2) >> 2;
+
+        let sumDiff = 0;
+        for (let sy = 0; sy < 2; sy++) {
+          for (let sx = 0; sx < 2; sx++) {
+            const p = preds[sy * 2 + sx];
+            for (let y = 0; y < 4; y++) {
+              const rowBase = (cy + sy * 4 + y) * cW + cx + sx * 4;
+              for (let x = 0; x < 4; x++) {
+                sumDiff += origC[rowBase + x] - p;
+              }
+            }
+          }
+        }
+        const cDC0 = Math.round(sumDiff / 20);
+        writeH264CavlcSingleCoeff(bw, cDC0, true);
+
+        const rAdd = (cDC0 * 20 + 32) >> 6;
+        for (let sy = 0; sy < 2; sy++) {
+          for (let sx = 0; sx < 2; sx++) {
+            const val = Math.max(0, Math.min(255, preds[sy * 2 + sx] + rAdd));
+            for (let y = 0; y < 4; y++) {
+              const rowBase = (cy + sy * 4 + y) * cW + cx + sx * 4;
+              for (let x = 0; x < 4; x++) {
+                recC[rowBase + x] = val;
+              }
+            }
+          }
+        }
+      };
+
+      encodeChromaPlane(origU, recU);
+      encodeChromaPlane(origV, recV);
+    }
+  }
+
+  bw.writeRbspTrailingBits();
+  return rbspToEbsp(bw.toUint8Array());
+}
+
+// Fotograma P-Skip ultraligero (~10 bytes) para mantener tasa constante de 10 FPS (CFR) compatible con WhatsApp
+function buildH264PSkipSliceNal(frameNum: number, pocLsb: number, totalMbs: number): Uint8Array {
+  const bw = new H264BitWriter(64);
+  bw.writeBits(0x41, 8); // nal_ref_idc = 2, nal_unit_type = 1 (Non-IDR reference slice)
+  bw.writeUE(0);         // first_mb_in_slice = 0
+  bw.writeUE(5);         // slice_type = 5 (P-slice)
+  bw.writeUE(0);         // pic_parameter_set_id = 0
+  bw.writeBits(frameNum & 0xff, 8);
+  bw.writeBits(pocLsb & 0xff, 8);
+  bw.writeBit(0);        // num_ref_idx_active_override_flag = 0
+  bw.writeBit(0);        // ref_pic_list_modification_flag_l0 = 0
+  bw.writeBit(0);        // adaptive_ref_pic_marking_mode_flag = 0
+  bw.writeSE(0);         // slice_qp_delta = 0
+  bw.writeUE(1);         // disable_deblocking_filter_idc = 1
+  bw.writeUE(totalMbs);  // mb_skip_run = todos los macrobloques mantienen la imagen anterior
+  bw.writeRbspTrailingBits();
+  return rbspToEbsp(bw.toUint8Array());
+}
+
+function u16be(n: number): number[] {
+  return [(n >>> 8) & 0xff, n & 0xff];
+}
+
+function u32be(n: number): number[] {
+  return [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+}
+
+function asciiBytes(str: string): number[] {
+  const arr: number[] = [];
+  for (let i = 0; i < str.length; i++) arr.push(str.charCodeAt(i) & 0xff);
+  return arr;
+}
+
+function mp4Box(type: string, ...payloads: (Uint8Array | number[])[]): Uint8Array {
+  let payloadLen = 0;
+  for (const p of payloads) payloadLen += p.length;
+  const total = 8 + payloadLen;
+  const out = new Uint8Array(total);
+  out[0] = (total >>> 24) & 0xff;
+  out[1] = (total >>> 16) & 0xff;
+  out[2] = (total >>> 8) & 0xff;
+  out[3] = total & 0xff;
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i) & 0xff;
+  let offset = 8;
+  for (const p of payloads) {
+    if (p instanceof Uint8Array) {
+      out.set(p, offset);
+    } else {
+      for (let i = 0; i < p.length; i++) out[offset + i] = p[i];
+    }
+    offset += p.length;
+  }
+  return out;
+}
+
+function encodeFramesToMp4Bytes(
+  frames: { rgba: Uint8Array; durationMs: number }[],
+  width: number,
+  height: number
+): Uint8Array {
+  const sps = buildH264SpsNal(width, height);
+  const pps = buildH264PpsNal();
+  const totalMbs = (width / 16) * (height / 16);
+  const tickMs = 100; // 10 FPS constantes (CFR) para compatibilidad total con WhatsApp, iOS y Android
+
+  const sampleNalPayloads: Uint8Array[] = [];
+  const syncSampleIndices: number[] = []; // Índices 1-based de los fotogramas clave IDR
+
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i];
+    const ticks = Math.max(1, Math.round(f.durationMs / tickMs));
+    const idrNal = buildH264IdrSliceNal(f.rgba, width, height, i % 2);
+    const idrPrefixed = new Uint8Array(4 + idrNal.length);
+    idrPrefixed[0] = (idrNal.length >>> 24) & 0xff;
+    idrPrefixed[1] = (idrNal.length >>> 16) & 0xff;
+    idrPrefixed[2] = (idrNal.length >>> 8) & 0xff;
+    idrPrefixed[3] = idrNal.length & 0xff;
+    idrPrefixed.set(idrNal, 4);
+    sampleNalPayloads.push(idrPrefixed);
+    syncSampleIndices.push(sampleNalPayloads.length);
+
+    for (let t = 1; t < ticks; t++) {
+      const pNal = buildH264PSkipSliceNal(t, t * 2, totalMbs);
+      const pPrefixed = new Uint8Array(4 + pNal.length);
+      pPrefixed[0] = (pNal.length >>> 24) & 0xff;
+      pPrefixed[1] = (pNal.length >>> 16) & 0xff;
+      pPrefixed[2] = (pNal.length >>> 8) & 0xff;
+      pPrefixed[3] = pNal.length & 0xff;
+      pPrefixed.set(pNal, 4);
+      sampleNalPayloads.push(pPrefixed);
+    }
+  }
+
+  const totalSamples = sampleNalPayloads.length;
+  const totalDurationMs = totalSamples * tickMs;
+  const timescale = 1000; // 1 unidad = 1 ms
+
+  const ftyp = mp4Box(
+    'ftyp',
+    asciiBytes('isom'),
+    u32be(0x00000200),
+    asciiBytes('isomiso2avc1mp41')
+  );
+
+  const buildMoov = (mdatDataStartOffset: number) => {
+    const sampleOffsets: number[] = [];
+    const sampleSizes: number[] = [];
+    let runningOffset = mdatDataStartOffset;
+
+    for (const sp of sampleNalPayloads) {
+      sampleOffsets.push(runningOffset);
+      sampleSizes.push(sp.length);
+      runningOffset += sp.length;
+    }
+
+    const mvhd = mp4Box(
+      'mvhd',
+      u32be(0), // version & flags
+      u32be(0), // creation_time
+      u32be(0), // modification_time
+      u32be(timescale),
+      u32be(totalDurationMs),
+      u32be(0x00010000), // rate 1.0
+      u16be(0x0100),     // volume 1.0
+      new Uint8Array(10),
+      u32be(0x00010000), u32be(0), u32be(0),
+      u32be(0), u32be(0x00010000), u32be(0),
+      u32be(0), u32be(0), u32be(0x40000000),
+      new Uint8Array(24),
+      u32be(2) // next_track_ID
+    );
+
+    const tkhd = mp4Box(
+      'tkhd',
+      u32be(0x00000003), // flags: track_enabled | track_in_movie
+      u32be(0),
+      u32be(0),
+      u32be(1), // track_ID = 1
+      u32be(0),
+      u32be(totalDurationMs),
+      new Uint8Array(8),
+      u16be(0),
+      u16be(0),
+      u16be(0),
+      u16be(0),
+      u32be(0x00010000), u32be(0), u32be(0),
+      u32be(0), u32be(0x00010000), u32be(0),
+      u32be(0), u32be(0), u32be(0x40000000),
+      u32be(width << 16),
+      u32be(height << 16)
+    );
+
+    const mdhd = mp4Box(
+      'mdhd',
+      u32be(0),
+      u32be(0),
+      u32be(0),
+      u32be(timescale),
+      u32be(totalDurationMs),
+      u16be(0x55c4),
+      u16be(0)
+    );
+
+    const hdlr = mp4Box(
+      'hdlr',
+      u32be(0),
+      u32be(0),
+      asciiBytes('vide'),
+      new Uint8Array(12),
+      asciiBytes('VideoHandler\0')
+    );
+
+    const vmhd = mp4Box('vmhd', u32be(0x00000001), new Uint8Array(8));
+    const dref = mp4Box('dref', u32be(0), u32be(1), mp4Box('url ', u32be(0x00000001)));
+    const dinf = mp4Box('dinf', dref);
+
+    const avcC = mp4Box(
+      'avcC',
+      [1, sps[1], sps[2], sps[3], 0xff, 0xe1],
+      u16be(sps.length),
+      sps,
+      [1],
+      u16be(pps.length),
+      pps
+    );
+
+    const avc1 = mp4Box(
+      'avc1',
+      new Uint8Array(6),
+      u16be(1),
+      new Uint8Array(16),
+      u16be(width),
+      u16be(height),
+      u32be(0x00480000),
+      u32be(0x00480000),
+      u32be(0),
+      u16be(1),
+      new Uint8Array(32),
+      u16be(0x0018),
+      u16be(0xffff),
+      avcC
+    );
+
+    const stsd = mp4Box('stsd', u32be(0), u32be(1), avc1);
+
+    // Entrada única CFR (10 FPS constantes)
+    const stts = mp4Box('stts', u32be(0), u32be(1), u32be(totalSamples), u32be(tickMs));
+
+    const stssEntries: number[] = [];
+    for (const idx of syncSampleIndices) {
+      stssEntries.push(...u32be(idx));
+    }
+    const stss = mp4Box('stss', u32be(0), u32be(syncSampleIndices.length), stssEntries);
+
+    const stsc = mp4Box('stsc', u32be(0), u32be(1), u32be(1), u32be(1), u32be(1));
+
+    const stszEntries: number[] = [];
+    for (const sz of sampleSizes) {
+      stszEntries.push(...u32be(sz));
+    }
+    const stsz = mp4Box('stsz', u32be(0), u32be(0), u32be(sampleSizes.length), stszEntries);
+
+    const stcoEntries: number[] = [];
+    for (const off of sampleOffsets) {
+      stcoEntries.push(...u32be(off));
+    }
+    const stco = mp4Box('stco', u32be(0), u32be(sampleOffsets.length), stcoEntries);
+
+    const stbl = mp4Box('stbl', stsd, stts, stss, stsc, stsz, stco);
+    const minf = mp4Box('minf', vmhd, dinf, stbl);
+    const mdia = mp4Box('mdia', mdhd, hdlr, minf);
+    const trak = mp4Box('trak', tkhd, mdia);
+    return mp4Box('moov', mvhd, trak);
+  };
+
+  // Estructura Faststart (ftyp -> moov -> mdat) para reproducción y carga instantánea en WhatsApp
+  const dummyMoov = buildMoov(0);
+  const mdatDataStartOffset = ftyp.length + dummyMoov.length + 8;
+  const moov = buildMoov(mdatDataStartOffset);
+  const mdat = mp4Box('mdat', ...sampleNalPayloads);
+
+  const finalMp4 = new Uint8Array(ftyp.length + moov.length + mdat.length);
+  finalMp4.set(ftyp, 0);
+  finalMp4.set(moov, ftyp.length);
+  finalMp4.set(mdat, ftyp.length + moov.length);
+  return finalMp4;
+}
+
+/* ==========================================================
+   DEFINICIÓN DE MÉTRICAS CONFIGURABLES PARA EL GIF
+========================================================== */
+interface GifMetricConfigOption {
+  key: string;
+  label: string;
+  shortLabel: string;
+  category: 'general' | 'strength' | 'body';
+  icon: any;
+  colorHex: string;
+  rgb: [number, number, number];
+}
+
 function ProgressPhotosSection({
   date,
   setDate,
   dayPhotos,
   photoLogs,
   weightLogs,
+  measurementLogs,
+  foodLogs,
+  ingredients,
+  exercises,
+  workoutLogs,
+  isFullscreen,
+  onSetFullscreen,
   onSavePhoto,
   onDeletePhoto,
 }: {
@@ -2194,6 +3242,13 @@ function ProgressPhotosSection({
   dayPhotos: ProgressPhoto[];
   photoLogs: Record<string, ProgressPhoto[]>;
   weightLogs: Record<string, number>;
+  measurementLogs: Record<string, DayMeasurements>;
+  foodLogs: Record<string, MealBlock[]>;
+  ingredients: Ingredient[];
+  exercises: Exercise[];
+  workoutLogs: Record<string, WorkoutExercise[]>;
+  isFullscreen: boolean;
+  onSetFullscreen: (fs: boolean) => void;
   onSavePhoto: (angle: 'front' | 'side' | 'back', uri: string) => void;
   onDeletePhoto: (photoId: string) => void;
 }) {
@@ -2208,7 +3263,269 @@ function ProgressPhotosSection({
   const [speedDropdownOpen, setSpeedDropdownOpen] = useState<boolean>(false);
   const [exportingAction, setExportingAction] = useState<'save' | 'share' | null>(null);
 
-  // Construye la lista ordenada de PRIMERA a ÚLTIMA según el filtro seleccionado
+  // Configuración de métricas visibles en el GIF (por defecto: Peso, Press Pecho, Calorías)
+  const [selectedMetricKeys, setSelectedMetricKeys] = useState<string[]>([
+    'weight',
+    'ex:ex-bench',
+    'calories',
+  ]);
+  const [metricsModalOpen, setMetricsModalOpen] = useState<boolean>(false);
+  const [shareModalOpen, setShareModalOpen] = useState<boolean>(false);
+
+  // Catálogo completo de métricas configurables (Peso/Nutrición, Fuerza/Ejercicios y Medidas Corporales)
+  const availableMetricOptions = React.useMemo<GifMetricConfigOption[]>(() => {
+    const baseOptions: GifMetricConfigOption[] = [
+      {
+        key: 'weight',
+        label: 'Peso Corporal',
+        shortLabel: 'Peso',
+        category: 'general',
+        icon: 'scale-outline',
+        colorHex: '#34D399',
+        rgb: [52, 211, 153],
+      },
+      {
+        key: 'calories',
+        label: 'Calorías del Día',
+        shortLabel: 'Calorías',
+        category: 'general',
+        icon: 'flame-outline',
+        colorHex: '#FBBF24',
+        rgb: [251, 191, 36],
+      },
+      {
+        key: 'protein',
+        label: 'Proteína del Día',
+        shortLabel: 'Proteína',
+        category: 'general',
+        icon: 'nutrition-outline',
+        colorHex: '#60A5FA',
+        rgb: [96, 165, 250],
+      },
+      {
+        key: 'carbs',
+        label: 'Carbohidratos',
+        shortLabel: 'Carbos',
+        category: 'general',
+        icon: 'leaf-outline',
+        colorHex: '#F472B6',
+        rgb: [244, 114, 182],
+      },
+      {
+        key: 'fat',
+        label: 'Grasas',
+        shortLabel: 'Grasas',
+        category: 'general',
+        icon: 'water-outline',
+        colorHex: '#FB923C',
+        rgb: [251, 146, 60],
+      },
+    ];
+
+    const exerciseShortMap: Record<string, string> = {
+      'ex-bench': 'Press Pecho',
+      'ex-squat': 'Sentadilla',
+      'ex-deadlift': 'Peso Muerto',
+      'ex-pullup': 'Dominadas',
+      'ex-military': 'Press Militar',
+      'ex-curl': 'Curl Bíceps',
+      'ex-dips': 'Fondos',
+      'ex-press': 'Prensa Pierna',
+    };
+
+    const strengthOptions: GifMetricConfigOption[] = [
+      ...exercises.map((ex) => ({
+        key: `ex:${ex.id}`,
+        label: `${ex.name} (${ex.muscleGroup})`,
+        shortLabel: exerciseShortMap[ex.id] || ex.name.slice(0, 14),
+        category: 'strength' as const,
+        icon: 'barbell-outline',
+        colorHex: '#F472B6',
+        rgb: [244, 114, 182] as [number, number, number],
+      })),
+      {
+        key: 'workout_vol',
+        label: 'Volumen Total Entreno',
+        shortLabel: 'Vol. Entreno',
+        category: 'strength',
+        icon: 'trending-up-outline',
+        colorHex: '#C084FC',
+        rgb: [192, 132, 252],
+      },
+    ];
+
+    const bodyOptions: GifMetricConfigOption[] = CHARTABLE_PARTS.map((pKey) => {
+      const info = BODY_PARTS_INFO[pKey];
+      return {
+        key: `part:${pKey}`,
+        label: `Medida: ${info.label}`,
+        shortLabel: info.shortLabel,
+        category: 'body' as const,
+        icon: info.icon,
+        colorHex: '#A78BFA',
+        rgb: [167, 139, 250] as [number, number, number],
+      };
+    });
+
+    return [...baseOptions, ...strengthOptions, ...bodyOptions];
+  }, [exercises]);
+
+  const toggleMetricKey = (k: string) => {
+    setSelectedMetricKeys((prev) =>
+      prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]
+    );
+  };
+
+  // Resuelve las métricas seleccionadas vinculadas directamente a la fecha (dateStr) de cada foto
+  const resolveMetricsForDate = React.useCallback(
+    (targetDateStr: string): GifResolvedMetric[] => {
+      const sortedWeightDates = Object.keys(weightLogs).sort();
+      const sortedFoodDates = Object.keys(foodLogs).sort();
+      const sortedWorkoutDates = Object.keys(workoutLogs).sort();
+      const sortedMeasureDates = Object.keys(measurementLogs).sort();
+
+      // Auxiliar: busca el valor en la fecha exacta de la foto, o el último registrado en o antes de esa fecha
+      const findLatestOnOrBefore = <T,>(
+        sortedDates: string[],
+        getter: (d: string) => T | undefined
+      ): T | undefined => {
+        const exact = getter(targetDateStr);
+        if (exact !== undefined) return exact;
+        let best: T | undefined;
+        for (const d of sortedDates) {
+          if (d <= targetDateStr) {
+            const v = getter(d);
+            if (v !== undefined) best = v;
+          }
+        }
+        return best;
+      };
+
+      const resolved: GifResolvedMetric[] = [];
+
+      for (const mKey of selectedMetricKeys) {
+        const opt = availableMetricOptions.find((o) => o.key === mKey);
+        if (!opt) continue;
+
+        if (mKey === 'weight') {
+          const w = findLatestOnOrBefore(sortedWeightDates, (d) =>
+            weightLogs[d] !== undefined && weightLogs[d] > 0 ? weightLogs[d] : undefined
+          );
+          resolved.push({
+            key: mKey,
+            label: opt.shortLabel,
+            valueText: w !== undefined ? `${w} kg` : '-- kg',
+            colorHex: opt.colorHex,
+            rgb: opt.rgb,
+          });
+        } else if (mKey === 'calories' || mKey === 'protein' || mKey === 'carbs' || mKey === 'fat') {
+          const dayMeals = findLatestOnOrBefore(sortedFoodDates, (d) => {
+            const meals = foodLogs[d];
+            if (!meals || meals.length === 0) return undefined;
+            const tot = meals.reduce(
+              (acc, mb) => addMacros(acc, itemsTotal(mb.items, ingredients)),
+              ZERO
+            );
+            return tot.kcal > 0 ? tot : undefined;
+          });
+
+          let valStr = '--';
+          if (dayMeals) {
+            if (mKey === 'calories') valStr = `${Math.round(dayMeals.kcal)} kcal`;
+            else if (mKey === 'protein') valStr = `${Math.round(dayMeals.protein)} g`;
+            else if (mKey === 'carbs') valStr = `${Math.round(dayMeals.carbs)} g`;
+            else if (mKey === 'fat') valStr = `${Math.round(dayMeals.fat)} g`;
+          } else {
+            valStr = mKey === 'calories' ? '-- kcal' : '-- g';
+          }
+
+          resolved.push({
+            key: mKey,
+            label: opt.shortLabel,
+            valueText: valStr,
+            colorHex: opt.colorHex,
+            rgb: opt.rgb,
+          });
+        } else if (mKey === 'workout_vol') {
+          const vol = findLatestOnOrBefore(sortedWorkoutDates, (d) => {
+            const list = workoutLogs[d];
+            if (!list || list.length === 0) return undefined;
+            let totalVol = 0;
+            for (const we of list) {
+              for (const sItem of we.sets) {
+                totalVol += (sItem.weight || 0) * (sItem.reps || 0);
+              }
+            }
+            return totalVol > 0 ? Math.round(totalVol) : undefined;
+          });
+
+          resolved.push({
+            key: mKey,
+            label: opt.shortLabel,
+            valueText: vol !== undefined ? `${vol} kg` : '-- kg',
+            colorHex: opt.colorHex,
+            rgb: opt.rgb,
+          });
+        } else if (mKey.startsWith('ex:')) {
+          const exId = mKey.slice(3);
+          const bestSet = findLatestOnOrBefore(sortedWorkoutDates, (d) => {
+            const list = workoutLogs[d];
+            if (!list) return undefined;
+            const found = list.find((we) => we.exerciseId === exId);
+            if (!found || !found.sets.length) return undefined;
+            let maxW = 0;
+            let repsAtMax = 0;
+            for (const st of found.sets) {
+              if (st.weight > maxW) {
+                maxW = st.weight;
+                repsAtMax = st.reps;
+              }
+            }
+            return maxW > 0 ? { maxW, repsAtMax } : undefined;
+          });
+
+          resolved.push({
+            key: mKey,
+            label: opt.shortLabel,
+            valueText: bestSet
+              ? bestSet.repsAtMax > 0
+                ? `${bestSet.maxW} kg x${bestSet.repsAtMax}`
+                : `${bestSet.maxW} kg`
+              : '-- kg',
+            colorHex: opt.colorHex,
+            rgb: opt.rgb,
+          });
+        } else if (mKey.startsWith('part:')) {
+          const pKey = mKey.slice(5) as BodyPartKey;
+          const pVal = findLatestOnOrBefore(sortedMeasureDates, (d) => {
+            const v = measurementLogs[d]?.[pKey];
+            return typeof v === 'number' && v > 0 ? v : undefined;
+          });
+
+          resolved.push({
+            key: mKey,
+            label: opt.shortLabel,
+            valueText: pVal !== undefined ? `${pVal} cm` : '-- cm',
+            colorHex: opt.colorHex,
+            rgb: opt.rgb,
+          });
+        }
+      }
+
+      return resolved;
+    },
+    [
+      selectedMetricKeys,
+      availableMetricOptions,
+      weightLogs,
+      foodLogs,
+      ingredients,
+      workoutLogs,
+      measurementLogs,
+    ]
+  );
+
+  // Construye la lista ordenada de PRIMERA a ÚLTIMA según el filtro seleccionado, vinculando cada foto a las métricas de su fecha
   const projectedFrames = React.useMemo(() => {
     const angleOrder: Record<'front' | 'side' | 'back', number> = {
       front: 0,
@@ -2223,7 +3540,8 @@ function ProgressPhotosSection({
       angle: 'front' | 'side' | 'back';
       dateStr: string;
       formattedDate: string;
-      weight?: number;
+      dayNumber: number;
+      metrics: GifResolvedMetric[];
     }[] = [];
 
     const monthNames = [
@@ -2241,6 +3559,8 @@ function ProgressPhotosSection({
       'DIC',
     ];
 
+    let uniqueDayCount = 0;
+
     for (const dStr of sortedDateKeys) {
       const entries = photoLogs[dStr] || [];
       if (!entries.length) continue;
@@ -2248,6 +3568,12 @@ function ProgressPhotosSection({
       const filtered = entries
         .filter((p) => (projectorFilter === 'all' ? true : p.angle === projectorFilter))
         .sort((a, b) => angleOrder[a.angle] - angleOrder[b.angle]);
+
+      if (filtered.length === 0) continue;
+      uniqueDayCount += 1;
+
+      // Todas las fotos del mismo día (ej. 3 fotos del Día 1) comparten las métricas de esa fecha (dStr)
+      const dayMetrics = resolveMetricsForDate(dStr);
 
       for (const item of filtered) {
         const [y, m, d] = dStr.split('-');
@@ -2258,13 +3584,14 @@ function ProgressPhotosSection({
           angle: item.angle,
           dateStr: dStr,
           formattedDate: `${parseInt(d, 10)} ${mLabel} ${y}`,
-          weight: weightLogs[dStr],
+          dayNumber: uniqueDayCount,
+          metrics: dayMetrics,
         });
       }
     }
 
     return list;
-  }, [photoLogs, weightLogs, projectorFilter]);
+  }, [photoLogs, projectorFilter, resolveMetricsForDate]);
 
   // Ajusta el índice si cambia el filtro o la cantidad de fotos
   useEffect(() => {
@@ -2276,18 +3603,28 @@ function ProgressPhotosSection({
     }
   }, [projectorFilter, projectedFrames.length]);
 
-  // Temporizador para el modo de proyección tipo GIF
+  const safeIndex =
+    projectedFrames.length > 0
+      ? Math.min(currentIndex, projectedFrames.length - 1)
+      : 0;
+  const activeFrame = projectedFrames[safeIndex];
+
+  // Temporizador para el modo de proyección tipo GIF con 2 SEGUNDOS (2000ms) de delay al iniciar y 2 SEGUNDOS (2000ms) al finalizar
   useEffect(() => {
     if (!isPlayingGif || projectedFrames.length <= 1) {
       return;
     }
-    const intervalMs = GIF_SPEEDS[gifSpeedIdx]?.ms || 550;
-    const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % projectedFrames.length);
-    }, intervalMs);
+    const isFirstFrame = safeIndex === 0;
+    const isLastFrame = safeIndex === projectedFrames.length - 1;
+    const baseMs = GIF_SPEEDS[gifSpeedIdx]?.ms || 550;
+    const delayForCurrentFrame = isFirstFrame || isLastFrame ? 2000 : baseMs;
 
-    return () => clearInterval(timer);
-  }, [isPlayingGif, projectedFrames.length, gifSpeedIdx]);
+    const timer = setTimeout(() => {
+      setCurrentIndex((prev) => (prev + 1) % projectedFrames.length);
+    }, delayForCurrentFrame);
+
+    return () => clearTimeout(timer);
+  }, [isPlayingGif, projectedFrames.length, gifSpeedIdx, safeIndex]);
 
   // Captura de foto con la Cámara del dispositivo
   const handleTakePhotoWithCamera = async (angle: 'front' | 'side' | 'back') => {
@@ -2354,12 +3691,6 @@ function ProgressPhotosSection({
     }
   };
 
-  const safeIndex =
-    projectedFrames.length > 0
-      ? Math.min(currentIndex, projectedFrames.length - 1)
-      : 0;
-  const activeFrame = projectedFrames[safeIndex];
-
   const stepPrev = () => {
     setIsPlayingGif(false);
     if (projectedFrames.length <= 1) return;
@@ -2372,70 +3703,100 @@ function ProgressPhotosSection({
     setCurrentIndex((prev) => (prev + 1) % projectedFrames.length);
   };
 
-  // Genera un archivo .gif animado real con todas las fotos proyectadas (en orden de primera a última)
-  const generateAnimatedGifFile = async (): Promise<{ uri: string; bytes: Uint8Array } | null> => {
+  const toggleGifPlayback = () => {
+    if (projectedFrames.length <= 1) {
+      Alert.alert(
+        'Añade más fotos',
+        'Registra al menos 2 fotos en este filtro para reproducir la animación de avance tipo GIF.'
+      );
+      return;
+    }
+    setIsPlayingGif((prev) => !prev);
+  };
+
+  // Genera un archivo de video .mp4 (H.264 / AVC1) con las métricas integradas y 2s de delay al inicio y al final
+  const generateProgressVideoFile = async (): Promise<{ uri: string; bytes: Uint8Array } | null> => {
     if (projectedFrames.length === 0) {
-      Alert.alert('Sin fotos', 'Primero añade fotos de progreso para poder exportar tu GIF.');
+      Alert.alert('Sin fotos', 'Primero añade fotos de progreso para poder exportar tu video.');
       return null;
     }
 
+    // Ceder un ciclo al hilo de UI para que el estado de carga ("Preparando..." / "Creando Video...") se pinte de inmediato
+    await new Promise((resolve) => setTimeout(resolve, 35));
+
     const jpeg = require('jpeg-js');
-    const { GIFEncoder, quantize, applyPalette } = require('gifenc');
-
-    const gif = GIFEncoder();
     const delayMs = GIF_SPEEDS[gifSpeedIdx]?.ms || 550;
-    const targetW = 300;
-    const targetH = 400;
+    // Dimensiones múltiplos exactos de 16 para macrobloques H.264 (44x60 macrobloques = 704x960)
+    const targetW = 704;
+    const targetH = 960;
 
-    for (const frame of projectedFrames) {
+    const preparedFrames: { rgba: Uint8Array; durationMs: number }[] = [];
+
+    for (let i = 0; i < projectedFrames.length; i++) {
+      const frame = projectedFrames[i];
       const manipulated = await manipulateAsync(
         frame.uri,
         [{ resize: { width: targetW, height: targetH } }],
-        { compress: 0.9, format: SaveFormat.JPEG, base64: true }
+        { compress: 0.92, format: SaveFormat.JPEG, base64: true }
       );
 
       if (!manipulated.base64) continue;
       const jpgBytes = base64ToUint8Array(manipulated.base64);
       const decoded = jpeg.decode(jpgBytes, { useTArray: true, formatAsRGBA: true });
-      const palette = quantize(decoded.data, 256);
-      const index = applyPalette(decoded.data, palette);
-      gif.writeFrame(index, decoded.width, decoded.height, {
-        palette,
-        delay: delayMs,
-        repeat: 0,
+
+      const isFirst = i === 0;
+      const isLast = i === projectedFrames.length - 1;
+
+      // Estampar Fecha y Métricas integradas cinematográficamente en el fotograma (sin lado ni texto inicio/final)
+      burnVideoMetricsOntoRgbaFrame(decoded.data, decoded.width, decoded.height, {
+        formattedDate: frame.formattedDate,
+        metrics: frame.metrics,
       });
+
+      // 2 segundos (2000 ms) de delay al iniciar y 2 segundos (2000 ms) al finalizar
+      const frameDurationMs = isFirst || isLast ? 2000 : delayMs;
+      preparedFrames.push({
+        rgba: decoded.data,
+        durationMs: frameDurationMs,
+      });
+
+      // Pequeña pausa entre fotogramas para mantener la UI fluida
+      await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
-    gif.finish();
-    const gifBytes: Uint8Array = gif.bytes();
+    if (preparedFrames.length === 0) return null;
+
+    const mp4Bytes = encodeFramesToMp4Bytes(preparedFrames, targetW, targetH);
 
     if (Platform.OS === 'web') {
-      return { uri: '', bytes: gifBytes };
+      return { uri: '', bytes: mp4Bytes };
     }
 
-    const fileName = `evolve_avance_${projectorFilter}_${Date.now()}.gif`;
+    const fileName = `evolve_avance_${projectorFilter}_${Date.now()}.mp4`;
     const outFile = new File(Paths.cache, fileName);
-    outFile.writeSync(gifBytes);
-    return { uri: outFile.uri, bytes: gifBytes };
+    outFile.writeSync(mp4Bytes);
+    return { uri: outFile.uri, bytes: mp4Bytes };
   };
 
-  // Guardar el GIF animado en la galería del dispositivo
+  // Guardar el Video .mp4 en la galería del dispositivo
   const handleSaveGifToDevice = async () => {
     if (exportingAction) return;
     try {
+      setIsPlayingGif(false);
       setExportingAction('save');
-      const generated = await generateAnimatedGifFile();
+      const generated = await generateProgressVideoFile();
       if (!generated) return;
 
       if (Platform.OS === 'web') {
-        const blob = new Blob([generated.bytes as any], { type: 'image/gif' });
+        const blob = new Blob([generated.bytes as any], { type: 'video/mp4' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `evolve_avance_${projectorFilter}.gif`;
+        a.download = `evolve_avance_${projectorFilter}.mp4`;
         a.click();
         URL.revokeObjectURL(url);
-        Alert.alert('¡GIF Descargado!', 'El archivo GIF de tu progreso se descargó en tu dispositivo.');
+        setShareModalOpen(false);
+        Alert.alert('¡Video Descargado!', 'El video MP4 con tus métricas se descargó en tu dispositivo.');
         return;
       }
 
@@ -2443,35 +3804,37 @@ function ProgressPhotosSection({
       if (!perm.granted) {
         Alert.alert(
           'Permiso requerido',
-          'Autoriza el acceso a tu galería para poder guardar el archivo GIF en tu dispositivo.'
+          'Autoriza el acceso a tu galería para poder guardar el video en tu dispositivo.'
         );
         return;
       }
 
       await Asset.create(generated.uri);
+      setShareModalOpen(false);
       Alert.alert(
-        '¡GIF Guardado en tu Dispositivo!',
-        `Se guardó exitosamente tu GIF animado (${projectedFrames.length} fotos a velocidad ${GIF_SPEEDS[gifSpeedIdx]?.label}) en tu galería.`
+        '¡Video Guardado en tu Dispositivo!',
+        `Se guardó tu video MP4 con las métricas integradas (${projectedFrames.length} fotos, pausa inicial/final de 2s y velocidad ${GIF_SPEEDS[gifSpeedIdx]?.label}).`
       );
     } catch {
-      Alert.alert('Error al guardar', 'No se pudo guardar el GIF en el dispositivo.');
+      Alert.alert('Error al guardar', 'No se pudo guardar el video en el dispositivo.');
     } finally {
       setExportingAction(null);
     }
   };
 
-  // Enviar el GIF animado por WhatsApp o compartir con otras apps
+  // Enviar el Video .mp4 por WhatsApp o compartir con otras apps
   const handleShareGifWhatsApp = async () => {
     if (exportingAction) return;
     try {
+      setIsPlayingGif(false);
       setExportingAction('share');
-      const generated = await generateAnimatedGifFile();
+      const generated = await generateProgressVideoFile();
       if (!generated) return;
 
       if (Platform.OS === 'web') {
         Alert.alert(
           'Modo Web',
-          'En navegador web usa el botón "Guardar GIF" para descargarlo y adjuntarlo en WhatsApp Web.'
+          'En navegador web usa el botón "Guardar Video" para descargarlo y adjuntarlo en WhatsApp Web.'
         );
         return;
       }
@@ -2482,13 +3845,14 @@ function ProgressPhotosSection({
         return;
       }
 
+      setShareModalOpen(false);
       await Sharing.shareAsync(generated.uri, {
-        mimeType: 'image/gif',
-        dialogTitle: 'Enviar GIF de progreso por WhatsApp',
-        UTI: 'com.compuserve.gif',
+        mimeType: 'video/mp4',
+        dialogTitle: 'Enviar video de progreso por WhatsApp',
+        UTI: 'public.mpeg-4',
       });
     } catch {
-      Alert.alert('Error al compartir', 'No se pudo abrir el menú para enviar el GIF por WhatsApp.');
+      Alert.alert('Error al compartir', 'No se pudo abrir el menú para enviar el video por WhatsApp.');
     } finally {
       setExportingAction(null);
     }
@@ -2500,6 +3864,214 @@ function ProgressPhotosSection({
   const selectedModalExistingPhoto = activeAngleModal
     ? dayPhotos.find((p) => p.angle === activeAngleModal)
     : undefined;
+
+  // Renderiza el panel selector de métricas (funciona tanto en vista normal como dentro de Pantalla Completa)
+  const renderMetricsConfigCard = () => (
+    <Pressable
+      style={measureStyles.modalBackdropOverlay}
+      onPress={() => setMetricsModalOpen(false)}
+    >
+      <Pressable
+        style={[measureStyles.modalDialogCard, { maxHeight: '84%', paddingBottom: 16 }]}
+        onPress={(e) => e.stopPropagation()}
+      >
+        <View style={measureStyles.modalHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+            <View style={measureStyles.modalIconCircle}>
+              <Ionicons name="stats-chart" size={19} color={C.pastelPurple} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={measureStyles.modalTitle}>Métricas del Video</Text>
+              <Text style={measureStyles.modalSubtitle}>
+                Se actualizan según la fecha de cada foto y se integran en el video al descargar/enviar
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            onPress={() => setMetricsModalOpen(false)}
+            style={measureStyles.modalCloseBtn}
+            hitSlop={10}
+          >
+            <Ionicons name="close" size={22} color={C.sub} />
+          </Pressable>
+        </View>
+
+        <ScrollView
+          style={{ marginTop: 10, maxHeight: 380 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {[
+            { key: 'general', title: 'Peso y Nutrición (Comida)' },
+            { key: 'strength', title: 'Fuerza y Ejercicios (Entreno)' },
+            { key: 'body', title: 'Medidas Corporales (cm)' },
+          ].map((cat) => {
+            const catItems = availableMetricOptions.filter((o) => o.category === cat.key);
+            return (
+              <View key={cat.key} style={{ marginBottom: 14 }}>
+                <Text style={measureStyles.selectorSectionHint}>{cat.title.toUpperCase()}</Text>
+                <View style={measureStyles.metricsConfigChipsWrap}>
+                  {catItems.map((opt) => {
+                    const active = selectedMetricKeys.includes(opt.key);
+                    return (
+                      <Pressable
+                        key={opt.key}
+                        onPress={() => toggleMetricKey(opt.key)}
+                        style={({ pressed }) => [
+                          measureStyles.metricConfigChip,
+                          active && measureStyles.metricConfigChipActive,
+                          pressed && s.btnPressed,
+                        ]}
+                      >
+                        <Ionicons
+                          name={active ? 'checkbox' : 'square-outline'}
+                          size={15}
+                          color={active ? '#8B5CF6' : C.subMuted}
+                        />
+                        <Text
+                          style={[
+                            measureStyles.metricConfigChipText,
+                            active && measureStyles.metricConfigChipTextActive,
+                          ]}
+                        >
+                          {opt.shortLabel}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        <View style={{ marginTop: 10 }}>
+          <PrimaryButton
+            icon="checkmark-circle"
+            label={`Listo (${selectedMetricKeys.length} métricas activas)`}
+            onPress={() => setMetricsModalOpen(false)}
+          />
+        </View>
+      </Pressable>
+    </Pressable>
+  );
+
+  // Renderiza el visor interactivo del Video (reutilizable en vista normal y en Pantalla Completa)
+  const renderGifViewport = (inFullscreenMode: boolean) => {
+    if (!activeFrame) return null;
+    const metricsCount = activeFrame.metrics.length;
+    return (
+      <View
+        style={[
+          measureStyles.projectorViewport,
+          inFullscreenMode && measureStyles.projectorViewportFullscreen,
+        ]}
+      >
+        {/* Al dar clic al video se abre/cierra la pantalla completa */}
+        <Pressable
+          onPress={() => onSetFullscreen(!inFullscreenMode)}
+          style={StyleSheet.absoluteFill}
+        >
+          <Image
+            source={{ uri: activeFrame.uri }}
+            style={measureStyles.projectorMainImage}
+            resizeMode={inFullscreenMode ? 'contain' : 'cover'}
+          />
+        </Pressable>
+
+        {/* Degradado superior suave integrado al video */}
+        <LinearGradient
+          colors={['rgba(7, 11, 20, 0.56)', 'transparent']}
+          style={measureStyles.videoTopVignette}
+          pointerEvents="none"
+        />
+
+        {/* Cápsula Superior Izquierda: Únicamente la Fecha (sin ángulo y sin texto inicio/final) */}
+        <View style={measureStyles.projectorTopLeftBadge} pointerEvents="none">
+          <View style={measureStyles.videoDateGlowDot} />
+          <Text style={measureStyles.projectorDateText}>
+            {activeFrame.formattedDate}
+          </Text>
+        </View>
+
+        {/* Esquina Superior Derecha: Botón para abrir Pantalla Completa (solo en vista normal) */}
+        {!inFullscreenMode && (
+          <View style={measureStyles.projectorTopRightRow}>
+            <Pressable
+              onPress={() => onSetFullscreen(true)}
+              style={({ pressed }) => [
+                measureStyles.fullscreenCornerToggleBtn,
+                pressed && s.btnPressed,
+              ]}
+            >
+              <Ionicons name="expand-outline" size={18} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        )}
+
+        {/* Degradado Cinematográfico Inferior con Tarjetas de Métricas Integradas al Video */}
+        <LinearGradient
+          colors={['transparent', 'rgba(8, 12, 24, 0.62)', 'rgba(8, 12, 24, 0.92)']}
+          locations={[0, 0.38, 1]}
+          style={measureStyles.projectorBottomHudBar}
+          pointerEvents="none"
+        >
+          {/* Tarjetas Glassmorphic de Métricas integradas al Video */}
+          {metricsCount > 0 && (
+            <View style={measureStyles.gifMetricsHudGrid}>
+              {activeFrame.metrics.map((m, idx) => {
+                const isFullRow =
+                  metricsCount === 1 ||
+                  (metricsCount % 2 === 1 && idx === metricsCount - 1);
+                return (
+                  <View
+                    key={m.key}
+                    style={[
+                      measureStyles.gifMetricHudPill,
+                      isFullRow && { width: '100%' },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        measureStyles.gifMetricAccentBar,
+                        { backgroundColor: m.colorHex },
+                      ]}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={measureStyles.gifMetricHudLabel} numberOfLines={1}>
+                        {m.label.toUpperCase()}
+                      </Text>
+                      <Text
+                        style={[measureStyles.gifMetricHudValue, { color: m.colorHex }]}
+                        numberOfLines={1}
+                      >
+                        {m.valueText}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Barra de progreso minimalista integrada al pie del video */}
+          <View style={measureStyles.projectorProgressTrack}>
+            <View
+              style={[
+                measureStyles.projectorProgressFill,
+                {
+                  width: `${
+                    projectedFrames.length === 1
+                      ? 100
+                      : Math.round(((safeIndex + 1) / projectedFrames.length) * 100)
+                  }%`,
+                },
+              ]}
+            />
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  };
 
   return (
     <View style={{ marginTop: 2 }}>
@@ -2600,9 +4172,9 @@ function ProgressPhotosSection({
                 <Ionicons name="film-outline" size={12} color="#8B5CF6" />
                 <Text style={measureStyles.chartTagText}>✦ PROYECCIÓN CRONOLÓGICA ✦</Text>
               </View>
-              <Text style={measureStyles.chartTitle}>Avance en Modo GIF</Text>
+              <Text style={measureStyles.chartTitle}>Avance en Video</Text>
               <Text style={measureStyles.croquisSubTitle}>
-                Proyección ordenada de la primera a la última foto
+                Toca el video para pantalla completa • Pausa de 2s al inicio y al final
               </Text>
             </View>
 
@@ -2645,6 +4217,37 @@ function ProgressPhotosSection({
             })}
           </View>
 
+          {/* Barra de Configuración Rápida: Configurar Métricas y Compartir */}
+          <View style={measureStyles.gifQuickConfigRow}>
+            <Pressable
+              onPress={() => setMetricsModalOpen(true)}
+              style={({ pressed }) => [
+                measureStyles.gifMetricsConfigBtn,
+                pressed && s.btnPressed,
+              ]}
+            >
+              <Ionicons name="options-outline" size={15} color="#8B5CF6" />
+              <Text style={measureStyles.gifMetricsConfigBtnText}>
+                Configurar métricas ({selectedMetricKeys.length})
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setShareModalOpen(true)}
+              disabled={projectedFrames.length === 0}
+              style={({ pressed }) => [
+                measureStyles.gifFullscreenOpenBtn,
+                projectedFrames.length === 0 && { opacity: 0.5 },
+                pressed && s.btnPressed,
+              ]}
+            >
+              <Ionicons name="share-social-outline" size={15} color="#EC4899" />
+              <Text style={measureStyles.gifFullscreenOpenBtnText}>
+                Compartir
+              </Text>
+            </Pressable>
+          </View>
+
           {/* Escenario de Proyección */}
           {projectedFrames.length === 0 ? (
             <View style={measureStyles.projectorEmptyStage}>
@@ -2673,102 +4276,7 @@ function ProgressPhotosSection({
           ) : (
             <View style={measureStyles.projectorStageContainer}>
               {/* Visor Principal de la Imagen Proyectada */}
-              <View style={measureStyles.projectorViewport}>
-                <Image
-                  source={{ uri: activeFrame.uri }}
-                  style={measureStyles.projectorMainImage}
-                  resizeMode="cover"
-                />
-
-                {/* Badge Superior Izquierdo: Fecha y Peso del Día */}
-                <View style={measureStyles.projectorTopLeftBadge}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <Ionicons name="calendar" size={12} color="#F0ABFC" />
-                    <Text style={measureStyles.projectorDateText}>
-                      {activeFrame.formattedDate}
-                    </Text>
-                  </View>
-                  {activeFrame.weight !== undefined && activeFrame.weight > 0 && (
-                    <Text style={measureStyles.projectorWeightSub}>
-                      Peso: {activeFrame.weight} kg
-                    </Text>
-                  )}
-                </View>
-
-                {/* Badge Superior Derecho: Ángulo + Posición en la Secuencia */}
-                <View style={measureStyles.projectorTopRightBadge}>
-                  <Text style={measureStyles.projectorAngleTagText}>
-                    {activeFrame.angle === 'front'
-                      ? 'FRENTE'
-                      : activeFrame.angle === 'side'
-                      ? 'PERFIL'
-                      : 'ESPALDA'}
-                  </Text>
-                  <Text style={measureStyles.projectorFrameCountText}>
-                    {safeIndex + 1} / {projectedFrames.length}
-                  </Text>
-                </View>
-
-                {/* Botones flotantes laterales en el visor para pasar una por una */}
-                {projectedFrames.length > 1 && (
-                  <>
-                    <Pressable
-                      onPress={stepPrev}
-                      style={({ pressed }) => [
-                        measureStyles.stageSideNavBtn,
-                        { left: 10 },
-                        pressed && s.btnPressed,
-                      ]}
-                    >
-                      <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
-                    </Pressable>
-
-                    <Pressable
-                      onPress={stepNext}
-                      style={({ pressed }) => [
-                        measureStyles.stageSideNavBtn,
-                        { right: 10 },
-                        pressed && s.btnPressed,
-                      ]}
-                    >
-                      <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-                    </Pressable>
-                  </>
-                )}
-
-                {/* Barra de progreso inferior dentro del visor (Primera -> Última) */}
-                <View style={measureStyles.projectorBottomHudBar}>
-                  <View style={measureStyles.projectorOrderLabelsRow}>
-                    <Text style={measureStyles.projectorOrderEdgeText}>
-                      {safeIndex === 0 ? '★ PRIMERA FOTO' : 'PRIMERA'}
-                    </Text>
-                    {isPlayingGif && (
-                      <View style={measureStyles.gifLivePill}>
-                        <View style={measureStyles.gifLiveDot} />
-                        <Text style={measureStyles.gifLiveText}>MODO GIF ACTIVO</Text>
-                      </View>
-                    )}
-                    <Text style={measureStyles.projectorOrderEdgeText}>
-                      {safeIndex === projectedFrames.length - 1 ? 'ÚLTIMA FOTO ★' : 'ÚLTIMA'}
-                    </Text>
-                  </View>
-
-                  <View style={measureStyles.projectorProgressTrack}>
-                    <View
-                      style={[
-                        measureStyles.projectorProgressFill,
-                        {
-                          width: `${
-                            projectedFrames.length === 1
-                              ? 100
-                              : Math.round(((safeIndex + 1) / projectedFrames.length) * 100)
-                          }%`,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              </View>
+              {renderGifViewport(false)}
 
               {/* Controles de Reproducción Tipo GIF y Paso a Paso */}
               <View style={measureStyles.projectorControlsBar}>
@@ -2788,16 +4296,7 @@ function ProgressPhotosSection({
 
                 {/* Botón Central: Reproducir / Pausar Avance Tipo GIF */}
                 <Pressable
-                  onPress={() => {
-                    if (projectedFrames.length <= 1) {
-                      Alert.alert(
-                        'Añade más fotos',
-                        'Registra al menos 2 fotos en este filtro para reproducir la animación de avance tipo GIF.'
-                      );
-                      return;
-                    }
-                    setIsPlayingGif((prev) => !prev);
-                  }}
+                  onPress={toggleGifPlayback}
                   style={({ pressed }) => [
                     measureStyles.gifPlayMainBtn,
                     pressed && s.btnPressed,
@@ -2815,7 +4314,7 @@ function ProgressPhotosSection({
                       color="#FFFFFF"
                     />
                     <Text style={measureStyles.gifPlayMainText}>
-                      {isPlayingGif ? 'Pausar GIF' : 'Ver en GIF'}
+                      {isPlayingGif ? 'Pausar Video' : 'Ver Video'}
                     </Text>
                   </LinearGradient>
                 </Pressable>
@@ -2832,46 +4331,6 @@ function ProgressPhotosSection({
                 >
                   <Text style={measureStyles.stepControlBtnText}>Siguiente</Text>
                   <Ionicons name="play-skip-forward" size={15} color={C.text} />
-                </Pressable>
-              </View>
-
-              {/* Botones para Exportar / Guardar GIF en Dispositivo o Enviar por WhatsApp */}
-              <View style={measureStyles.gifExportActionsRow}>
-                <Pressable
-                  onPress={handleSaveGifToDevice}
-                  disabled={exportingAction !== null}
-                  style={({ pressed }) => [
-                    measureStyles.gifExportSaveBtn,
-                    exportingAction !== null && { opacity: 0.6 },
-                    pressed && s.btnPressed,
-                  ]}
-                >
-                  <Ionicons name="download-outline" size={16} color="#8B5CF6" />
-                  <Text style={measureStyles.gifExportSaveText} numberOfLines={1}>
-                    {exportingAction === 'save' ? 'Creando GIF...' : 'Guardar GIF'}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={handleShareGifWhatsApp}
-                  disabled={exportingAction !== null}
-                  style={({ pressed }) => [
-                    measureStyles.gifExportWhatsAppBtn,
-                    exportingAction !== null && { opacity: 0.6 },
-                    pressed && s.btnPressed,
-                  ]}
-                >
-                  <LinearGradient
-                    colors={['#10B981', '#059669']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={measureStyles.gifExportWhatsAppGradient}
-                  >
-                    <Ionicons name="logo-whatsapp" size={16} color="#FFFFFF" />
-                    <Text style={measureStyles.gifExportWhatsAppText} numberOfLines={1}>
-                      {exportingAction === 'share' ? 'Preparando...' : 'Enviar por WhatsApp'}
-                    </Text>
-                  </LinearGradient>
                 </Pressable>
               </View>
 
@@ -2981,8 +4440,360 @@ function ProgressPhotosSection({
               </View>
             </View>
           )}
+
+          {/* POP-UP DE COMPARTIR VIDEO EN VISTA NORMAL (Sin Modal nativo para no interferir con Sharing.shareAsync) */}
+          {shareModalOpen && !isFullscreen && (
+            <Pressable
+              style={[
+                StyleSheet.absoluteFill,
+                measureStyles.modalBackdropOverlay,
+                { borderRadius: 22, zIndex: 160 },
+              ]}
+              onPress={() => setShareModalOpen(false)}
+            >
+              <Pressable
+                style={[measureStyles.modalDialogCard, { width: '92%' }]}
+                onPress={(e) => e.stopPropagation()}
+              >
+                <View style={measureStyles.modalHeaderRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <View style={measureStyles.modalIconCircle}>
+                      <Ionicons name="share-social" size={19} color="#EC4899" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={measureStyles.modalTitle}>Compartir Video</Text>
+                      <Text style={measureStyles.modalSubtitle}>
+                        Exporta tu video MP4 con las métricas integradas
+                      </Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={() => setShareModalOpen(false)}
+                    style={measureStyles.modalCloseBtn}
+                  >
+                    <Ionicons name="close" size={18} color={C.sub} />
+                  </Pressable>
+                </View>
+
+                <View style={measureStyles.gifExportActionsRow}>
+                  <Pressable
+                    onPress={handleSaveGifToDevice}
+                    disabled={exportingAction !== null}
+                    style={({ pressed }) => [
+                      measureStyles.gifExportSaveBtn,
+                      exportingAction !== null && { opacity: 0.6 },
+                      pressed && s.btnPressed,
+                    ]}
+                  >
+                    <Ionicons name="videocam-outline" size={16} color="#8B5CF6" />
+                    <Text style={measureStyles.gifExportSaveText} numberOfLines={1}>
+                      {exportingAction === 'save' ? 'Creando Video...' : 'Guardar Video'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleShareGifWhatsApp}
+                    disabled={exportingAction !== null}
+                    style={({ pressed }) => [
+                      measureStyles.gifExportWhatsAppBtn,
+                      exportingAction !== null && { opacity: 0.6 },
+                      pressed && s.btnPressed,
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={['#10B981', '#059669']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={measureStyles.gifExportWhatsAppGradient}
+                    >
+                      <Ionicons name="logo-whatsapp" size={16} color="#FFFFFF" />
+                      <Text style={measureStyles.gifExportWhatsAppText} numberOfLines={1}>
+                        {exportingAction === 'share' ? 'Preparando...' : 'Enviar por WhatsApp'}
+                      </Text>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Pressable>
+          )}
         </LinearGradient>
       </View>
+
+      {/* MODAL DE PANTALLA COMPLETA DEL PROYECTOR GIF (CON OPCIONES ADAPTADAS Y STICKY OCULTO) */}
+      <Modal
+        visible={isFullscreen}
+        transparent={false}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {
+          setSpeedDropdownOpen(false);
+          onSetFullscreen(false);
+        }}
+      >
+        <View style={measureStyles.fullscreenRootContainer}>
+          {/* Cabecera Superior de Pantalla Completa */}
+          <View style={measureStyles.fullscreenTopBar}>
+            <View style={{ flex: 1 }}>
+              <Text style={measureStyles.fullscreenTopTag}>✦ MODO PANTALLA COMPLETA ✦</Text>
+              <Text style={measureStyles.fullscreenTopTitle}>Proyector de Video & Métricas</Text>
+            </View>
+
+            <Pressable
+              onPress={() => {
+                setSpeedDropdownOpen(false);
+                onSetFullscreen(false);
+              }}
+              style={({ pressed }) => [
+                measureStyles.fullscreenClosePillBtn,
+                pressed && s.btnPressed,
+              ]}
+            >
+              <Ionicons name="contract-outline" size={16} color="#FFFFFF" />
+              <Text style={measureStyles.fullscreenClosePillText}>Salir</Text>
+            </Pressable>
+          </View>
+
+          {/* Opciones de Configuración Adaptadas a Pantalla Completa */}
+          <View style={[measureStyles.fullscreenConfigSection, { zIndex: 60 }]}>
+            {/* Filtro de Ángulos en Pantalla Completa */}
+            <View style={measureStyles.fullscreenAngleFilterRow}>
+              {PROJECTOR_FILTER_OPTIONS.map((opt) => {
+                const active = projectorFilter === opt.key;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => setProjectorFilter(opt.key)}
+                    style={({ pressed }) => [
+                      measureStyles.fullscreenAnglePill,
+                      active && measureStyles.fullscreenAnglePillActive,
+                      pressed && s.btnPressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name={opt.icon}
+                      size={13}
+                      color={active ? '#FFFFFF' : '#CBD5E1'}
+                    />
+                    <Text
+                      style={[
+                        measureStyles.fullscreenAnglePillText,
+                        active && { color: '#FFFFFF', fontWeight: '900' },
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Fila de Configurar Métricas + Dropdown de Velocidad (0.5x - 5x) en Pantalla Completa */}
+            <View style={[measureStyles.fullscreenSubConfigRow, { zIndex: 70 }]}>
+              <Pressable
+                onPress={() => {
+                  setSpeedDropdownOpen(false);
+                  setMetricsModalOpen(true);
+                }}
+                style={({ pressed }) => [
+                  measureStyles.fullscreenMetricBtn,
+                  pressed && s.btnPressed,
+                ]}
+              >
+                <Ionicons name="options-outline" size={15} color="#F0ABFC" />
+                <Text style={measureStyles.fullscreenMetricBtnText}>
+                  Métricas ({selectedMetricKeys.length})
+                </Text>
+              </Pressable>
+
+              <View style={measureStyles.timeDropdownWrapper}>
+                <Pressable
+                  onPress={() => setSpeedDropdownOpen((prev) => !prev)}
+                  style={({ pressed }) => [
+                    measureStyles.fullscreenSpeedBtn,
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <Ionicons name="speedometer-outline" size={14} color="#C4B5FD" />
+                  <Text style={measureStyles.fullscreenSpeedBtnText}>
+                    Velocidad: {GIF_SPEEDS[gifSpeedIdx]?.label || '1x'}
+                  </Text>
+                  <Ionicons
+                    name={speedDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                    size={14}
+                    color="#C4B5FD"
+                  />
+                </Pressable>
+
+                {speedDropdownOpen && (
+                  <View
+                    style={[
+                      measureStyles.timeDropdownMenu,
+                      { width: 165, top: 40, right: 0 },
+                    ]}
+                  >
+                    {GIF_SPEEDS.map((sp, idx) => {
+                      const active = gifSpeedIdx === idx;
+                      return (
+                        <Pressable
+                          key={sp.label}
+                          onPress={() => {
+                            setGifSpeedIdx(idx);
+                            setSpeedDropdownOpen(false);
+                          }}
+                          style={({ pressed }) => [
+                            measureStyles.timeDropdownOption,
+                            active && measureStyles.timeDropdownOptionActive,
+                            pressed && { opacity: 0.75 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              measureStyles.timeDropdownOptionText,
+                              active && measureStyles.timeDropdownOptionTextActive,
+                            ]}
+                          >
+                            {sp.desc}
+                          </Text>
+                          {active && (
+                            <Ionicons name="checkmark-circle" size={15} color="#8B5CF6" />
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Escenario Central Expandido en Pantalla Completa */}
+          <View style={measureStyles.fullscreenStageArea}>
+            {projectedFrames.length === 0 ? (
+              <View style={{ alignItems: 'center', padding: 24 }}>
+                <Ionicons name="images-outline" size={40} color="#A78BFA" />
+                <Text style={[measureStyles.fullscreenTopTitle, { marginTop: 10 }]}>
+                  No hay fotos en este ángulo
+                </Text>
+              </View>
+            ) : (
+              renderGifViewport(true)
+            )}
+          </View>
+
+          {/* Controles Inferiores Adaptados a Pantalla Completa */}
+          {projectedFrames.length > 0 && (
+            <View style={measureStyles.fullscreenBottomControls}>
+              <View style={measureStyles.projectorControlsBar}>
+                <Pressable
+                  onPress={stepPrev}
+                  disabled={projectedFrames.length <= 1}
+                  style={({ pressed }) => [
+                    measureStyles.fullscreenStepBtn,
+                    projectedFrames.length <= 1 && { opacity: 0.45 },
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <Ionicons name="play-skip-back" size={15} color="#FFFFFF" />
+                  <Text style={measureStyles.fullscreenStepBtnText}>Anterior</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={toggleGifPlayback}
+                  style={({ pressed }) => [
+                    measureStyles.gifPlayMainBtn,
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={isPlayingGif ? ['#EC4899', '#8B5CF6'] : ['#8B5CF6', '#EC4899']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={measureStyles.gifPlayMainGradient}
+                  >
+                    <Ionicons
+                      name={isPlayingGif ? 'pause' : 'play'}
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                    <Text style={measureStyles.gifPlayMainText}>
+                      {isPlayingGif ? 'Pausar Video' : 'Ver Video'}
+                    </Text>
+                  </LinearGradient>
+                </Pressable>
+
+                <Pressable
+                  onPress={stepNext}
+                  disabled={projectedFrames.length <= 1}
+                  style={({ pressed }) => [
+                    measureStyles.fullscreenStepBtn,
+                    projectedFrames.length <= 1 && { opacity: 0.45 },
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <Text style={measureStyles.fullscreenStepBtnText}>Siguiente</Text>
+                  <Ionicons name="play-skip-forward" size={15} color="#FFFFFF" />
+                </Pressable>
+              </View>
+
+              <View style={[measureStyles.gifExportActionsRow, { marginTop: 8 }]}>
+                <Pressable
+                  onPress={handleSaveGifToDevice}
+                  disabled={exportingAction !== null}
+                  style={({ pressed }) => [
+                    measureStyles.fullscreenExportSaveBtn,
+                    exportingAction !== null && { opacity: 0.6 },
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <Ionicons name="videocam-outline" size={16} color="#E9D5FF" />
+                  <Text style={measureStyles.fullscreenExportSaveText} numberOfLines={1}>
+                    {exportingAction === 'save' ? 'Creando Video...' : 'Guardar Video'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleShareGifWhatsApp}
+                  disabled={exportingAction !== null}
+                  style={({ pressed }) => [
+                    measureStyles.gifExportWhatsAppBtn,
+                    exportingAction !== null && { opacity: 0.6 },
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={['#10B981', '#059669']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={measureStyles.gifExportWhatsAppGradient}
+                  >
+                    <Ionicons name="logo-whatsapp" size={16} color="#FFFFFF" />
+                    <Text style={measureStyles.gifExportWhatsAppText} numberOfLines={1}>
+                      {exportingAction === 'share' ? 'Preparando...' : 'Enviar por WhatsApp'}
+                    </Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* Si el usuario abre Configurar Métricas estando en Pantalla Completa, se muestra aquí mismo */}
+          {metricsModalOpen && (
+            <View style={[StyleSheet.absoluteFill, { zIndex: 200 }]}>
+              {renderMetricsConfigCard()}
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* MODAL DE CONFIGURAR MÉTRICAS (CUANDO NO ESTÁ EN PANTALLA COMPLETA) */}
+      <Modal
+        visible={metricsModalOpen && !isFullscreen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMetricsModalOpen(false)}
+      >
+        {renderMetricsConfigCard()}
+      </Modal>
 
       {/* MODAL PARA TOMAR FOTO CON CÁMARA O ELEGIR DE GALERÍA */}
       <Modal
@@ -4311,22 +6122,41 @@ const measureStyles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  videoTopVignette: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 64,
+  },
   projectorTopLeftBadge: {
     position: 'absolute',
     top: 12,
     left: 12,
-    backgroundColor: 'rgba(15, 23, 42, 0.82)',
-    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(15, 23, 42, 0.56)',
+    paddingHorizontal: 11,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(240, 171, 252, 0.45)',
+    borderColor: 'rgba(240, 171, 252, 0.32)',
+  },
+  videoDateGlowDot: {
+    width: 6,
+    height: 8,
+    borderRadius: 3,
+    backgroundColor: '#E879F9',
   },
   projectorDateText: {
     color: '#FFFFFF',
     fontSize: 11.5,
     fontWeight: '900',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   projectorWeightSub: {
     color: '#34D399',
@@ -4334,10 +6164,15 @@ const measureStyles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 2,
   },
-  projectorTopRightBadge: {
+  projectorTopRightRow: {
     position: 'absolute',
     top: 12,
     right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  projectorTopRightBadge: {
     alignItems: 'flex-end',
     backgroundColor: 'rgba(15, 23, 42, 0.82)',
     paddingHorizontal: 10,
@@ -4345,6 +6180,310 @@ const measureStyles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(196, 181, 253, 0.45)',
+  },
+  fullscreenCornerToggleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: 'rgba(15, 23, 42, 0.56)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  edgeDelayTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  edgeDelayTagText: {
+    color: '#34D399',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  projectorViewportFullscreen: {
+    flex: 1,
+    height: undefined,
+    borderRadius: 18,
+    backgroundColor: '#090D16',
+    borderColor: 'rgba(192, 132, 252, 0.6)',
+  },
+  gifMetricsHudGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 7,
+    marginBottom: 9,
+  },
+  gifMetricHudPill: {
+    width: '48.6%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(22, 32, 54, 0.62)',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+  },
+  gifMetricAccentBar: {
+    width: 3.5,
+    height: 22,
+    borderRadius: 2,
+  },
+  gifMetricHudDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  gifMetricHudLabel: {
+    color: '#CBD5E1',
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textShadowColor: 'rgba(0, 0, 0, 0.65)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  gifMetricHudValue: {
+    fontSize: 13,
+    fontWeight: '900',
+    marginTop: 1,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  tapFullscreenHintText: {
+    color: 'rgba(196, 181, 253, 0.9)',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  gifQuickConfigRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  gifMetricsConfigBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+  },
+  gifMetricsConfigBtnText: {
+    color: '#8B5CF6',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  gifFullscreenOpenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: '#FDF2F8',
+    paddingVertical: 8,
+    paddingHorizontal: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(236, 72, 153, 0.4)',
+  },
+  gifFullscreenOpenBtnText: {
+    color: '#EC4899',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  metricsConfigChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  metricConfigChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F8FAFF',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+  },
+  metricConfigChipActive: {
+    backgroundColor: '#FAF5FF',
+    borderColor: '#8B5CF6',
+  },
+  metricConfigChipText: {
+    color: C.sub,
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  metricConfigChipTextActive: {
+    color: '#8B5CF6',
+    fontWeight: '800',
+  },
+  fullscreenRootContainer: {
+    flex: 1,
+    backgroundColor: '#0B1120',
+    paddingTop: Platform.OS === 'ios' ? 50 : 38,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    paddingHorizontal: 14,
+  },
+  fullscreenTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  fullscreenTopTag: {
+    color: '#F0ABFC',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  fullscreenTopTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  fullscreenClosePillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(236, 72, 153, 0.22)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EC4899',
+  },
+  fullscreenClosePillText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  fullscreenConfigSection: {
+    gap: 8,
+    marginBottom: 10,
+  },
+  fullscreenAngleFilterRow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)',
+  },
+  fullscreenAnglePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 9,
+    gap: 4,
+  },
+  fullscreenAnglePillActive: {
+    backgroundColor: '#8B5CF6',
+  },
+  fullscreenAnglePillText: {
+    color: '#CBD5E1',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  fullscreenSubConfigRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  fullscreenMetricBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(240, 171, 252, 0.45)',
+  },
+  fullscreenMetricBtnText: {
+    color: '#F0ABFC',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  fullscreenSpeedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(196, 181, 253, 0.45)',
+  },
+  fullscreenSpeedBtnText: {
+    color: '#E9D5FF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  fullscreenStageArea: {
+    flex: 1,
+    justifyContent: 'center',
+    marginVertical: 4,
+  },
+  fullscreenBottomControls: {
+    paddingTop: 8,
+  },
+  fullscreenStepBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.35)',
+    minWidth: 92,
+  },
+  fullscreenStepBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  fullscreenExportSaveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1.3,
+    borderColor: 'rgba(167, 139, 250, 0.55)',
+  },
+  fullscreenExportSaveText: {
+    color: '#E9D5FF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   projectorAngleTagText: {
     color: '#F0ABFC',
@@ -4375,9 +6514,9 @@ const measureStyles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.82)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingTop: 34,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
   },
   projectorOrderLabelsRow: {
     flexDirection: 'row',
