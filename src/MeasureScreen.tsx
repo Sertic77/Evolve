@@ -27,6 +27,10 @@ import Svg, {
 } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { File, Paths } from 'expo-file-system';
+import { Asset, requestPermissionsAsync as requestMediaLibrarySavePerm } from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { C, GRADIENTS } from './theme';
 import { DateSelector, PrimaryButton, s } from './components';
@@ -2142,7 +2146,37 @@ const GIF_SPEEDS: { label: string; ms: number }[] = [
   { label: '0.5x', ms: 950 },
   { label: '1x', ms: 550 },
   { label: '2x', ms: 280 },
+  { label: '3x', ms: 180 },
 ];
+
+// Decodifica Base64 a Uint8Array en JS puro sin depender de Buffer
+function base64ToUint8Array(base64: string): Uint8Array {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const clean = base64.replace(/[^A-Za-z0-9+/=]/g, '');
+  const len = clean.length;
+  let pad = 0;
+  if (clean.endsWith('==')) pad = 2;
+  else if (clean.endsWith('=')) pad = 1;
+  const byteLength = Math.floor((len * 3) / 4) - pad;
+  const bytes = new Uint8Array(byteLength);
+
+  let p = 0;
+  for (let i = 0; i < len; i += 4) {
+    const enc1 = chars.indexOf(clean.charAt(i));
+    const enc2 = chars.indexOf(clean.charAt(i + 1));
+    const enc3 = chars.indexOf(clean.charAt(i + 2));
+    const enc4 = chars.indexOf(clean.charAt(i + 3));
+
+    const chr1 = (enc1 << 2) | (enc2 >> 4);
+    const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+    const chr3 = ((enc3 & 3) << 6) | enc4;
+
+    if (p < byteLength) bytes[p++] = chr1;
+    if (p < byteLength && enc3 !== 64 && clean.charAt(i + 2) !== '=') bytes[p++] = chr2;
+    if (p < byteLength && enc4 !== 64 && clean.charAt(i + 3) !== '=') bytes[p++] = chr3;
+  }
+  return bytes;
+}
 
 function ProgressPhotosSection({
   date,
@@ -2169,6 +2203,7 @@ function ProgressPhotosSection({
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isPlayingGif, setIsPlayingGif] = useState<boolean>(false);
   const [gifSpeedIdx, setGifSpeedIdx] = useState<number>(1); // 1x por defecto
+  const [exportingAction, setExportingAction] = useState<'save' | 'share' | null>(null);
 
   // Construye la lista ordenada de PRIMERA a ÚLTIMA según el filtro seleccionado
   const projectedFrames = React.useMemo(() => {
@@ -2332,6 +2367,128 @@ function ProgressPhotosSection({
     setIsPlayingGif(false);
     if (projectedFrames.length <= 1) return;
     setCurrentIndex((prev) => (prev + 1) % projectedFrames.length);
+  };
+
+  // Genera un archivo .gif animado real con todas las fotos proyectadas (en orden de primera a última)
+  const generateAnimatedGifFile = async (): Promise<{ uri: string; bytes: Uint8Array } | null> => {
+    if (projectedFrames.length === 0) {
+      Alert.alert('Sin fotos', 'Primero añade fotos de progreso para poder exportar tu GIF.');
+      return null;
+    }
+
+    const jpeg = require('jpeg-js');
+    const { GIFEncoder, quantize, applyPalette } = require('gifenc');
+
+    const gif = GIFEncoder();
+    const delayMs = GIF_SPEEDS[gifSpeedIdx]?.ms || 550;
+    const targetW = 300;
+    const targetH = 400;
+
+    for (const frame of projectedFrames) {
+      const manipulated = await manipulateAsync(
+        frame.uri,
+        [{ resize: { width: targetW, height: targetH } }],
+        { compress: 0.9, format: SaveFormat.JPEG, base64: true }
+      );
+
+      if (!manipulated.base64) continue;
+      const jpgBytes = base64ToUint8Array(manipulated.base64);
+      const decoded = jpeg.decode(jpgBytes, { useTArray: true, formatAsRGBA: true });
+      const palette = quantize(decoded.data, 256);
+      const index = applyPalette(decoded.data, palette);
+      gif.writeFrame(index, decoded.width, decoded.height, {
+        palette,
+        delay: delayMs,
+        repeat: 0,
+      });
+    }
+
+    gif.finish();
+    const gifBytes: Uint8Array = gif.bytes();
+
+    if (Platform.OS === 'web') {
+      return { uri: '', bytes: gifBytes };
+    }
+
+    const fileName = `evolve_avance_${projectorFilter}_${Date.now()}.gif`;
+    const outFile = new File(Paths.cache, fileName);
+    outFile.writeSync(gifBytes);
+    return { uri: outFile.uri, bytes: gifBytes };
+  };
+
+  // Guardar el GIF animado en la galería del dispositivo
+  const handleSaveGifToDevice = async () => {
+    if (exportingAction) return;
+    try {
+      setExportingAction('save');
+      const generated = await generateAnimatedGifFile();
+      if (!generated) return;
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([generated.bytes as any], { type: 'image/gif' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `evolve_avance_${projectorFilter}.gif`;
+        a.click();
+        URL.revokeObjectURL(url);
+        Alert.alert('¡GIF Descargado!', 'El archivo GIF de tu progreso se descargó en tu dispositivo.');
+        return;
+      }
+
+      const perm = await requestMediaLibrarySavePerm();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permiso requerido',
+          'Autoriza el acceso a tu galería para poder guardar el archivo GIF en tu dispositivo.'
+        );
+        return;
+      }
+
+      await Asset.create(generated.uri);
+      Alert.alert(
+        '¡GIF Guardado en tu Dispositivo!',
+        `Se guardó exitosamente tu GIF animado (${projectedFrames.length} fotos a velocidad ${GIF_SPEEDS[gifSpeedIdx]?.label}) en tu galería.`
+      );
+    } catch {
+      Alert.alert('Error al guardar', 'No se pudo guardar el GIF en el dispositivo.');
+    } finally {
+      setExportingAction(null);
+    }
+  };
+
+  // Enviar el GIF animado por WhatsApp o compartir con otras apps
+  const handleShareGifWhatsApp = async () => {
+    if (exportingAction) return;
+    try {
+      setExportingAction('share');
+      const generated = await generateAnimatedGifFile();
+      if (!generated) return;
+
+      if (Platform.OS === 'web') {
+        Alert.alert(
+          'Modo Web',
+          'En navegador web usa el botón "Guardar GIF" para descargarlo y adjuntarlo en WhatsApp Web.'
+        );
+        return;
+      }
+
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert('No disponible', 'La función de compartir no está disponible en este dispositivo.');
+        return;
+      }
+
+      await Sharing.shareAsync(generated.uri, {
+        mimeType: 'image/gif',
+        dialogTitle: 'Enviar GIF de progreso por WhatsApp',
+        UTI: 'com.compuserve.gif',
+      });
+    } catch {
+      Alert.alert('Error al compartir', 'No se pudo abrir el menú para enviar el GIF por WhatsApp.');
+    } finally {
+      setExportingAction(null);
+    }
   };
 
   const selectedModalAngleInfo = activeAngleModal
@@ -2672,6 +2829,46 @@ function ProgressPhotosSection({
                 >
                   <Text style={measureStyles.stepControlBtnText}>Siguiente</Text>
                   <Ionicons name="play-skip-forward" size={15} color={C.text} />
+                </Pressable>
+              </View>
+
+              {/* Botones para Exportar / Guardar GIF en Dispositivo o Enviar por WhatsApp */}
+              <View style={measureStyles.gifExportActionsRow}>
+                <Pressable
+                  onPress={handleSaveGifToDevice}
+                  disabled={exportingAction !== null}
+                  style={({ pressed }) => [
+                    measureStyles.gifExportSaveBtn,
+                    exportingAction !== null && { opacity: 0.6 },
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <Ionicons name="download-outline" size={16} color="#8B5CF6" />
+                  <Text style={measureStyles.gifExportSaveText} numberOfLines={1}>
+                    {exportingAction === 'save' ? 'Creando GIF...' : 'Guardar GIF'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleShareGifWhatsApp}
+                  disabled={exportingAction !== null}
+                  style={({ pressed }) => [
+                    measureStyles.gifExportWhatsAppBtn,
+                    exportingAction !== null && { opacity: 0.6 },
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={['#10B981', '#059669']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={measureStyles.gifExportWhatsAppGradient}
+                  >
+                    <Ionicons name="logo-whatsapp" size={16} color="#FFFFFF" />
+                    <Text style={measureStyles.gifExportWhatsAppText} numberOfLines={1}>
+                      {exportingAction === 'share' ? 'Preparando...' : 'Enviar por WhatsApp'}
+                    </Text>
+                  </LinearGradient>
                 </Pressable>
               </View>
 
@@ -4233,6 +4430,56 @@ const measureStyles = StyleSheet.create({
   gifPlayMainText: {
     color: '#FFFFFF',
     fontSize: 13,
+    fontWeight: '900',
+  },
+  gifExportActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  gifExportSaveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1.3,
+    borderColor: 'rgba(139, 92, 246, 0.45)',
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  gifExportSaveText: {
+    color: '#8B5CF6',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  gifExportWhatsAppBtn: {
+    flex: 1.25,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  gifExportWhatsAppGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+  },
+  gifExportWhatsAppText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '900',
   },
   projectorTimelineSection: {

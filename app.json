@@ -29,7 +29,15 @@
           "photosPermission": "Permite a Evolve acceder a tu galería para registrar tus fotos de progreso físico.",
           "cameraPermission": "Permite a Evolve usar la cámara para tomar tus fotos de progreso físico."
         }
-      ]
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Permite a Evolve acceder a tu galería para guardar tus GIFs de progreso.",
+          "savePhotosPermission": "Permite a Evolve guardar tus GIFs de progreso en tu dispositivo."
+        }
+      ],
+      "expo-sharing"
     ]
   }
 }
