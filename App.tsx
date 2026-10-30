@@ -18,22 +18,22 @@ const SIDE_TABS_RIGHT = [
   { key: 'measure', label: 'Medidas', icon: 'body' },
 ] as const;
 
-/* --- Pantalla Coming Soon Anime Pastel --- */
+/* --- Pantalla Coming Soon Anime Pastel Claro --- */
 function ComingSoonHUD({ title, icon, subtitle }: { title: string; icon: any; subtitle: string }) {
   return (
     <View style={styles.soonContainer}>
       <LinearGradient
-        colors={['rgba(32, 42, 74, 0.75)', 'rgba(18, 24, 48, 0.88)']}
+        colors={['#FFFFFF', '#F8FAFF']}
         style={styles.soonCardGradient}
       >
         <View style={styles.soonCyberBadge}>
-          <Ionicons name="sparkles" size={12} color={C.pastelPink} />
+          <Ionicons name="sparkles" size={12} color={C.pastelPurple} />
           <Text style={styles.soonCyberBadgeText}>✦ EN DESARROLLO ✦</Text>
         </View>
 
         <View style={styles.soonIconWrapper}>
           <LinearGradient
-            colors={['rgba(184, 161, 255, 0.25)', 'rgba(255, 183, 197, 0.2)']}
+            colors={['rgba(167, 139, 250, 0.15)', 'rgba(244, 114, 182, 0.15)']}
             style={styles.soonIconGradient}
           >
             <Ionicons name={icon} size={44} color={C.pastelPurple} />
@@ -92,7 +92,8 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.rootSafeArea} edges={['top']}>
-        <StatusBar style="light" />
+        {/* StatusBar en dark para contraste sobre fondo claro */}
+        <StatusBar style="dark" />
 
         {/* Pantalla Activa */}
         <View style={styles.mainContent}>
@@ -135,7 +136,7 @@ export default function App() {
                   <Text
                     style={[
                       styles.tabLabel,
-                      { color: active ? '#FFF' : C.sub },
+                      { color: active ? C.pastelPurple : C.sub },
                       active && styles.tabLabelActive,
                     ]}
                   >
@@ -167,7 +168,7 @@ export default function App() {
                   <Text
                     style={[
                       styles.tabLabel,
-                      { color: active ? '#FFF' : C.sub },
+                      { color: active ? C.pastelPurple : C.sub },
                       active && styles.tabLabelActive,
                     ]}
                   >
@@ -196,14 +197,14 @@ export default function App() {
                 <Ionicons
                   name={tab === 'home' ? 'home' : 'home-outline'}
                   size={26}
-                  color={tab === 'home' ? '#1E1738' : C.pastelPurple}
+                  color={tab === 'home' ? '#FFFFFF' : C.sub}
                 />
               </LinearGradient>
             </Pressable>
             <Text
               style={[
                 styles.floatingHomeLabel,
-                { color: tab === 'home' ? C.pastelPink : C.sub },
+                { color: tab === 'home' ? C.pastelPurple : C.sub },
               ]}
             >
               Home
@@ -241,9 +242,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(203, 213, 225, 0.7)',
     shadowColor: C.pastelPurple,
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 6 },
     elevation: 15,
@@ -259,7 +260,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   tabIconPillActive: {
-    backgroundColor: 'rgba(184, 161, 255, 0.15)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
   },
   tabLabel: {
     fontSize: 10,
@@ -268,7 +269,7 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     fontWeight: '800',
-    color: '#FFF',
+    color: C.pastelPurple,
   },
   centerSpaceReserved: {
     width: 66,
@@ -286,14 +287,14 @@ const styles = StyleSheet.create({
     height: 58,
     borderRadius: 29,
     padding: 3,
-    backgroundColor: C.bg,
+    backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: 'rgba(184, 161, 255, 0.45)',
+    borderColor: 'rgba(139, 92, 246, 0.35)',
     shadowColor: C.pastelPurple,
-    shadowOpacity: 0.45,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 25,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 20,
   },
   floatingHomeGradient: {
     flex: 1,
@@ -308,7 +309,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  // Coming Soon Anime Pastel
+  // Coming Soon Anime Pastel Claro
   soonContainer: {
     flex: 1,
     alignItems: 'center',
@@ -324,23 +325,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.borderLight,
     shadowColor: C.pastelPurple,
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
   },
   soonCyberBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255, 183, 197, 0.12)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 183, 197, 0.3)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
     marginBottom: 24,
   },
   soonCyberBadgeText: {
-    color: C.pastelPink,
+    color: C.pastelPurple,
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1.2,
@@ -351,7 +353,7 @@ const styles = StyleSheet.create({
     borderRadius: 46,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(184, 161, 255, 0.35)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
     marginBottom: 20,
   },
   soonIconGradient: {
@@ -360,7 +362,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   soonTitle: {
-    color: '#FFF',
+    color: C.text,
     fontSize: 26,
     fontWeight: '900',
     letterSpacing: -0.5,
@@ -375,7 +377,7 @@ const styles = StyleSheet.create({
   },
   soonMeterBox: {
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#F8FAFC',
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
@@ -399,7 +401,7 @@ const styles = StyleSheet.create({
   },
   soonMeterTrack: {
     height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(203, 213, 225, 0.5)',
     borderRadius: 3,
     overflow: 'hidden',
   },

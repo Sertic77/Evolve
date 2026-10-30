@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Modal,
   FlatList,
   KeyboardAvoidingView,
+  Animated,
+  Easing,
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,12 +18,57 @@ import { Ionicons } from '@expo/vector-icons';
 import { C, GRADIENTS, fmt } from './theme';
 import { Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTotal, uid } from './store';
 
-/* ---------------- Resumen de Macros (Anime Pastel Glass) ---------------- */
+/* ---------------- Resumen de Macros (Animado Anime Pastel) ---------------- */
 export function MacroSummary({ m }: { m: Macros }) {
   const size = 152;
   const stroke = 12;
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
+
+  // Valores de Animación Anime
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const ringScaleAnim = useRef(new Animated.Value(0.92)).current;
+  const barsAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // 1. Animación de Ignición / Entrada del Anillo
+    Animated.spring(ringScaleAnim, {
+      toValue: 1,
+      friction: 6,
+      tension: 60,
+      useNativeDriver: true,
+    }).start();
+
+    // 2. Animación de llenado de las barras de energía
+    barsAnim.setValue(0);
+    Animated.timing(barsAnim, {
+      toValue: 1,
+      duration: 750,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+
+    // 3. Pulso sutil continuo de la llama de Kcal (Respiración anime)
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.15,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+
+    return () => loop.stop();
+  }, [m.kcal, m.protein, m.carbs, m.fat]);
 
   const kc = {
     carbs: (m.carbs || 0) * 4,
@@ -56,15 +103,20 @@ export function MacroSummary({ m }: { m: Macros }) {
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14 }}>
-          {/* Anillo de Calorías Pastel */}
-          <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+          {/* Anillo de Calorías con Animación de Escala y Pulso */}
+          <Animated.View
+            style={[
+              { width: size, height: size, alignItems: 'center', justifyContent: 'center' },
+              { transform: [{ scale: ringScaleAnim }] },
+            ]}
+          >
             <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
               {/* Fondo del anillo */}
               <Circle
                 cx={size / 2}
                 cy={size / 2}
                 r={r}
-                stroke="rgba(255, 255, 255, 0.08)"
+                stroke="rgba(203, 213, 225, 0.35)"
                 strokeWidth={stroke}
                 fill="none"
               />
@@ -88,17 +140,19 @@ export function MacroSummary({ m }: { m: Macros }) {
               )}
             </Svg>
 
-            {/* Centro del Anillo */}
+            {/* Centro del Anillo: FUEGO ANIMADO EN VEZ DE CORAZÓN */}
             <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
               <View style={s.ringCenterGlow}>
-                <Ionicons name="heart" size={15} color={C.kcal} style={{ marginBottom: 2 }} />
+                <Animated.View style={{ transform: [{ scale: pulseAnim }], marginBottom: 1 }}>
+                  <Ionicons name="flame" size={18} color={C.kcal} />
+                </Animated.View>
                 <Text style={s.kcalBigNumber}>{Math.round(m.kcal || 0)}</Text>
                 <Text style={s.kcalUnit}>KCAL</Text>
               </View>
             </View>
-          </View>
+          </Animated.View>
 
-          {/* Barras de Macros Anime Pastel */}
+          {/* Barras de Macros Anime Pastel Animadas */}
           <View style={{ flex: 1, marginLeft: 18, gap: 11 }}>
             {[
               { label: 'Proteína', key: 'protein' as const, icon: 'flash' as const, color: C.protein },
@@ -119,12 +173,15 @@ export function MacroSummary({ m }: { m: Macros }) {
                     </View>
                   </View>
                   <View style={s.statTrack}>
-                    <View
+                    <Animated.View
                       style={[
                         s.statFill,
                         {
                           backgroundColor: color,
-                          width: `${pct}%`,
+                          width: barsAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0%', `${pct}%`],
+                          }),
                         },
                       ]}
                     />
@@ -217,7 +274,7 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
         style={({ pressed }) => [s.dateCenterBtn, pressed && s.btnPressed]}
       >
         <LinearGradient
-          colors={['rgba(35, 46, 78, 0.7)', 'rgba(24, 32, 56, 0.7)']}
+          colors={['rgba(255, 255, 255, 0.95)', 'rgba(245, 248, 255, 0.95)']}
           style={s.dateCenterGradient}
         >
           <Ionicons name="calendar-outline" size={16} color={C.pastelPink} />
@@ -245,7 +302,7 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
                 value={date}
                 mode="date"
                 display="inline"
-                themeVariant="dark"
+                themeVariant="light"
                 accentColor={C.pastelPurple}
                 locale="es-ES"
                 onChange={(_: any, d?: Date) => {
@@ -288,7 +345,7 @@ function MacroBadge({
     <View
       style={[
         s.macroBadgeContainer,
-        { borderColor: color + '40', backgroundColor: color + '18' },
+        { borderColor: color + '35', backgroundColor: color + '15' },
         small && { paddingHorizontal: 7, paddingVertical: 3 },
       ]}
     >
@@ -341,7 +398,7 @@ export function IngredientPickerModal({
         >
           <View style={s.pickerSheetContent}>
             <LinearGradient
-              colors={['rgba(28, 38, 66, 0.98)', 'rgba(16, 22, 42, 0.99)']}
+              colors={['#FFFFFF', '#F8FAFF']}
               style={{ flex: 1 }}
             >
               {/* Barra superior / Tirador */}
@@ -362,7 +419,7 @@ export function IngredientPickerModal({
                   onPress={onClose}
                   style={({ pressed }) => [s.sheetCloseBtn, pressed && s.btnPressed]}
                 >
-                  <Ionicons name="close" size={20} color={C.text} />
+                  <Ionicons name="close" size={20} color={C.sub} />
                 </Pressable>
               </View>
 
@@ -395,14 +452,14 @@ export function IngredientPickerModal({
                   style={({ pressed }) => [s.quickCreateCard, pressed && s.btnPressed]}
                 >
                   <LinearGradient
-                    colors={['rgba(184, 161, 255, 0.25)', 'rgba(255, 183, 197, 0.2)']}
+                    colors={['rgba(167, 139, 250, 0.15)', 'rgba(244, 114, 182, 0.15)']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={s.quickCreateGradient}
                   >
                     <Ionicons name="add-circle" size={20} color={C.pastelPurple} />
                     <Text style={s.quickCreateText}>
-                      Crear nuevo ingrediente: <Text style={{ color: '#FFF', fontWeight: '800' }}>"{query.trim()}"</Text>
+                      Crear nuevo ingrediente: <Text style={{ color: C.text, fontWeight: '800' }}>"{query.trim()}"</Text>
                     </Text>
                   </LinearGradient>
                 </Pressable>
@@ -572,7 +629,7 @@ export function MealBlockCard({
   return (
     <View style={s.mealBlockWrapper}>
       <LinearGradient
-        colors={['rgba(32, 42, 74, 0.78)', 'rgba(20, 26, 50, 0.88)']}
+        colors={['#FFFFFF', '#F8FAFF']}
         style={s.mealBlockGradient}
       >
         {/* Barra decorativa lateral suave */}
@@ -686,14 +743,14 @@ export function PrimaryButton({
         end={{ x: 1, y: 0 }}
         style={s.primaryButtonGradient}
       >
-        <Ionicons name={icon} size={18} color="#1E1738" />
+        <Ionicons name={icon} size={18} color="#FFFFFF" />
         <Text style={s.primaryButtonText}>{label}</Text>
       </LinearGradient>
     </Pressable>
   );
 }
 
-/* ---------------- Estilos Anime Pastel Glassmorphism ---------------- */
+/* ---------------- Estilos Anime Pastel Claro Glassmorphism ---------------- */
 export const s = StyleSheet.create({
   // Tarjetas Glass Pastel
   glassCard: {
@@ -704,9 +761,10 @@ export const s = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: C.bgCard,
     shadowColor: C.pastelPurple,
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   cardGradient: {
     padding: 16,
@@ -720,12 +778,12 @@ export const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(184, 161, 255, 0.12)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(184, 161, 255, 0.3)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
   },
   hudBadgeText: {
     color: C.pastelPurple,
@@ -747,12 +805,17 @@ export const s = StyleSheet.create({
     width: 102,
     height: 102,
     borderRadius: 51,
-    backgroundColor: 'rgba(14, 19, 36, 0.92)',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255, 154, 162, 0.3)',
+    borderColor: 'rgba(255, 94, 126, 0.25)',
+    shadowColor: C.kcal,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   kcalBigNumber: {
-    color: '#FFF',
+    color: C.text,
     fontSize: 27,
     fontWeight: '900',
     letterSpacing: -0.5,
@@ -787,7 +850,7 @@ export const s = StyleSheet.create({
   },
   statTrack: {
     height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(203, 213, 225, 0.4)',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -799,12 +862,16 @@ export const s = StyleSheet.create({
   // Segmented
   segmentedContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(20, 26, 48, 0.85)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 16,
     padding: 4,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: C.borderLight,
     marginVertical: 12,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
   },
   segmentedBtn: {
     flex: 1,
@@ -818,7 +885,7 @@ export const s = StyleSheet.create({
     borderRadius: 12,
   },
   segmentedActiveText: {
-    color: '#1E1738',
+    color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 13,
     letterSpacing: 0.2,
@@ -843,11 +910,15 @@ export const s = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: 'rgba(28, 38, 66, 0.8)',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: C.borderLight,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   dateCenterBtn: {
     flex: 1,
@@ -856,6 +927,10 @@ export const s = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.borderLight,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   dateCenterGradient: {
     flex: 1,
@@ -872,12 +947,12 @@ export const s = StyleSheet.create({
     textTransform: 'capitalize',
   },
   todayTag: {
-    backgroundColor: 'rgba(184, 161, 255, 0.18)',
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(184, 161, 255, 0.35)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
   },
   todayTagText: {
     color: C.pastelPurple,
@@ -886,7 +961,7 @@ export const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   datePickerCard: {
-    backgroundColor: C.bgCard,
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 14,
     borderWidth: 1,
@@ -919,7 +994,11 @@ export const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.borderLight,
     overflow: 'hidden',
-    backgroundColor: C.bgCard,
+    backgroundColor: '#FFFFFF',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
   },
   mealBlockGradient: {
     padding: 16,
@@ -942,11 +1021,11 @@ export const s = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(184, 161, 255, 0.15)',
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(184, 161, 255, 0.3)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
   },
   mealNameInput: {
     color: C.text,
@@ -967,8 +1046,8 @@ export const s = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: 'rgba(184, 161, 255, 0.45)',
-    backgroundColor: 'rgba(184, 161, 255, 0.06)',
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
     gap: 6,
   },
   addIngredientDashedText: {
@@ -981,7 +1060,7 @@ export const s = StyleSheet.create({
   itemRowContainer: {
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    borderTopColor: 'rgba(226, 232, 240, 0.8)',
   },
   itemRowTop: {
     flexDirection: 'row',
@@ -992,7 +1071,7 @@ export const s = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(32, 42, 74, 0.75)',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1002,7 +1081,7 @@ export const s = StyleSheet.create({
   },
   ingredientPickerButtonEmpty: {
     borderStyle: 'dashed',
-    borderColor: 'rgba(184, 161, 255, 0.35)',
+    borderColor: 'rgba(139, 92, 246, 0.35)',
   },
   ingredientPickerButtonText: {
     color: C.text,
@@ -1013,7 +1092,7 @@ export const s = StyleSheet.create({
   gramsInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(32, 42, 74, 0.75)',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 10,
     borderWidth: 1,
@@ -1040,7 +1119,7 @@ export const s = StyleSheet.create({
   // MODAL DE BÚSQUEDA ROBUSTO
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(6, 9, 18, 0.78)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'flex-end',
   },
   pickerSheetContainer: {
@@ -1055,12 +1134,16 @@ export const s = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.borderPastelPurple,
-    backgroundColor: C.bgDark,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 20,
   },
   sheetHandleBar: {
     width: 42,
     height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: 'rgba(148, 163, 184, 0.4)',
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 10,
@@ -1077,11 +1160,11 @@ export const s = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 12,
-    backgroundColor: 'rgba(184, 161, 255, 0.15)',
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(184, 161, 255, 0.3)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
   },
   sheetTitle: {
     color: C.text,
@@ -1097,14 +1180,14 @@ export const s = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(148, 163, 184, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(28, 38, 68, 0.95)',
+    backgroundColor: '#F1F5F9',
     marginHorizontal: 16,
     borderRadius: 14,
     borderWidth: 1,
@@ -1125,7 +1208,7 @@ export const s = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 183, 197, 0.4)',
+    borderColor: 'rgba(244, 114, 182, 0.5)',
   },
   quickCreateGradient: {
     flexDirection: 'row',
@@ -1135,16 +1218,20 @@ export const s = StyleSheet.create({
     gap: 8,
   },
   quickCreateText: {
-    color: C.pastelPink,
+    color: C.pastelPurple,
     fontSize: 13,
     fontWeight: '600',
   },
   ingredientItemCard: {
-    backgroundColor: 'rgba(32, 42, 74, 0.75)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
     borderColor: C.borderLight,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   ingredientItemName: {
     color: C.text,
@@ -1153,7 +1240,7 @@ export const s = StyleSheet.create({
     flex: 1,
   },
   servingPill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(148, 163, 184, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -1180,7 +1267,7 @@ export const s = StyleSheet.create({
     borderRadius: 10,
   },
   emptyCreateBtnText: {
-    color: '#1E1738',
+    color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 12,
   },
@@ -1190,6 +1277,11 @@ export const s = StyleSheet.create({
     flex: 1,
     borderRadius: 14,
     overflow: 'hidden',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   primaryButtonGradient: {
     flexDirection: 'row',
@@ -1199,7 +1291,7 @@ export const s = StyleSheet.create({
     gap: 6,
   },
   primaryButtonText: {
-    color: '#1E1738',
+    color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 14,
     letterSpacing: 0.3,
@@ -1209,12 +1301,16 @@ export const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(32, 42, 74, 0.75)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     paddingVertical: 13,
     borderWidth: 1,
     borderColor: C.borderPastelPurple,
     gap: 6,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   ghostButtonText: {
     color: C.pastelPurple,
@@ -1223,7 +1319,7 @@ export const s = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(6, 9, 18, 0.82)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
     padding: 20,
   },

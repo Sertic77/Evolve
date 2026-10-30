@@ -10,6 +10,7 @@ import {
   Platform,
   StyleSheet,
   KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -41,8 +42,15 @@ export default function FoodScreen() {
   const [date, setDate] = useState(new Date());
   const [quickCreateName, setQuickCreateName] = useState<string | null>(null);
 
-  // Target para el selector global de ingredientes: { blockId, itemId, isSavedMeal? }
+  // Target para el selector de ingredientes: { blockId, itemId, isSavedMealDraft }
   const [pickerTarget, setPickerTarget] = useState<{
+    blockId: string;
+    itemId: string;
+    isSavedMealDraft?: boolean;
+  } | null>(null);
+
+  // Guarda a cuál fila se le debe asignar el nuevo ingrediente cuando se termine de crear
+  const [pendingTargetForNewIng, setPendingTargetForNewIng] = useState<{
     blockId: string;
     itemId: string;
     isSavedMealDraft?: boolean;
@@ -60,15 +68,16 @@ export default function FoodScreen() {
     [meals, ingredients],
   );
 
-  // Función para manejar la selección de un ingrediente
-  const handleSelectIngredient = (selectedIng: Ingredient) => {
-    if (!pickerTarget) return;
-
-    if (pickerTarget.isSavedMealDraft && savedMealDraft) {
+  // Asigna un ingrediente directamente a un target (bloque/item)
+  const assignIngredientToTarget = (
+    target: { blockId: string; itemId: string; isSavedMealDraft?: boolean },
+    selectedIng: Ingredient,
+  ) => {
+    if (target.isSavedMealDraft && savedMealDraft) {
       setSavedMealDraft({
         ...savedMealDraft,
         items: savedMealDraft.items.map((it) =>
-          it.id === pickerTarget.itemId
+          it.id === target.itemId
             ? {
                 ...it,
                 ingredientId: selectedIng.id,
@@ -81,11 +90,11 @@ export default function FoodScreen() {
       setDayMeals(
         key,
         meals.map((b) =>
-          b.id === pickerTarget.blockId
+          b.id === target.blockId
             ? {
                 ...b,
                 items: b.items.map((it) =>
-                  it.id === pickerTarget.itemId
+                  it.id === target.itemId
                     ? {
                         ...it,
                         ingredientId: selectedIng.id,
@@ -98,7 +107,11 @@ export default function FoodScreen() {
         ),
       );
     }
+  };
 
+  const handleSelectIngredient = (selectedIng: Ingredient) => {
+    if (!pickerTarget) return;
+    assignIngredientToTarget(pickerTarget, selectedIng);
     setPickerTarget(null);
   };
 
@@ -109,11 +122,11 @@ export default function FoodScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Anime Pastel */}
+        {/* Header Anime Pastel Claro */}
         <View style={styles.topHeader}>
           <View>
             <View style={styles.cyberTagRow}>
-              <Ionicons name="sparkles" size={11} color={C.pastelPink} />
+              <Ionicons name="sparkles" size={11} color={C.pastelPurple} />
               <Text style={styles.cyberTagText}>✦ EVOLVE // PROTOCOLO ✦</Text>
             </View>
             <Text style={styles.screenTitle}>Comida</Text>
@@ -127,7 +140,7 @@ export default function FoodScreen() {
           </View>
         </View>
 
-        {/* Resumen de Macros */}
+        {/* Resumen de Macros Animado */}
         <MacroSummary m={total} />
 
         {/* Selector de Pestaña Principal */}
@@ -170,12 +183,16 @@ export default function FoodScreen() {
         onClose={() => setPickerTarget(null)}
         onSelect={handleSelectIngredient}
         onCreateNew={(initialName) => {
+          // Guardamos la fila donde estábamos agregando para asignárselo de inmediato
+          if (pickerTarget) {
+            setPendingTargetForNewIng(pickerTarget);
+          }
           setPickerTarget(null);
           setQuickCreateName(initialName);
         }}
       />
 
-      {/* Modal de creación rápida si no existía el ingrediente */}
+      {/* Modal de creación de ingrediente (asignación directa al terminar) */}
       {quickCreateName !== null && (
         <IngredientFormModal
           ing={{
@@ -187,9 +204,17 @@ export default function FoodScreen() {
             protein: 0,
             fat: 0,
           }}
-          onClose={() => setQuickCreateName(null)}
+          onClose={() => {
+            setQuickCreateName(null);
+            setPendingTargetForNewIng(null);
+          }}
           onSave={(newIng) => {
             upsertIngredient(newIng);
+            // Si venía de una fila en la que estaba buscando, lo asignamos de una vez
+            if (pendingTargetForNewIng) {
+              assignIngredientToTarget(pendingTargetForNewIng, newIng);
+              setPendingTargetForNewIng(null);
+            }
             setQuickCreateName(null);
           }}
         />
@@ -231,7 +256,7 @@ function DayLog({
       {meals.length === 0 && (
         <View style={styles.emptyDayCard}>
           <LinearGradient
-            colors={['rgba(32, 42, 74, 0.65)', 'rgba(20, 26, 50, 0.75)']}
+            colors={['#FFFFFF', '#F8FAFF']}
             style={styles.emptyDayGradient}
           >
             <View style={styles.emptyIconCircle}>
@@ -295,14 +320,14 @@ function DayLog({
         <Pressable style={styles.modalBackdropDismiss} onPress={() => setPickModalOpen(false)}>
           <Pressable style={styles.savedMealsPickerSheet}>
             <LinearGradient
-              colors={['rgba(28, 38, 66, 0.98)', 'rgba(16, 22, 42, 0.99)']}
+              colors={['#FFFFFF', '#F8FAFF']}
               style={{ padding: 18 }}
             >
               <View style={styles.sheetHandleBar} />
               <View style={styles.pickerHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <View style={styles.hudIconOrb}>
-                    <Ionicons name="bookmark" size={16} color={C.pastelPink} />
+                    <Ionicons name="bookmark" size={16} color={C.pastelPurple} />
                   </View>
                   <Text style={styles.sheetHeaderTitle}>CARGAR COMIDA GUARDADA</Text>
                 </View>
@@ -417,7 +442,7 @@ const confirmDelete = (msg: string, onConfirm: () => void) => {
   ]);
 };
 
-/* --- Lista de Ingredientes --- */
+/* --- Lista de Ingredientes con Buscador Seguro --- */
 function IngredientsList() {
   const { ingredients, upsertIngredient, deleteIngredient } = useStore();
   const [query, setQuery] = useState('');
@@ -431,22 +456,26 @@ function IngredientsList() {
 
   return (
     <View style={{ marginTop: 6 }}>
-      {/* Barra de búsqueda y botón añadir */}
+      {/* Barra de búsqueda interactiva con botón de descartar teclado */}
       <View style={styles.searchAddRow}>
         <View style={styles.searchBoxGlass}>
           <Ionicons name="search" size={17} color={C.pastelPurple} />
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Buscar entre tus ingredientes..."
+            placeholder="Buscar entre tus alimentos..."
             placeholderTextColor={C.subMuted}
             style={styles.searchTextInput}
+            clearButtonMode="while-editing"
           />
-          {query.length > 0 && (
-            <Pressable onPress={() => setQuery('')}>
+          {query.length > 0 && Platform.OS !== 'ios' && (
+            <Pressable onPress={() => setQuery('')} style={{ padding: 4 }}>
               <Ionicons name="close-circle" size={16} color={C.sub} />
             </Pressable>
           )}
+          <Pressable onPress={() => Keyboard.dismiss()} style={{ padding: 4 }}>
+            <Ionicons name="chevron-down-circle-outline" size={18} color={C.pastelPurple} />
+          </Pressable>
         </View>
 
         <Pressable
@@ -464,7 +493,7 @@ function IngredientsList() {
           style={({ pressed }) => [styles.addSquareBtn, pressed && s.btnPressed]}
         >
           <LinearGradient colors={GRADIENTS.primary} style={styles.addSquareGradient}>
-            <Ionicons name="add" size={24} color="#1E1738" />
+            <Ionicons name="add" size={24} color="#FFFFFF" />
           </LinearGradient>
         </Pressable>
       </View>
@@ -484,7 +513,7 @@ function IngredientsList() {
           style={({ pressed }) => [styles.ingredientCardWrapper, pressed && s.btnPressed]}
         >
           <LinearGradient
-            colors={['rgba(32, 42, 74, 0.75)', 'rgba(20, 26, 50, 0.85)']}
+            colors={['#FFFFFF', '#F8FAFF']}
             style={styles.ingredientCardGradient}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -502,7 +531,7 @@ function IngredientsList() {
         </Pressable>
       ))}
 
-      {/* Modal de Crear / Editar Ingrediente */}
+      {/* Modal de Crear / Editar Ingrediente con Altura Segura */}
       {editingIng && (
         <IngredientFormModal
           ing={editingIng}
@@ -526,7 +555,7 @@ function IngredientsList() {
   );
 }
 
-/* --- Formulario Modal de Ingrediente --- */
+/* --- Formulario Modal de Ingrediente (Robusto y Seguro contra Teclado) --- */
 function IngredientFormModal({
   ing,
   onSave,
@@ -575,86 +604,88 @@ function IngredientFormModal({
 
   return (
     <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.formModalOverlay}
-      >
-        <Pressable style={styles.formModalBackdrop} onPress={onClose} />
-        <View style={styles.formModalSheet}>
-          <LinearGradient
-            colors={['rgba(28, 38, 66, 0.98)', 'rgba(16, 22, 42, 0.99)']}
-            style={{ padding: 20 }}
-          >
-            <View style={styles.sheetHandleBar} />
+      <View style={styles.formModalOverlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.formModalSheetContainer}
+        >
+          <View style={styles.formModalSheetContent}>
+            <LinearGradient
+              colors={['#FFFFFF', '#F8FAFF']}
+              style={{ padding: 20 }}
+            >
+              <View style={styles.sheetHandleBar} />
 
-            {/* Header del Formulario */}
-            <View style={styles.formHeaderRow}>
-              <View>
-                <Text style={styles.formTitle}>
-                  {ing.name ? 'EDITAR ALIMENTO' : 'NUEVO ALIMENTO'}
-                </Text>
-                <Text style={styles.formSubtitle}>
-                  Introduce los valores tal como figuran en el empaque
-                </Text>
+              {/* Header del Formulario */}
+              <View style={styles.formHeaderRow}>
+                <View>
+                  <Text style={styles.formTitle}>
+                    {ing.name ? 'EDITAR ALIMENTO' : 'NUEVO ALIMENTO'}
+                  </Text>
+                  <Text style={styles.formSubtitle}>
+                    Introduce los valores tal como figuran en el empaque
+                  </Text>
+                </View>
+                <Pressable onPress={onClose} style={styles.sheetCloseMiniBtn}>
+                  <Ionicons name="close" size={20} color={C.text} />
+                </Pressable>
               </View>
-              <Pressable onPress={onClose} style={styles.sheetCloseMiniBtn}>
-                <Ionicons name="close" size={20} color={C.text} />
-              </Pressable>
-            </View>
 
-            {/* Nombre del Ingrediente */}
-            <Text style={styles.fieldLabel}>Nombre del alimento</Text>
-            <View style={[styles.fieldInputBox, { marginBottom: 12 }]}>
-              <TextInput
-                value={form.name}
-                onChangeText={(t) => setForm({ ...form, name: t })}
-                placeholder="Ej. Mantequilla de maní, Avena, Huevos..."
-                placeholderTextColor={C.subMuted}
-                style={styles.fieldTextInput}
-              />
-            </View>
+              {/* Nombre del Ingrediente */}
+              <Text style={styles.fieldLabel}>Nombre del alimento</Text>
+              <View style={[styles.fieldInputBox, { marginBottom: 12 }]}>
+                <TextInput
+                  value={form.name}
+                  onChangeText={(t) => setForm({ ...form, name: t })}
+                  placeholder="Ej. Mantequilla de maní, Avena, Huevos..."
+                  placeholderTextColor={C.subMuted}
+                  style={styles.fieldTextInput}
+                />
+              </View>
 
-            {/* Porción base y Calorías */}
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-              {renderField('servingGrams', 'Porción empaque (g)', C.pastelPurple, 'scale-outline')}
-              {renderField('kcal', 'Calorías (kcal)', C.kcal, 'flame')}
-            </View>
+              {/* Porción base y Calorías */}
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                {renderField('servingGrams', 'Porción empaque (g)', C.pastelPurple, 'scale-outline')}
+                {renderField('kcal', 'Calorías (kcal)', C.kcal, 'flame')}
+              </View>
 
-            {/* Carbos, Proteína y Grasas */}
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
-              {renderField('carbs', 'Carbos (g)', C.carbs, 'leaf')}
-              {renderField('protein', 'Proteína (g)', C.protein, 'flash')}
-              {renderField('fat', 'Grasas (g)', C.fat, 'water')}
-            </View>
+              {/* Carbos, Proteína y Grasas */}
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+                {renderField('carbs', 'Carbos (g)', C.carbs, 'leaf')}
+                {renderField('protein', 'Proteína (g)', C.protein, 'flash')}
+                {renderField('fat', 'Grasas (g)', C.fat, 'water')}
+              </View>
 
-            {/* Botones de acción */}
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              {onDelete && (
-                <PrimaryButton ghost danger icon="trash" label="Eliminar" onPress={onDelete} />
-              )}
-              <PrimaryButton
-                icon="checkmark-circle"
-                label="Guardar alimento"
-                onPress={() => {
-                  if (!form.name.trim() || parseNum('servingGrams') <= 0) {
-                    Alert.alert('Datos incompletos', 'Ingresa un nombre y los gramos de porción base.');
-                    return;
-                  }
-                  onSave({
-                    id: ing.id,
-                    name: form.name.trim(),
-                    servingGrams: parseNum('servingGrams'),
-                    kcal: parseNum('kcal'),
-                    carbs: parseNum('carbs'),
-                    protein: parseNum('protein'),
-                    fat: parseNum('fat'),
-                  });
-                }}
-              />
-            </View>
-          </LinearGradient>
-        </View>
-      </KeyboardAvoidingView>
+              {/* Botones de acción */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {onDelete && (
+                  <PrimaryButton ghost danger icon="trash" label="Eliminar" onPress={onDelete} />
+                )}
+                <PrimaryButton
+                  icon="checkmark-circle"
+                  label="Guardar alimento"
+                  onPress={() => {
+                    if (!form.name.trim() || parseNum('servingGrams') <= 0) {
+                      Alert.alert('Datos incompletos', 'Ingresa un nombre y los gramos de porción base.');
+                      return;
+                    }
+                    onSave({
+                      id: ing.id,
+                      name: form.name.trim(),
+                      servingGrams: parseNum('servingGrams'),
+                      kcal: parseNum('kcal'),
+                      carbs: parseNum('carbs'),
+                      protein: parseNum('protein'),
+                      fat: parseNum('fat'),
+                    });
+                  }}
+                />
+              </View>
+            </LinearGradient>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -725,9 +756,12 @@ function SavedMealsList({
 
           <View style={{ height: 14 }} />
 
+          {/* MENSAJE VACÍO DE COMIDAS GUARDADAS: 100% ALINEADO Y CENTRADO */}
           {savedMeals.length === 0 && (
-            <View style={styles.emptyDayCard}>
-              <Ionicons name="fast-food-outline" size={36} color={C.subMuted} />
+            <View style={styles.emptySavedBoxWrapper}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="fast-food-outline" size={32} color={C.pastelPurple} />
+              </View>
               <Text style={styles.emptyDayTitle}>No tienes comidas guardadas</Text>
               <Text style={styles.emptyDaySubtitle}>
                 Crea combinaciones de alimentos que consumes con frecuencia para cargarlas en 1 toque.
@@ -744,7 +778,7 @@ function SavedMealsList({
                 style={({ pressed }) => [styles.savedMealCardWrapper, pressed && s.btnPressed]}
               >
                 <LinearGradient
-                  colors={['rgba(32, 42, 74, 0.75)', 'rgba(20, 26, 50, 0.85)']}
+                  colors={['#FFFFFF', '#F8FAFF']}
                   style={styles.savedMealCardGradient}
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -786,7 +820,7 @@ function SavedMealsList({
 }
 
 /* ==========================================================
-   ESTILOS ESPECÍFICOS DE FOOD SCREEN (PASTEL ANIME)
+   ESTILOS ESPECÍFICOS DE FOOD SCREEN (PASTEL ANIME CLARO)
 ========================================================== */
 const styles = StyleSheet.create({
   scrollContent: {
@@ -806,13 +840,13 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   cyberTagText: {
-    color: C.pastelPink,
+    color: C.pastelPurple,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1.2,
   },
   screenTitle: {
-    color: '#FFF',
+    color: C.text,
     fontSize: 32,
     fontWeight: '900',
     letterSpacing: -0.5,
@@ -821,13 +855,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(32, 42, 74, 0.8)',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: C.borderPastelPurple,
+    borderColor: C.borderLight,
     marginTop: 6,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   dateChipMiniText: {
     color: C.textSub,
@@ -836,34 +874,41 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Empty state
+  // Empty state Día
   emptyDayCard: {
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.borderLight,
     marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   emptyDayGradient: {
     padding: 28,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyIconCircle: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(184, 161, 255, 0.12)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(184, 161, 255, 0.3)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
     marginBottom: 12,
   },
   emptyDayTitle: {
     color: C.text,
     fontSize: 17,
     fontWeight: '800',
-    marginBottom: 4,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   emptyDaySubtitle: {
     color: C.sub,
@@ -872,6 +917,23 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     maxWidth: 280,
   },
+
+  // MENSAJE VACÍO DE COMIDAS GUARDADAS CENTRADO
+  emptySavedBoxWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 16,
+  },
+
   actionButtonsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -881,7 +943,7 @@ const styles = StyleSheet.create({
   // Modal selector de comida guardada
   modalBackdropDismiss: {
     flex: 1,
-    backgroundColor: 'rgba(6, 9, 18, 0.8)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'flex-end',
   },
   savedMealsPickerSheet: {
@@ -890,12 +952,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.borderPastelPurple,
-    backgroundColor: C.bgDark,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 20,
   },
   sheetHandleBar: {
     width: 38,
     height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: 'rgba(148, 163, 184, 0.4)',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 14,
@@ -910,11 +976,11 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 183, 197, 0.15)',
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 183, 197, 0.3)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
   },
   sheetHeaderTitle: {
     color: C.text,
@@ -926,7 +992,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(148, 163, 184, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -935,6 +1001,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     marginTop: 10,
+    textAlign: 'center',
   },
   emptySavedSubText: {
     color: C.subMuted,
@@ -944,7 +1011,7 @@ const styles = StyleSheet.create({
     maxWidth: 260,
   },
   savedMealSelectCard: {
-    backgroundColor: 'rgba(32, 42, 74, 0.65)',
+    backgroundColor: '#F8FAFC',
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
@@ -957,7 +1024,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   itemCountBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(148, 163, 184, 0.15)',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
@@ -983,12 +1050,16 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(32, 42, 74, 0.8)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: C.borderLight,
     gap: 8,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   searchTextInput: {
     flex: 1,
@@ -1002,6 +1073,10 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 14,
     overflow: 'hidden',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
   },
   addSquareGradient: {
     flex: 1,
@@ -1025,7 +1100,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.borderLight,
-    backgroundColor: C.bgCard,
+    backgroundColor: '#FFFFFF',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   ingredientCardGradient: {
     padding: 14,
@@ -1040,12 +1119,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(184, 161, 255, 0.12)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(184, 161, 255, 0.25)',
+    borderColor: 'rgba(139, 92, 246, 0.2)',
   },
   servingBadgeText: {
     color: C.pastelPurple,
@@ -1056,19 +1135,23 @@ const styles = StyleSheet.create({
   // Modal Formulario de Ingrediente
   formModalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'flex-end',
   },
-  formModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(6, 9, 18, 0.8)',
+  formModalSheetContainer: {
+    width: '100%',
   },
-  formModalSheet: {
+  formModalSheetContent: {
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.borderPastelPurple,
-    backgroundColor: C.bgDark,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 20,
   },
   formHeaderRow: {
     flexDirection: 'row',
@@ -1094,7 +1177,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   fieldInputBox: {
-    backgroundColor: 'rgba(32, 42, 74, 0.8)',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: C.borderLight,
@@ -1112,12 +1195,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(184, 161, 255, 0.12)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(184, 161, 255, 0.3)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
     marginBottom: 12,
   },
   editorBannerText: {
@@ -1132,7 +1215,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.borderLight,
-    backgroundColor: C.bgCard,
+    backgroundColor: '#FFFFFF',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   savedMealCardGradient: {
     padding: 16,
