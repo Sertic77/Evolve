@@ -2142,11 +2142,13 @@ const PROJECTOR_FILTER_OPTIONS: {
   { key: 'all', label: 'Todas', icon: 'albums-outline' },
 ];
 
-const GIF_SPEEDS: { label: string; ms: number }[] = [
-  { label: '0.5x', ms: 950 },
-  { label: '1x', ms: 550 },
-  { label: '2x', ms: 280 },
-  { label: '3x', ms: 180 },
+const GIF_SPEEDS: { label: string; desc: string; ms: number }[] = [
+  { label: '0.5x', desc: '0.5x (Lento)', ms: 950 },
+  { label: '1x', desc: '1x (Normal)', ms: 550 },
+  { label: '2x', desc: '2x (Rápido)', ms: 280 },
+  { label: '3x', desc: '3x (Turbo)', ms: 185 },
+  { label: '4x', desc: '4x (Ultra)', ms: 140 },
+  { label: '5x', desc: '5x (Máximo)', ms: 110 },
 ];
 
 // Decodifica Base64 a Uint8Array en JS puro sin depender de Buffer
@@ -2203,6 +2205,7 @@ function ProgressPhotosSection({
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isPlayingGif, setIsPlayingGif] = useState<boolean>(false);
   const [gifSpeedIdx, setGifSpeedIdx] = useState<number>(1); // 1x por defecto
+  const [speedDropdownOpen, setSpeedDropdownOpen] = useState<boolean>(false);
   const [exportingAction, setExportingAction] = useState<'save' | 'share' | null>(null);
 
   // Construye la lista ordenada de PRIMERA a ÚLTIMA según el filtro seleccionado
@@ -2872,36 +2875,72 @@ function ProgressPhotosSection({
                 </Pressable>
               </View>
 
-              {/* Selector de Velocidad del GIF + Tira de Fotogramas (De primera a última) */}
-              <View style={measureStyles.projectorTimelineSection}>
-                <View style={measureStyles.timelineHeaderRow}>
+              {/* Selector Dropdown de Velocidad del GIF (0.5x a 5x) + Tira de Fotogramas */}
+              <View style={[measureStyles.projectorTimelineSection, { zIndex: 45 }]}>
+                <View style={[measureStyles.timelineHeaderRow, { zIndex: 50 }]}>
                   <Text style={measureStyles.timelineHintText}>
                     SECUENCIA (PRIMERA → ÚLTIMA):
                   </Text>
-                  <View style={measureStyles.gifSpeedRow}>
-                    <Text style={measureStyles.gifSpeedLabel}>Velocidad GIF:</Text>
-                    {GIF_SPEEDS.map((sp, idx) => {
-                      const active = gifSpeedIdx === idx;
-                      return (
-                        <Pressable
-                          key={sp.label}
-                          onPress={() => setGifSpeedIdx(idx)}
-                          style={[
-                            measureStyles.gifSpeedChip,
-                            active && measureStyles.gifSpeedChipActive,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              measureStyles.gifSpeedChipText,
-                              active && measureStyles.gifSpeedChipTextActive,
-                            ]}
-                          >
-                            {sp.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+
+                  {/* Botón Dropdown de Velocidad GIF (0.5x hasta 5x) */}
+                  <View style={measureStyles.timeDropdownWrapper}>
+                    <Pressable
+                      onPress={() => setSpeedDropdownOpen((prev) => !prev)}
+                      style={({ pressed }) => [
+                        measureStyles.timeDropdownBtn,
+                        speedDropdownOpen && measureStyles.timeDropdownBtnActive,
+                        pressed && s.btnPressed,
+                      ]}
+                    >
+                      <Ionicons name="speedometer-outline" size={13} color="#8B5CF6" />
+                      <Text style={measureStyles.timeDropdownBtnText}>
+                        Velocidad: {GIF_SPEEDS[gifSpeedIdx]?.label || '1x'}
+                      </Text>
+                      <Ionicons
+                        name={speedDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                        size={14}
+                        color="#8B5CF6"
+                      />
+                    </Pressable>
+
+                    {speedDropdownOpen && (
+                      <View
+                        style={[
+                          measureStyles.timeDropdownMenu,
+                          { width: 155, bottom: 38, top: undefined },
+                        ]}
+                      >
+                        {GIF_SPEEDS.map((sp, idx) => {
+                          const active = gifSpeedIdx === idx;
+                          return (
+                            <Pressable
+                              key={sp.label}
+                              onPress={() => {
+                                setGifSpeedIdx(idx);
+                                setSpeedDropdownOpen(false);
+                              }}
+                              style={({ pressed }) => [
+                                measureStyles.timeDropdownOption,
+                                active && measureStyles.timeDropdownOptionActive,
+                                pressed && { opacity: 0.75 },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  measureStyles.timeDropdownOptionText,
+                                  active && measureStyles.timeDropdownOptionTextActive,
+                                ]}
+                              >
+                                {sp.desc}
+                              </Text>
+                              {active && (
+                                <Ionicons name="checkmark-circle" size={15} color="#8B5CF6" />
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    )}
                   </View>
                 </View>
 
