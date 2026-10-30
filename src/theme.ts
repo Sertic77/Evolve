@@ -1,53 +1,65 @@
 export const C = {
-  // Fondos y Superficies
-  bg: '#080B14',
-  bgDark: '#04060A',
-  card: 'rgba(18, 24, 41, 0.75)',
-  cardSolid: '#121829',
-  card2: 'rgba(28, 36, 62, 0.65)',
-  cardHover: 'rgba(38, 48, 80, 0.75)',
+  // Fondos y Superficies Anime (Soft Night / Twilight Dusk)
+  bg: '#0E1324',
+  bgDark: '#090D1A',
+  bgCard: 'rgba(25, 33, 58, 0.72)',
+  bgCardLight: 'rgba(35, 46, 78, 0.65)',
+  bgCardHover: 'rgba(45, 58, 96, 0.75)',
   
-  // Bordes y Glassmorphism
-  border: 'rgba(255, 255, 255, 0.08)',
-  borderLight: 'rgba(255, 255, 255, 0.14)',
-  borderGlow: 'rgba(124, 92, 255, 0.45)',
-  borderCyan: 'rgba(0, 242, 254, 0.4)',
-  borderPink: 'rgba(255, 42, 133, 0.4)',
+  // Bordes Suaves Glassmorphism Pastel
+  border: 'rgba(255, 255, 255, 0.1)',
+  borderLight: 'rgba(255, 255, 255, 0.16)',
+  borderPastelPurple: 'rgba(184, 161, 255, 0.35)',
+  borderPastelPink: 'rgba(255, 183, 197, 0.35)',
+  borderPastelMint: 'rgba(112, 228, 208, 0.35)',
 
-  // Textos
+  // Textos Nítidos
   text: '#F8FAFC',
-  textDim: '#CBD5E1',
-  sub: '#8E99B7',
-  subMuted: '#5F6986',
+  textSub: '#C5CEE0',
+  sub: '#94A3B8',
+  subMuted: '#64748B',
 
-  // Colores de Acento Anime
-  accent: '#7C5CFF',
-  accentPurple: '#8B5CF6',
-  accentCyan: '#00F2FE',
-  accentPink: '#FF2A85',
-  accentBlue: '#3B82F6',
+  // Colores Pastel Anime
+  pastelPurple: '#B8A1FF',   // Lavanda Mágico Anime
+  pastelPink: '#FFB7C5',     // Sakura Blossom
+  pastelBlue: '#A0C4FF',     // Cielo Anime
+  pastelMint: '#70E4D0',     // Menta Mágica
+  pastelPeach: '#FFB4A2',    // Melocotón Suave
+  pastelHoney: '#FDE28A',    // Sol Vainilla
+
+  // Macros en Tonos Pastel
+  kcal: '#FF9AA2',          // Peach / Salmon Pastel
+  carbs: '#FDE28A',         // Vanilla / Honey Pastel
+  protein: '#70E4D0',       // Mint Pastel
+  fat: '#CDB4DB',           // Lavender Pastel
+
+  // Estados
+  danger: '#FF8FAB',
+  dangerBg: 'rgba(255, 143, 171, 0.15)',
+  success: '#80ED99',
   
-  // Macros (Stats de Energía Anime)
-  kcal: '#FF4D6D',       // Solar Flame
-  carbs: '#FFB703',      // Spark Gold
-  protein: '#00F2FE',    // Cyan Plasma
-  fat: '#A855F7',        // Cosmic Violet
-
-  // Utilidades
-  danger: '#FF3366',
-  dangerBg: 'rgba(255, 51, 102, 0.15)',
-  success: '#10B981',
+  // Acento principal
+  accent: '#B8A1FF',
 };
 
 export const GRADIENTS = {
-  primary: ['#7C5CFF', '#00F2FE'] as const,
-  fire: ['#FF4D6D', '#FF8A00'] as const,
-  cyan: ['#00F2FE', '#4FACFE'] as const,
-  purple: ['#A855F7', '#6366F1'] as const,
-  gold: ['#FFB703', '#F72585'] as const,
-  cardGlass: ['rgba(22, 28, 48, 0.82)', 'rgba(14, 18, 32, 0.88)'] as const,
-  tabBar: ['rgba(15, 20, 36, 0.94)', 'rgba(8, 11, 20, 0.98)'] as const,
-  homeButton: ['#7C5CFF', '#00F2FE'] as const,
+  // Acento Anime Suave
+  primary: ['#B8A1FF', '#FFB7C5'] as const,
+  pastelMintToBlue: ['#70E4D0', '#A0C4FF'] as const,
+  pastelSunset: ['#FFB7C5', '#FFB4A2'] as const,
+  
+  // Tarjetas Glass Pastel
+  cardGlass: ['rgba(28, 38, 66, 0.78)', 'rgba(18, 24, 46, 0.84)'] as const,
+  cardGlassSubtle: ['rgba(32, 42, 72, 0.55)', 'rgba(22, 30, 54, 0.65)'] as const,
+  
+  // TabBar y Floating Home
+  tabBar: ['rgba(20, 27, 48, 0.95)', 'rgba(12, 16, 32, 0.98)'] as const,
+  floatingHomeActive: ['#B8A1FF', '#FFB7C5'] as const,
+  floatingHomeInactive: ['#2A3558', '#1C243E'] as const,
+  
+  // Macros
+  kcalGradient: ['#FF9AA2', '#FFB4A2'] as const,
+  proteinGradient: ['#70E4D0', '#A0C4FF'] as const,
 };
 
 export const fmt = (n: number) => {

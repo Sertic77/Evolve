@@ -10,15 +10,15 @@ import {
   FlatList,
   KeyboardAvoidingView,
 } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { C, GRADIENTS, fmt } from './theme';
 import { Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTotal, uid } from './store';
 
-/* ---------------- Resumen de Macros (HUD Anime Glassmorphism) ---------------- */
+/* ---------------- Resumen de Macros (Anime Pastel Glass) ---------------- */
 export function MacroSummary({ m }: { m: Macros }) {
-  const size = 154;
+  const size = 152;
   const stroke = 12;
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
@@ -46,40 +46,30 @@ export function MacroSummary({ m }: { m: Macros }) {
         end={{ x: 1, y: 1 }}
         style={s.cardGradient}
       >
+        {/* Cabecera estilo Anime */}
         <View style={s.hudHeader}>
           <View style={s.hudBadge}>
-            <View style={[s.pulseDot, { backgroundColor: C.accentCyan }]} />
-            <Text style={s.hudBadgeText}>STATUS ENERGÉTICO</Text>
+            <Ionicons name="sparkles" size={11} color={C.pastelPurple} />
+            <Text style={s.hudBadgeText}>✦ BALANCE DEL DÍA ✦</Text>
           </View>
-          <View style={s.hudCornerDecor} />
+          <Text style={s.kanjiDecor}>栄養ログ</Text>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
-          {/* Anillo de Calorías con SVG */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14 }}>
+          {/* Anillo de Calorías Pastel */}
           <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
             <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
-              <Defs>
-                <SvgLinearGradient id="gradKcal" x1="0" y1="0" x2="1" y2="1">
-                  <Stop offset="0" stopColor={C.kcal} stopOpacity="1" />
-                  <Stop offset="1" stopColor="#FFA07A" stopOpacity="0.8" />
-                </SvgLinearGradient>
-                <SvgLinearGradient id="gradProtein" x1="0" y1="0" x2="1" y2="1">
-                  <Stop offset="0" stopColor={C.protein} stopOpacity="1" />
-                  <Stop offset="1" stopColor="#4FACFE" stopOpacity="0.9" />
-                </SvgLinearGradient>
-              </Defs>
-
               {/* Fondo del anillo */}
               <Circle
                 cx={size / 2}
                 cy={size / 2}
                 r={r}
-                stroke="rgba(255, 255, 255, 0.05)"
+                stroke="rgba(255, 255, 255, 0.08)"
                 strokeWidth={stroke}
                 fill="none"
               />
 
-              {/* Segmentos de Macros */}
+              {/* Segmentos de Macros Pastel */}
               {segs.map((g) =>
                 g.len > 0 ? (
                   <Circle
@@ -101,15 +91,15 @@ export function MacroSummary({ m }: { m: Macros }) {
             {/* Centro del Anillo */}
             <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
               <View style={s.ringCenterGlow}>
-                <Ionicons name="flame" size={16} color={C.kcal} style={{ marginBottom: 2 }} />
+                <Ionicons name="heart" size={15} color={C.kcal} style={{ marginBottom: 2 }} />
                 <Text style={s.kcalBigNumber}>{Math.round(m.kcal || 0)}</Text>
                 <Text style={s.kcalUnit}>KCAL</Text>
               </View>
             </View>
           </View>
 
-          {/* Barras de Stats Anime (Proteína, Carbos, Grasas) */}
-          <View style={{ flex: 1, marginLeft: 20, gap: 11 }}>
+          {/* Barras de Macros Anime Pastel */}
+          <View style={{ flex: 1, marginLeft: 18, gap: 11 }}>
             {[
               { label: 'Proteína', key: 'protein' as const, icon: 'flash' as const, color: C.protein },
               { label: 'Carbos', key: 'carbs' as const, icon: 'leaf' as const, color: C.carbs },
@@ -120,7 +110,7 @@ export function MacroSummary({ m }: { m: Macros }) {
                 <View key={key}>
                   <View style={s.statRowHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                      <Ionicons name={icon} size={13} color={color} />
+                      <Ionicons name={icon} size={12} color={color} />
                       <Text style={s.statLabel}>{label}</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -135,7 +125,6 @@ export function MacroSummary({ m }: { m: Macros }) {
                         {
                           backgroundColor: color,
                           width: `${pct}%`,
-                          shadowColor: color,
                         },
                       ]}
                     />
@@ -150,7 +139,7 @@ export function MacroSummary({ m }: { m: Macros }) {
   );
 }
 
-/* ---------------- Selector Segmentado (Cápsula Glass) ---------------- */
+/* ---------------- Selector Segmentado (Cápsula Pastel) ---------------- */
 export function Segmented({
   options,
   value,
@@ -175,7 +164,7 @@ export function Segmented({
           >
             {active ? (
               <LinearGradient
-                colors={['#7C5CFF', '#5835E8']}
+                colors={GRADIENTS.primary}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={s.segmentedActiveGradient}
@@ -192,7 +181,7 @@ export function Segmented({
   );
 }
 
-/* ---------------- Selector de Fecha (HUD Date Bar) ---------------- */
+/* ---------------- Selector de Fecha (Date Bar Anime) ---------------- */
 let DateTimePicker: any = null;
 if (Platform.OS !== 'web') {
   try {
@@ -220,7 +209,7 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
         onPress={() => shift(-1)}
         style={({ pressed }) => [s.dateNavBtn, pressed && s.btnPressed]}
       >
-        <Ionicons name="chevron-back" size={18} color={C.accentCyan} />
+        <Ionicons name="chevron-back" size={18} color={C.pastelPurple} />
       </Pressable>
 
       <Pressable
@@ -228,12 +217,16 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
         style={({ pressed }) => [s.dateCenterBtn, pressed && s.btnPressed]}
       >
         <LinearGradient
-          colors={['rgba(28, 36, 62, 0.7)', 'rgba(18, 24, 42, 0.7)']}
+          colors={['rgba(35, 46, 78, 0.7)', 'rgba(24, 32, 56, 0.7)']}
           style={s.dateCenterGradient}
         >
-          <Ionicons name="calendar-outline" size={17} color={C.accentCyan} />
+          <Ionicons name="calendar-outline" size={16} color={C.pastelPink} />
           <Text style={s.dateLabelText}>{label}</Text>
-          {isToday && <View style={s.todayTag}><Text style={s.todayTagText}>ACTUAL</Text></View>}
+          {isToday && (
+            <View style={s.todayTag}>
+              <Text style={s.todayTagText}>HOY</Text>
+            </View>
+          )}
         </LinearGradient>
       </Pressable>
 
@@ -241,7 +234,7 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
         onPress={() => shift(1)}
         style={({ pressed }) => [s.dateNavBtn, pressed && s.btnPressed]}
       >
-        <Ionicons name="chevron-forward" size={18} color={C.accentCyan} />
+        <Ionicons name="chevron-forward" size={18} color={C.pastelPurple} />
       </Pressable>
 
       {open && DateTimePicker && (
@@ -253,7 +246,7 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
                 mode="date"
                 display="inline"
                 themeVariant="dark"
-                accentColor={C.accent}
+                accentColor={C.pastelPurple}
                 locale="es-ES"
                 onChange={(_: any, d?: Date) => {
                   if (d) onChange(d);
@@ -268,7 +261,7 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
   );
 }
 
-/* ---------------- Chips de Macros Futuristas ---------------- */
+/* ---------------- Chips de Macros Pastel ---------------- */
 export function MacroChips({ m, small }: { m: Macros; small?: boolean }) {
   return (
     <View style={s.chipsRow}>
@@ -295,7 +288,7 @@ function MacroBadge({
     <View
       style={[
         s.macroBadgeContainer,
-        { borderColor: color + '35', backgroundColor: color + '14' },
+        { borderColor: color + '40', backgroundColor: color + '18' },
         small && { paddingHorizontal: 7, paddingVertical: 3 },
       ]}
     >
@@ -305,7 +298,7 @@ function MacroBadge({
   );
 }
 
-/* ---------------- MODAL DE BÚSQUEDA DE INGREDIENTES (Solución definitiva del teclado) ---------------- */
+/* ---------------- MODAL ROBUSTO DE BÚSQUEDA DE INGREDIENTES ---------------- */
 export function IngredientPickerModal({
   visible,
   ingredients,
@@ -332,128 +325,138 @@ export function IngredientPickerModal({
   );
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={s.pickerOverlay}
-      >
-        <Pressable style={s.pickerBackdropDismiss} onPress={onClose} />
-        <View style={s.pickerSheet}>
-          <LinearGradient
-            colors={['rgba(24, 30, 52, 0.98)', 'rgba(12, 16, 28, 0.99)']}
-            style={s.pickerSheetGradient}
-          >
-            {/* Tirador superior y Header */}
-            <View style={s.sheetHandleBar} />
-            <View style={s.sheetHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={s.hudIconOrb}>
-                  <Ionicons name="search" size={16} color={C.accentCyan} />
-                </View>
-                <View>
-                  <Text style={s.sheetTitle}>BUSCAR INGREDIENTE</Text>
-                  <Text style={s.sheetSubtitle}>Toca para agregar a tu comida</Text>
-                </View>
-              </View>
-              <Pressable
-                onPress={onClose}
-                style={({ pressed }) => [s.sheetCloseBtn, pressed && s.btnPressed]}
-              >
-                <Ionicons name="close" size={20} color={C.sub} />
-              </Pressable>
-            </View>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <View style={s.modalOverlay}>
+        {/* Fondo táctil para cerrar */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
-            {/* Barra de búsqueda interactiva */}
-            <View style={s.searchBarContainer}>
-              <Ionicons name="search" size={18} color={C.accentCyan} style={{ marginLeft: 12 }} />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Escribe para buscar o crear..."
-                placeholderTextColor={C.subMuted}
-                autoFocus
-                style={s.searchInput}
-                autoCorrect={false}
-                clearButtonMode="while-editing"
-              />
-              {query.length > 0 && Platform.OS !== 'ios' && (
-                <Pressable onPress={() => setQuery('')} style={{ padding: 8 }}>
-                  <Ionicons name="close-circle" size={18} color={C.sub} />
-                </Pressable>
-              )}
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={s.pickerSheetContainer}
+        >
+          <View style={s.pickerSheetContent}>
+            <LinearGradient
+              colors={['rgba(28, 38, 66, 0.98)', 'rgba(16, 22, 42, 0.99)']}
+              style={{ flex: 1 }}
+            >
+              {/* Barra superior / Tirador */}
+              <View style={s.sheetHandleBar} />
 
-            {/* Opción de crear ingrediente al vuelo si se escribe algo nuevo */}
-            {query.trim().length > 0 && !exactMatch && onCreateNew && (
-              <Pressable
-                onPress={() => {
-                  onCreateNew(query.trim());
-                  onClose();
-                }}
-                style={({ pressed }) => [s.quickCreateCard, pressed && s.btnPressed]}
-              >
-                <LinearGradient
-                  colors={['rgba(124, 92, 255, 0.25)', 'rgba(0, 242, 254, 0.15)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={s.quickCreateGradient}
+              {/* Encabezado visible garantizado */}
+              <View style={s.sheetHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={s.hudIconOrb}>
+                    <Ionicons name="sparkles" size={16} color={C.pastelPurple} />
+                  </View>
+                  <View>
+                    <Text style={s.sheetTitle}>BUSCAR INGREDIENTE</Text>
+                    <Text style={s.sheetSubtitle}>Selecciona un alimento para tu comida</Text>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={onClose}
+                  style={({ pressed }) => [s.sheetCloseBtn, pressed && s.btnPressed]}
                 >
-                  <Ionicons name="add-circle" size={20} color={C.accentCyan} />
-                  <Text style={s.quickCreateText}>
-                    Crear nuevo: <Text style={{ color: '#fff', fontWeight: '800' }}>"{query.trim()}"</Text>
-                  </Text>
-                </LinearGradient>
-              </Pressable>
-            )}
+                  <Ionicons name="close" size={20} color={C.text} />
+                </Pressable>
+              </View>
 
-            {/* Lista con FlatList scrolleable con teclado siempre interactivo */}
-            <FlatList
-              data={filtered}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="always"
-              keyboardDismissMode="none"
-              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 30 }}
-              ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-              ListEmptyComponent={
-                <View style={s.emptySearchContainer}>
-                  <Ionicons name="nutrition-outline" size={42} color={C.subMuted} />
-                  <Text style={s.emptySearchText}>No se encontraron ingredientes</Text>
-                  {onCreateNew && (
-                    <Pressable
-                      onPress={() => {
-                        onCreateNew(query.trim());
-                        onClose();
-                      }}
-                      style={s.emptyCreateBtn}
-                    >
-                      <Text style={s.emptyCreateBtnText}>+ Crear este ingrediente</Text>
-                    </Pressable>
-                  )}
-                </View>
-              }
-              renderItem={({ item }) => (
+              {/* Cuadro de texto interactivo SIEMPRE VISIBLE */}
+              <View style={s.searchBarContainer}>
+                <Ionicons name="search" size={18} color={C.pastelPurple} style={{ marginLeft: 12 }} />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Escribe el nombre del alimento..."
+                  placeholderTextColor={C.subMuted}
+                  style={s.searchInput}
+                  autoCorrect={false}
+                  clearButtonMode="while-editing"
+                />
+                {query.length > 0 && Platform.OS !== 'ios' && (
+                  <Pressable onPress={() => setQuery('')} style={{ padding: 8 }}>
+                    <Ionicons name="close-circle" size={18} color={C.sub} />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Botón rápido para crear si no existe */}
+              {query.trim().length > 0 && !exactMatch && onCreateNew && (
                 <Pressable
                   onPress={() => {
-                    onSelect(item);
+                    onCreateNew(query.trim());
                     onClose();
                   }}
-                  style={({ pressed }) => [s.ingredientItemCard, pressed && s.btnPressed]}
+                  style={({ pressed }) => [s.quickCreateCard, pressed && s.btnPressed]}
                 >
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={s.ingredientItemName}>{item.name}</Text>
-                    <View style={s.servingPill}>
-                      <Text style={s.servingPillText}>{item.servingGrams}g base</Text>
-                    </View>
-                  </View>
-                  <View style={{ marginTop: 8 }}>
-                    <MacroChips m={item} small />
-                  </View>
+                  <LinearGradient
+                    colors={['rgba(184, 161, 255, 0.25)', 'rgba(255, 183, 197, 0.2)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={s.quickCreateGradient}
+                  >
+                    <Ionicons name="add-circle" size={20} color={C.pastelPurple} />
+                    <Text style={s.quickCreateText}>
+                      Crear nuevo ingrediente: <Text style={{ color: '#FFF', fontWeight: '800' }}>"{query.trim()}"</Text>
+                    </Text>
+                  </LinearGradient>
                 </Pressable>
               )}
-            />
-          </LinearGradient>
-        </View>
-      </KeyboardAvoidingView>
+
+              {/* Lista con FlatList de resultados con scroll amplio */}
+              <FlatList
+                data={filtered}
+                keyExtractor={(item) => item.id}
+                keyboardShouldPersistTaps="always"
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 36 }}
+                ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+                ListEmptyComponent={
+                  <View style={s.emptySearchContainer}>
+                    <Ionicons name="nutrition-outline" size={44} color={C.subMuted} />
+                    <Text style={s.emptySearchText}>No encontramos ingredientes con ese nombre</Text>
+                    {onCreateNew && (
+                      <Pressable
+                        onPress={() => {
+                          onCreateNew(query.trim());
+                          onClose();
+                        }}
+                        style={s.emptyCreateBtn}
+                      >
+                        <Text style={s.emptyCreateBtnText}>+ Crear ingrediente nuevo</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => {
+                      onSelect(item);
+                      onClose();
+                    }}
+                    style={({ pressed }) => [s.ingredientItemCard, pressed && s.btnPressed]}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={s.ingredientItemName}>{item.name}</Text>
+                      <View style={s.servingPill}>
+                        <Text style={s.servingPillText}>{item.servingGrams}g base</Text>
+                      </View>
+                    </View>
+                    <View style={{ marginTop: 8 }}>
+                      <MacroChips m={item} small />
+                    </View>
+                  </Pressable>
+                )}
+              />
+            </LinearGradient>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -478,7 +481,7 @@ function ItemRow({
   return (
     <View style={s.itemRowContainer}>
       <View style={s.itemRowTop}>
-        {/* Botón selector de ingrediente que abre el modal seguro contra el teclado */}
+        {/* Botón selector de ingrediente que abre el modal seguro */}
         <Pressable
           onPress={onOpenPicker}
           style={({ pressed }) => [
@@ -488,15 +491,15 @@ function ItemRow({
           ]}
         >
           <Ionicons
-            name={ing ? 'checkmark-circle' : 'search-outline'}
+            name={ing ? 'sparkles' : 'search-outline'}
             size={16}
-            color={ing ? C.accentCyan : C.accent}
+            color={ing ? C.pastelPurple : C.sub}
           />
           <Text
             numberOfLines={1}
             style={[s.ingredientPickerButtonText, !ing && { color: C.subMuted }]}
           >
-            {ing ? ing.name : 'Elegir ingrediente...'}
+            {ing ? ing.name : '✦ Toca para buscar ingrediente...'}
           </Text>
           <Ionicons name="chevron-down" size={14} color={C.sub} style={{ marginLeft: 'auto' }} />
         </Pressable>
@@ -522,7 +525,7 @@ function ItemRow({
           hitSlop={10}
           style={({ pressed }) => [s.deleteItemBtn, pressed && s.btnPressed]}
         >
-          <Ionicons name="trash-outline" size={18} color={C.sub} />
+          <Ionicons name="close-circle-outline" size={20} color={C.danger} />
         </Pressable>
       </View>
 
@@ -543,16 +546,15 @@ export function MealBlockCard({
   onChange,
   onDelete,
   extra,
-  onRequestCreateIngredient,
+  onOpenPickerForItem,
 }: {
   block: MealBlock;
   ingredients: Ingredient[];
   onChange: (b: MealBlock) => void;
   onDelete?: () => void;
   extra?: React.ReactNode;
-  onRequestCreateIngredient?: (name: string) => void;
+  onOpenPickerForItem: (itemId: string) => void;
 }) {
-  const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null);
   const total = itemsTotal(block.items, ingredients);
 
   const setItem = (it: MealItem) =>
@@ -570,17 +572,17 @@ export function MealBlockCard({
   return (
     <View style={s.mealBlockWrapper}>
       <LinearGradient
-        colors={['rgba(24, 32, 54, 0.85)', 'rgba(14, 18, 34, 0.9)']}
+        colors={['rgba(32, 42, 74, 0.78)', 'rgba(20, 26, 50, 0.88)']}
         style={s.mealBlockGradient}
       >
-        {/* Barra decorativa lateral con glow */}
+        {/* Barra decorativa lateral suave */}
         <View style={s.mealBlockAccentBar} />
 
         {/* Header del bloque */}
         <View style={s.mealBlockHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
             <View style={s.mealIconBadge}>
-              <Ionicons name={getMealIcon(block.name)} size={16} color={C.accentCyan} />
+              <Ionicons name={getMealIcon(block.name)} size={16} color={C.pastelPurple} />
             </View>
             <TextInput
               value={block.name}
@@ -609,7 +611,7 @@ export function MealBlockCard({
 
         {/* Filas de Ingredientes */}
         <View style={{ marginTop: 6 }}>
-          {block.items.map((it, idx) => (
+          {block.items.map((it) => (
             <ItemRow
               key={it.id}
               item={it}
@@ -618,7 +620,7 @@ export function MealBlockCard({
               onDelete={() =>
                 onChange({ ...block, items: block.items.filter((x) => x.id !== it.id) })
               }
-              onOpenPicker={() => setActiveItemIndex(idx)}
+              onOpenPicker={() => onOpenPickerForItem(it.id)}
             />
           ))}
         </View>
@@ -632,37 +634,18 @@ export function MealBlockCard({
               ...block,
               items: [...block.items, { id: newItemId, ingredientId: null, grams: 0 }],
             });
-            setActiveItemIndex(block.items.length);
+            onOpenPickerForItem(newItemId);
           }}
         >
-          <Ionicons name="add" size={17} color={C.accentCyan} />
-          <Text style={s.addIngredientDashedText}>Agregar ingrediente</Text>
+          <Ionicons name="add" size={17} color={C.pastelPurple} />
+          <Text style={s.addIngredientDashedText}>+ Agregar ingrediente</Text>
         </Pressable>
       </LinearGradient>
-
-      {/* Modal de selección para la fila activa */}
-      {activeItemIndex !== null && block.items[activeItemIndex] && (
-        <IngredientPickerModal
-          visible={true}
-          ingredients={ingredients}
-          onClose={() => setActiveItemIndex(null)}
-          onSelect={(selectedIng) => {
-            const currentItem = block.items[activeItemIndex];
-            setItem({
-              ...currentItem,
-              ingredientId: selectedIng.id,
-              grams: currentItem.grams > 0 ? currentItem.grams : selectedIng.servingGrams,
-            });
-            setActiveItemIndex(null);
-          }}
-          onCreateNew={onRequestCreateIngredient}
-        />
-      )}
     </View>
   );
 }
 
-/* ---------------- Botón Principal de Acción ---------------- */
+/* ---------------- Botón de Acción Anime Pastel ---------------- */
 export function PrimaryButton({
   icon,
   label,
@@ -686,7 +669,7 @@ export function PrimaryButton({
           pressed && s.btnPressed,
         ]}
       >
-        <Ionicons name={icon} size={18} color={danger ? C.danger : C.accentCyan} />
+        <Ionicons name={icon} size={18} color={danger ? C.danger : C.pastelPurple} />
         <Text style={[s.ghostButtonText, danger && { color: C.danger }]}>{label}</Text>
       </Pressable>
     );
@@ -698,32 +681,32 @@ export function PrimaryButton({
       style={({ pressed }) => [s.primaryButtonContainer, pressed && s.btnPressed]}
     >
       <LinearGradient
-        colors={danger ? [C.danger, '#C9184A'] : GRADIENTS.primary}
+        colors={danger ? [C.danger, '#FF758F'] : GRADIENTS.primary}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={s.primaryButtonGradient}
       >
-        <Ionicons name={icon} size={18} color="#fff" />
+        <Ionicons name={icon} size={18} color="#1E1738" />
         <Text style={s.primaryButtonText}>{label}</Text>
       </LinearGradient>
     </Pressable>
   );
 }
 
-/* ---------------- Estilos Glassmorphism Anime ---------------- */
+/* ---------------- Estilos Anime Pastel Glassmorphism ---------------- */
 export const s = StyleSheet.create({
-  // Tarjetas Glass
+  // Tarjetas Glass Pastel
   glassCard: {
     borderRadius: 22,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: C.borderLight,
     overflow: 'hidden',
-    backgroundColor: C.cardSolid,
-    shadowColor: '#00F2FE',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 6 },
+    backgroundColor: C.bgCard,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
   },
   cardGradient: {
     padding: 16,
@@ -737,46 +720,40 @@ export const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0, 242, 254, 0.08)',
-    paddingHorizontal: 9,
+    backgroundColor: 'rgba(184, 161, 255, 0.12)',
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.25)',
+    borderColor: 'rgba(184, 161, 255, 0.3)',
   },
   hudBadgeText: {
-    color: C.accentCyan,
-    fontSize: 10,
+    color: C.pastelPurple,
+    fontSize: 11,
     fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  kanjiDecor: {
+    color: C.subMuted,
+    fontSize: 11,
+    fontWeight: '700',
     letterSpacing: 1,
-  },
-  pulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  hudCornerDecor: {
-    width: 24,
-    height: 4,
-    backgroundColor: C.accent,
-    borderRadius: 2,
-    opacity: 0.6,
   },
 
   // Anillo de Kcal
   ringCenterGlow: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    backgroundColor: 'rgba(8, 12, 22, 0.88)',
+    width: 102,
+    height: 102,
+    borderRadius: 51,
+    backgroundColor: 'rgba(14, 19, 36, 0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 77, 109, 0.25)',
+    borderColor: 'rgba(255, 154, 162, 0.3)',
   },
   kcalBigNumber: {
     color: '#FFF',
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: '900',
     letterSpacing: -0.5,
   },
@@ -787,7 +764,7 @@ export const s = StyleSheet.create({
     letterSpacing: 1.5,
   },
 
-  // Stats Anime
+  // Stats
   statRowHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -795,7 +772,7 @@ export const s = StyleSheet.create({
     marginBottom: 4,
   },
   statLabel: {
-    color: C.textDim,
+    color: C.textSub,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -810,7 +787,7 @@ export const s = StyleSheet.create({
   },
   statTrack: {
     height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -822,7 +799,7 @@ export const s = StyleSheet.create({
   // Segmented
   segmentedContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(18, 24, 42, 0.85)',
+    backgroundColor: 'rgba(20, 26, 48, 0.85)',
     borderRadius: 16,
     padding: 4,
     borderWidth: 1,
@@ -841,10 +818,10 @@ export const s = StyleSheet.create({
     borderRadius: 12,
   },
   segmentedActiveText: {
-    color: '#FFF',
+    color: '#1E1738',
     fontWeight: '800',
     fontSize: 13,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   segmentedInactiveText: {
     color: C.sub,
@@ -866,7 +843,7 @@ export const s = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: 'rgba(22, 28, 48, 0.8)',
+    backgroundColor: 'rgba(28, 38, 66, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -895,25 +872,25 @@ export const s = StyleSheet.create({
     textTransform: 'capitalize',
   },
   todayTag: {
-    backgroundColor: 'rgba(0, 242, 254, 0.15)',
-    paddingHorizontal: 6,
+    backgroundColor: 'rgba(184, 161, 255, 0.18)',
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.3)',
+    borderColor: 'rgba(184, 161, 255, 0.35)',
   },
   todayTagText: {
-    color: C.accentCyan,
+    color: C.pastelPurple,
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   datePickerCard: {
-    backgroundColor: C.cardSolid,
+    backgroundColor: C.bgCard,
     borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: C.borderGlow,
+    borderColor: C.borderPastelPurple,
   },
 
   // Chips
@@ -942,7 +919,7 @@ export const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.borderLight,
     overflow: 'hidden',
-    backgroundColor: C.cardSolid,
+    backgroundColor: C.bgCard,
   },
   mealBlockGradient: {
     padding: 16,
@@ -953,7 +930,7 @@ export const s = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 4,
-    backgroundColor: C.accentCyan,
+    backgroundColor: C.pastelPurple,
   },
   mealBlockHeader: {
     flexDirection: 'row',
@@ -965,11 +942,11 @@ export const s = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+    backgroundColor: 'rgba(184, 161, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.25)',
+    borderColor: 'rgba(184, 161, 255, 0.3)',
   },
   mealNameInput: {
     color: C.text,
@@ -990,12 +967,12 @@ export const s = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: 'rgba(0, 242, 254, 0.4)',
-    backgroundColor: 'rgba(0, 242, 254, 0.04)',
+    borderColor: 'rgba(184, 161, 255, 0.45)',
+    backgroundColor: 'rgba(184, 161, 255, 0.06)',
     gap: 6,
   },
   addIngredientDashedText: {
-    color: C.accentCyan,
+    color: C.pastelPurple,
     fontWeight: '700',
     fontSize: 13,
   },
@@ -1004,7 +981,7 @@ export const s = StyleSheet.create({
   itemRowContainer: {
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
   itemRowTop: {
     flexDirection: 'row',
@@ -1015,7 +992,7 @@ export const s = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(28, 36, 62, 0.8)',
+    backgroundColor: 'rgba(32, 42, 74, 0.75)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1025,7 +1002,7 @@ export const s = StyleSheet.create({
   },
   ingredientPickerButtonEmpty: {
     borderStyle: 'dashed',
-    borderColor: 'rgba(124, 92, 255, 0.4)',
+    borderColor: 'rgba(184, 161, 255, 0.35)',
   },
   ingredientPickerButtonText: {
     color: C.text,
@@ -1036,7 +1013,7 @@ export const s = StyleSheet.create({
   gramsInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(28, 36, 62, 0.8)',
+    backgroundColor: 'rgba(32, 42, 74, 0.75)',
     borderRadius: 12,
     paddingHorizontal: 10,
     borderWidth: 1,
@@ -1060,34 +1037,33 @@ export const s = StyleSheet.create({
     padding: 6,
   },
 
-  // Modal / BottomSheet de Búsqueda
-  pickerOverlay: {
+  // MODAL DE BÚSQUEDA ROBUSTO
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(6, 9, 18, 0.78)',
     justifyContent: 'flex-end',
   },
-  pickerBackdropDismiss: {
-    flex: 1,
-    backgroundColor: 'rgba(4, 6, 12, 0.75)',
+  pickerSheetContainer: {
+    width: '100%',
+    height: '80%',
+    maxHeight: 650,
   },
-  pickerSheet: {
-    maxHeight: '82%',
+  pickerSheetContent: {
+    flex: 1,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 255, 0.35)',
-    backgroundColor: C.cardSolid,
-  },
-  pickerSheetGradient: {
-    paddingTop: 10,
-    flex: 1,
+    borderColor: C.borderPastelPurple,
+    backgroundColor: C.bgDark,
   },
   sheetHandleBar: {
-    width: 40,
+    width: 42,
     height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 2,
     alignSelf: 'center',
+    marginTop: 10,
     marginBottom: 12,
   },
   sheetHeader: {
@@ -1101,11 +1077,11 @@ export const s = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 12,
-    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+    backgroundColor: 'rgba(184, 161, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.3)',
+    borderColor: 'rgba(184, 161, 255, 0.3)',
   },
   sheetTitle: {
     color: C.text,
@@ -1128,18 +1104,18 @@ export const s = StyleSheet.create({
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(20, 26, 46, 0.95)',
+    backgroundColor: 'rgba(28, 38, 68, 0.95)',
     marginHorizontal: 16,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: C.borderGlow,
+    borderColor: C.borderPastelPurple,
     marginBottom: 12,
   },
   searchInput: {
     flex: 1,
     color: C.text,
     paddingHorizontal: 10,
-    paddingVertical: 11,
+    paddingVertical: 12,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1149,7 +1125,7 @@ export const s = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.4)',
+    borderColor: 'rgba(255, 183, 197, 0.4)',
   },
   quickCreateGradient: {
     flexDirection: 'row',
@@ -1159,12 +1135,12 @@ export const s = StyleSheet.create({
     gap: 8,
   },
   quickCreateText: {
-    color: C.accentCyan,
+    color: C.pastelPink,
     fontSize: 13,
     fontWeight: '600',
   },
   ingredientItemCard: {
-    backgroundColor: 'rgba(22, 28, 48, 0.7)',
+    backgroundColor: 'rgba(32, 42, 74, 0.75)',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
@@ -1177,7 +1153,7 @@ export const s = StyleSheet.create({
     flex: 1,
   },
   servingPill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -1198,14 +1174,14 @@ export const s = StyleSheet.create({
   },
   emptyCreateBtn: {
     marginTop: 12,
-    backgroundColor: C.accent,
+    backgroundColor: C.pastelPurple,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 10,
   },
   emptyCreateBtnText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: '#1E1738',
+    fontWeight: '800',
     fontSize: 12,
   },
 
@@ -1223,7 +1199,7 @@ export const s = StyleSheet.create({
     gap: 6,
   },
   primaryButtonText: {
-    color: '#FFF',
+    color: '#1E1738',
     fontWeight: '800',
     fontSize: 14,
     letterSpacing: 0.3,
@@ -1233,21 +1209,21 @@ export const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(22, 28, 48, 0.8)',
+    backgroundColor: 'rgba(32, 42, 74, 0.75)',
     borderRadius: 14,
     paddingVertical: 13,
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.35)',
+    borderColor: C.borderPastelPurple,
     gap: 6,
   },
   ghostButtonText: {
-    color: C.accentCyan,
+    color: C.pastelPurple,
     fontWeight: '800',
     fontSize: 14,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(4, 6, 12, 0.82)',
+    backgroundColor: 'rgba(6, 9, 18, 0.82)',
     justifyContent: 'center',
     padding: 20,
   },

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,33 +8,35 @@ import { C, GRADIENTS } from './src/theme';
 import FoodScreen from './src/FoodScreen';
 
 // 5 Pestañas con HOME en el centro exacto (Índice 2)
-const TABS = [
-  { key: 'sleep', label: 'Sueño', icon: 'moon', isCenter: false },
-  { key: 'food', label: 'Comida', icon: 'nutrition', isCenter: false },
-  { key: 'home', label: 'Home', icon: 'home', isCenter: true },
-  { key: 'train', label: 'Entreno', icon: 'barbell', isCenter: false },
-  { key: 'measure', label: 'Medidas', icon: 'body', isCenter: false },
+const SIDE_TABS_LEFT = [
+  { key: 'sleep', label: 'Sueño', icon: 'moon' },
+  { key: 'food', label: 'Comida', icon: 'nutrition' },
 ] as const;
 
-/* --- Pantalla Coming Soon Estilo HUD Anime --- */
+const SIDE_TABS_RIGHT = [
+  { key: 'train', label: 'Entreno', icon: 'barbell' },
+  { key: 'measure', label: 'Medidas', icon: 'body' },
+] as const;
+
+/* --- Pantalla Coming Soon Anime Pastel --- */
 function ComingSoonHUD({ title, icon, subtitle }: { title: string; icon: any; subtitle: string }) {
   return (
     <View style={styles.soonContainer}>
       <LinearGradient
-        colors={['rgba(28, 36, 64, 0.7)', 'rgba(12, 16, 28, 0.85)']}
+        colors={['rgba(32, 42, 74, 0.75)', 'rgba(18, 24, 48, 0.88)']}
         style={styles.soonCardGradient}
       >
         <View style={styles.soonCyberBadge}>
-          <View style={styles.soonPulseDot} />
-          <Text style={styles.soonCyberBadgeText}>SISTEMA EN CONSTRUCCIÓN</Text>
+          <Ionicons name="sparkles" size={12} color={C.pastelPink} />
+          <Text style={styles.soonCyberBadgeText}>✦ EN DESARROLLO ✦</Text>
         </View>
 
         <View style={styles.soonIconWrapper}>
           <LinearGradient
-            colors={['rgba(124, 92, 255, 0.25)', 'rgba(0, 242, 254, 0.15)']}
+            colors={['rgba(184, 161, 255, 0.25)', 'rgba(255, 183, 197, 0.2)']}
             style={styles.soonIconGradient}
           >
-            <Ionicons name={icon} size={46} color={C.accentCyan} />
+            <Ionicons name={icon} size={44} color={C.pastelPurple} />
           </LinearGradient>
         </View>
 
@@ -43,8 +45,8 @@ function ComingSoonHUD({ title, icon, subtitle }: { title: string; icon: any; su
 
         <View style={styles.soonMeterBox}>
           <View style={styles.soonMeterHeader}>
-            <Text style={styles.soonMeterLabel}>DESARROLLO DE MÓDULO</Text>
-            <Text style={styles.soonMeterPct}>FASE 1 COMPLETADA</Text>
+            <Text style={styles.soonMeterLabel}>MODULO EN PROCESO</Text>
+            <Text style={styles.soonMeterPct}>FASE 1 ACTIVA</Text>
           </View>
           <View style={styles.soonMeterTrack}>
             <LinearGradient
@@ -62,22 +64,30 @@ function ComingSoonHUD({ title, icon, subtitle }: { title: string; icon: any; su
 
 export default function App() {
   const [tab, setTab] = useState<string>('food');
-  const current = TABS.find((t) => t.key === tab)!;
 
   const getSubtitle = (key: string) => {
     switch (key) {
       case 'home':
-        return 'Panel central con métricas globales de entrenamiento, sueño, comidas y estado físico.';
+        return 'Panel central con métricas globales de entrenamiento, nutrición y descanso.';
       case 'sleep':
-        return 'Monitor de fases de descanso, calidad de sueño, tiempo en REM y recuperación.';
+        return 'Monitor de fases de sueño, calidad de descanso y recuperación física.';
       case 'train':
-        return 'Registro y progresión de rutinas, series, repeticiones y cargas de entrenamiento.';
+        return 'Registro de rutinas, cargas progresivas y series de entrenamiento.';
       case 'measure':
-        return 'Control de peso corporal, porcentaje de grasa, medidas antropométricas y fotos.';
+        return 'Control de peso corporal, porcentaje de grasa y medidas antropométricas.';
       default:
         return 'Módulo en desarrollo.';
     }
   };
+
+  const currentLabel =
+    tab === 'home'
+      ? 'Home'
+      : [...SIDE_TABS_LEFT, ...SIDE_TABS_RIGHT].find((t) => t.key === tab)?.label || 'Evolve';
+  const currentIcon =
+    tab === 'home'
+      ? 'home'
+      : [...SIDE_TABS_LEFT, ...SIDE_TABS_RIGHT].find((t) => t.key === tab)?.icon || 'ellipse';
 
   return (
     <SafeAreaProvider>
@@ -90,77 +100,68 @@ export default function App() {
             <FoodScreen />
           ) : (
             <ComingSoonHUD
-              title={current.label}
-              icon={current.icon}
-              subtitle={getSubtitle(current.key)}
+              title={currentLabel}
+              icon={currentIcon}
+              subtitle={getSubtitle(tab)}
             />
           )}
         </View>
 
-        {/* TabBar Flotante Glassmorphism Anime */}
-        <View style={styles.tabBarWrapper}>
+        {/* TAB BAR FLOTANTE CON BOTÓN HOME CENTRAL QUE SOBRESALE */}
+        <View style={styles.tabBarContainer}>
+          {/* Barra Base Horizontal */}
           <LinearGradient
             colors={GRADIENTS.tabBar}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
             style={styles.tabBarGradient}
           >
-            {TABS.map((t) => {
+            {/* Pestañas Izquierda (Sueño, Comida) */}
+            {SIDE_TABS_LEFT.map((t) => {
               const active = t.key === tab;
-
-              // Botón Central HOME con tratamiento destacado
-              if (t.isCenter) {
-                return (
-                  <View key={t.key} style={styles.centerTabWrapper}>
-                    <Pressable
-                      onPress={() => setTab(t.key)}
-                      style={({ pressed }) => [
-                        styles.centerBtnPressable,
-                        pressed && { transform: [{ scale: 0.92 }] },
-                      ]}
-                    >
-                      <LinearGradient
-                        colors={active ? GRADIENTS.primary : ['#222C4A', '#161E34']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.centerBtnGradient}
-                      >
-                        <Ionicons
-                          name={active ? 'home' : 'home-outline'}
-                          size={24}
-                          color={active ? '#FFF' : C.accentCyan}
-                        />
-                      </LinearGradient>
-                    </Pressable>
-                    <Text
-                      style={[
-                        styles.centerTabLabel,
-                        { color: active ? C.accentCyan : C.sub },
-                      ]}
-                    >
-                      {t.label}
-                    </Text>
-                  </View>
-                );
-              }
-
-              // Pestañas Laterales Estándar
               return (
                 <Pressable
                   key={t.key}
                   style={styles.tabItem}
                   onPress={() => setTab(t.key)}
                 >
-                  <View
-                    style={[
-                      styles.tabIconPill,
-                      active && styles.tabIconPillActive,
-                    ]}
-                  >
+                  <View style={[styles.tabIconPill, active && styles.tabIconPillActive]}>
                     <Ionicons
                       name={(active ? t.icon : `${t.icon}-outline`) as any}
                       size={20}
-                      color={active ? C.accentCyan : C.sub}
+                      color={active ? C.pastelPurple : C.sub}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.tabLabel,
+                      { color: active ? '#FFF' : C.sub },
+                      active && styles.tabLabelActive,
+                    ]}
+                  >
+                    {t.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+
+            {/* Espacio reservado central para el botón Home flotante */}
+            <View style={styles.centerSpaceReserved} />
+
+            {/* Pestañas Derecha (Entreno, Medidas) */}
+            {SIDE_TABS_RIGHT.map((t) => {
+              const active = t.key === tab;
+              return (
+                <Pressable
+                  key={t.key}
+                  style={styles.tabItem}
+                  onPress={() => setTab(t.key)}
+                >
+                  <View style={[styles.tabIconPill, active && styles.tabIconPillActive]}>
+                    <Ionicons
+                      name={(active ? t.icon : `${t.icon}-outline`) as any}
+                      size={20}
+                      color={active ? C.pastelPurple : C.sub}
                     />
                   </View>
                   <Text
@@ -176,6 +177,38 @@ export default function App() {
               );
             })}
           </LinearGradient>
+
+          {/* BOTÓN HOME CENTRAL FLOTANTE SOBRESALIENTE */}
+          <View style={styles.floatingHomeAnchor} pointerEvents="box-none">
+            <Pressable
+              onPress={() => setTab('home')}
+              style={({ pressed }) => [
+                styles.floatingHomeBtn,
+                pressed && { transform: [{ scale: 0.93 }] },
+              ]}
+            >
+              <LinearGradient
+                colors={tab === 'home' ? GRADIENTS.floatingHomeActive : GRADIENTS.floatingHomeInactive}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.floatingHomeGradient}
+              >
+                <Ionicons
+                  name={tab === 'home' ? 'home' : 'home-outline'}
+                  size={26}
+                  color={tab === 'home' ? '#1E1738' : C.pastelPurple}
+                />
+              </LinearGradient>
+            </Pressable>
+            <Text
+              style={[
+                styles.floatingHomeLabel,
+                { color: tab === 'home' ? C.pastelPink : C.sub },
+              ]}
+            >
+              Home
+            </Text>
+          </View>
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -191,29 +224,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // TabBar
-  tabBarWrapper: {
+  // Contenedor principal del TabBar
+  tabBarContainer: {
     position: 'absolute',
     left: 14,
     right: 14,
-    bottom: 20,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    overflow: 'visible',
-    shadowColor: '#00F2FE',
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 20,
+    bottom: 18,
+    alignItems: 'center',
   },
   tabBarGradient: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    borderRadius: 28,
+    justifyContent: 'space-between',
+    borderRadius: 26,
     paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.15,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 15,
   },
   tabItem: {
     flex: 1,
@@ -226,7 +259,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   tabIconPillActive: {
-    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+    backgroundColor: 'rgba(184, 161, 255, 0.15)',
   },
   tabLabel: {
     fontSize: 10,
@@ -235,42 +268,47 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     fontWeight: '800',
-    color: C.accentCyan,
+    color: '#FFF',
+  },
+  centerSpaceReserved: {
+    width: 66,
   },
 
-  // Botón Home Central Destacado
-  centerTabWrapper: {
-    flex: 1,
-    alignItems: 'center',
-    marginTop: -20,
-  },
-  centerBtnPressable: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    padding: 3,
-    backgroundColor: 'rgba(8, 11, 20, 0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.35)',
-    shadowColor: '#00F2FE',
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 10,
-  },
-  centerBtnGradient: {
-    flex: 1,
-    borderRadius: 24,
+  // BOTÓN HOME FLOTANTE QUE SOBRESALE
+  floatingHomeAnchor: {
+    position: 'absolute',
+    top: -24, // <--- Sobresale 24px por encima de la barra
     alignItems: 'center',
     justifyContent: 'center',
   },
-  centerTabLabel: {
+  floatingHomeBtn: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    padding: 3,
+    backgroundColor: C.bg,
+    borderWidth: 2,
+    borderColor: 'rgba(184, 161, 255, 0.45)',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 25,
+  },
+  floatingHomeGradient: {
+    flex: 1,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingHomeLabel: {
     fontSize: 10,
-    fontWeight: '700',
-    marginTop: 4,
+    fontWeight: '800',
+    marginTop: 2,
+    letterSpacing: 0.2,
   },
 
-  // Coming Soon HUD
+  // Coming Soon Anime Pastel
   soonContainer: {
     flex: 1,
     alignItems: 'center',
@@ -285,7 +323,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: C.borderLight,
-    shadowColor: '#7C5CFF',
+    shadowColor: C.pastelPurple,
     shadowOpacity: 0.15,
     shadowRadius: 24,
   },
@@ -293,33 +331,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0, 242, 254, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    backgroundColor: 'rgba(255, 183, 197, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.3)',
+    borderColor: 'rgba(255, 183, 197, 0.3)',
     marginBottom: 24,
   },
-  soonPulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: C.accentCyan,
-  },
   soonCyberBadgeText: {
-    color: C.accentCyan,
+    color: C.pastelPink,
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1.2,
   },
   soonIconWrapper: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.35)',
+    borderColor: 'rgba(184, 161, 255, 0.35)',
     marginBottom: 20,
   },
   soonIconGradient: {
@@ -343,7 +375,7 @@ const styles = StyleSheet.create({
   },
   soonMeterBox: {
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
@@ -361,7 +393,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   soonMeterPct: {
-    color: C.accentCyan,
+    color: C.pastelPurple,
     fontSize: 10,
     fontWeight: '800',
   },

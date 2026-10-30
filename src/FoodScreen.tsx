@@ -32,6 +32,7 @@ import {
   MealBlockCard,
   PrimaryButton,
   MacroChips,
+  IngredientPickerModal,
   s,
 } from './components';
 
@@ -40,14 +41,66 @@ export default function FoodScreen() {
   const [date, setDate] = useState(new Date());
   const [quickCreateName, setQuickCreateName] = useState<string | null>(null);
 
+  // Target para el selector global de ingredientes: { blockId, itemId, isSavedMeal? }
+  const [pickerTarget, setPickerTarget] = useState<{
+    blockId: string;
+    itemId: string;
+    isSavedMealDraft?: boolean;
+  } | null>(null);
+
+  // Draft para comida guardada si se está editando en la biblioteca
+  const [savedMealDraft, setSavedMealDraft] = useState<SavedMeal | null>(null);
+
   const key = dateKey(date);
-  const { ingredients, logs, upsertIngredient } = useStore();
+  const { ingredients, logs, setDayMeals, upsertIngredient } = useStore();
   const meals = logs[key] ?? [];
 
   const total = useMemo(
     () => meals.reduce((acc, m) => addMacros(acc, itemsTotal(m.items, ingredients)), ZERO),
     [meals, ingredients],
   );
+
+  // Función para manejar la selección de un ingrediente
+  const handleSelectIngredient = (selectedIng: Ingredient) => {
+    if (!pickerTarget) return;
+
+    if (pickerTarget.isSavedMealDraft && savedMealDraft) {
+      setSavedMealDraft({
+        ...savedMealDraft,
+        items: savedMealDraft.items.map((it) =>
+          it.id === pickerTarget.itemId
+            ? {
+                ...it,
+                ingredientId: selectedIng.id,
+                grams: it.grams > 0 ? it.grams : selectedIng.servingGrams,
+              }
+            : it,
+        ),
+      });
+    } else {
+      setDayMeals(
+        key,
+        meals.map((b) =>
+          b.id === pickerTarget.blockId
+            ? {
+                ...b,
+                items: b.items.map((it) =>
+                  it.id === pickerTarget.itemId
+                    ? {
+                        ...it,
+                        ingredientId: selectedIng.id,
+                        grams: it.grams > 0 ? it.grams : selectedIng.servingGrams,
+                      }
+                    : it,
+                ),
+              }
+            : b,
+        ),
+      );
+    }
+
+    setPickerTarget(null);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -56,18 +109,18 @@ export default function FoodScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header HUD Anime */}
+        {/* Header Anime Pastel */}
         <View style={styles.topHeader}>
           <View>
             <View style={styles.cyberTagRow}>
-              <View style={styles.cyberDot} />
-              <Text style={styles.cyberTagText}>PROTOCOL // NUTRITION</Text>
+              <Ionicons name="sparkles" size={11} color={C.pastelPink} />
+              <Text style={styles.cyberTagText}>✦ EVOLVE // PROTOCOLO ✦</Text>
             </View>
             <Text style={styles.screenTitle}>Comida</Text>
           </View>
 
           <View style={styles.dateChipMini}>
-            <Ionicons name="time-outline" size={13} color={C.accentCyan} />
+            <Ionicons name="time-outline" size={13} color={C.pastelPurple} />
             <Text style={styles.dateChipMiniText}>
               {date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()}
             </Text>
@@ -91,14 +144,38 @@ export default function FoodScreen() {
             setDate={setDate}
             meals={meals}
             dayKey={key}
-            onRequestCreateIngredient={(name) => setQuickCreateName(name)}
+            onOpenPicker={(blockId, itemId) =>
+              setPickerTarget({ blockId, itemId, isSavedMealDraft: false })
+            }
           />
         ) : (
-          <Library onRequestCreateIngredient={(name) => setQuickCreateName(name)} />
+          <Library
+            draft={savedMealDraft}
+            setDraft={setSavedMealDraft}
+            onOpenPickerForDraft={(itemId) =>
+              setPickerTarget({
+                blockId: savedMealDraft?.id || '',
+                itemId,
+                isSavedMealDraft: true,
+              })
+            }
+          />
         )}
       </ScrollView>
 
-      {/* Modal de creación rápida si se activa desde el buscador */}
+      {/* MODAL GLOBAL DE BÚSQUEDA DE INGREDIENTES */}
+      <IngredientPickerModal
+        visible={pickerTarget !== null}
+        ingredients={ingredients}
+        onClose={() => setPickerTarget(null)}
+        onSelect={handleSelectIngredient}
+        onCreateNew={(initialName) => {
+          setPickerTarget(null);
+          setQuickCreateName(initialName);
+        }}
+      />
+
+      {/* Modal de creación rápida si no existía el ingrediente */}
       {quickCreateName !== null && (
         <IngredientFormModal
           ing={{
@@ -129,13 +206,13 @@ function DayLog({
   setDate,
   meals,
   dayKey,
-  onRequestCreateIngredient,
+  onOpenPicker,
 }: {
   date: Date;
   setDate: (d: Date) => void;
   meals: MealBlock[];
   dayKey: string;
-  onRequestCreateIngredient: (name: string) => void;
+  onOpenPicker: (blockId: string, itemId: string) => void;
 }) {
   const { ingredients, savedMeals, setDayMeals } = useStore();
   const [pickModalOpen, setPickModalOpen] = useState(false);
@@ -154,15 +231,15 @@ function DayLog({
       {meals.length === 0 && (
         <View style={styles.emptyDayCard}>
           <LinearGradient
-            colors={['rgba(24, 32, 54, 0.65)', 'rgba(14, 18, 34, 0.75)']}
+            colors={['rgba(32, 42, 74, 0.65)', 'rgba(20, 26, 50, 0.75)']}
             style={styles.emptyDayGradient}
           >
             <View style={styles.emptyIconCircle}>
-              <Ionicons name="restaurant-outline" size={32} color={C.accentCyan} />
+              <Ionicons name="restaurant-outline" size={30} color={C.pastelPurple} />
             </View>
             <Text style={styles.emptyDayTitle}>Sin comidas registradas</Text>
             <Text style={styles.emptyDaySubtitle}>
-              Comienza agregando un bloque de comida o cargando una de tus comidas guardadas.
+              Toca en "+ Bloque de comida" o carga una comida guardada para empezar el registro.
             </Text>
           </LinearGradient>
         </View>
@@ -176,7 +253,7 @@ function DayLog({
           ingredients={ingredients}
           onChange={(updated) => setMeals(meals.map((x) => (x.id === updated.id ? updated : x)))}
           onDelete={() => setMeals(meals.filter((x) => x.id !== m.id))}
-          onRequestCreateIngredient={onRequestCreateIngredient}
+          onOpenPickerForItem={(itemId) => onOpenPicker(m.id, itemId)}
         />
       ))}
 
@@ -184,17 +261,20 @@ function DayLog({
       <View style={styles.actionButtonsRow}>
         <PrimaryButton
           icon="add-circle"
-          label="Bloque de comida"
-          onPress={() =>
+          label="+ Bloque de comida"
+          onPress={() => {
+            const newItemId = uid();
+            const newBlockId = uid();
             setMeals([
               ...meals,
               {
-                id: uid(),
+                id: newBlockId,
                 name: nextName,
-                items: [{ id: uid(), ingredientId: null, grams: 0 }],
+                items: [{ id: newItemId, ingredientId: null, grams: 0 }],
               },
-            ])
-          }
+            ]);
+            onOpenPicker(newBlockId, newItemId);
+          }}
         />
 
         <PrimaryButton
@@ -215,14 +295,14 @@ function DayLog({
         <Pressable style={styles.modalBackdropDismiss} onPress={() => setPickModalOpen(false)}>
           <Pressable style={styles.savedMealsPickerSheet}>
             <LinearGradient
-              colors={['rgba(24, 32, 54, 0.98)', 'rgba(12, 16, 28, 0.99)']}
+              colors={['rgba(28, 38, 66, 0.98)', 'rgba(16, 22, 42, 0.99)']}
               style={{ padding: 18 }}
             >
               <View style={styles.sheetHandleBar} />
               <View style={styles.pickerHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <View style={styles.hudIconOrb}>
-                    <Ionicons name="bookmark" size={16} color={C.accentCyan} />
+                    <Ionicons name="bookmark" size={16} color={C.pastelPink} />
                   </View>
                   <Text style={styles.sheetHeaderTitle}>CARGAR COMIDA GUARDADA</Text>
                 </View>
@@ -237,9 +317,9 @@ function DayLog({
               {savedMeals.length === 0 ? (
                 <View style={{ paddingVertical: 24, alignItems: 'center' }}>
                   <Ionicons name="folder-open-outline" size={38} color={C.subMuted} />
-                  <Text style={styles.emptySavedText}>No tienes comidas guardadas todavía.</Text>
+                  <Text style={styles.emptySavedText}>Aún no tienes comidas guardadas.</Text>
                   <Text style={styles.emptySavedSubText}>
-                    Crea conjuntos de ingredientes en la pestaña "Ingredientes y comidas".
+                    Crea recetas en "Ingredientes y comidas" para agregarlas en 1 toque.
                   </Text>
                 </View>
               ) : (
@@ -293,7 +373,15 @@ function DayLog({
 /* ==========================================================
    OPCIÓN 2: BIBLIOTECA (INGREDIENTES Y COMIDAS GUARDADAS)
 ========================================================== */
-function Library({ onRequestCreateIngredient }: { onRequestCreateIngredient: (name: string) => void }) {
+function Library({
+  draft,
+  setDraft,
+  onOpenPickerForDraft,
+}: {
+  draft: SavedMeal | null;
+  setDraft: (d: SavedMeal | null) => void;
+  onOpenPickerForDraft: (itemId: string) => void;
+}) {
   const [subTab, setSubTab] = useState(0);
 
   return (
@@ -304,9 +392,13 @@ function Library({ onRequestCreateIngredient }: { onRequestCreateIngredient: (na
         onChange={setSubTab}
       />
       {subTab === 0 ? (
-        <IngredientsList onRequestCreateIngredient={onRequestCreateIngredient} />
+        <IngredientsList />
       ) : (
-        <SavedMealsList />
+        <SavedMealsList
+          draft={draft}
+          setDraft={setDraft}
+          onOpenPickerForDraft={onOpenPickerForDraft}
+        />
       )}
     </View>
   );
@@ -319,14 +411,14 @@ const confirmDelete = (msg: string, onConfirm: () => void) => {
     }
     return;
   }
-  Alert.alert('Confirmar eliminación', msg, [
+  Alert.alert('Eliminar', msg, [
     { text: 'Cancelar', style: 'cancel' },
     { text: 'Eliminar', style: 'destructive', onPress: onConfirm },
   ]);
 };
 
 /* --- Lista de Ingredientes --- */
-function IngredientsList({ onRequestCreateIngredient }: { onRequestCreateIngredient: (name: string) => void }) {
+function IngredientsList() {
   const { ingredients, upsertIngredient, deleteIngredient } = useStore();
   const [query, setQuery] = useState('');
   const [editingIng, setEditingIng] = useState<Ingredient | null>(null);
@@ -342,11 +434,11 @@ function IngredientsList({ onRequestCreateIngredient }: { onRequestCreateIngredi
       {/* Barra de búsqueda y botón añadir */}
       <View style={styles.searchAddRow}>
         <View style={styles.searchBoxGlass}>
-          <Ionicons name="search" size={17} color={C.accentCyan} />
+          <Ionicons name="search" size={17} color={C.pastelPurple} />
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Buscar en tus ingredientes..."
+            placeholder="Buscar entre tus ingredientes..."
             placeholderTextColor={C.subMuted}
             style={styles.searchTextInput}
           />
@@ -372,7 +464,7 @@ function IngredientsList({ onRequestCreateIngredient }: { onRequestCreateIngredi
           style={({ pressed }) => [styles.addSquareBtn, pressed && s.btnPressed]}
         >
           <LinearGradient colors={GRADIENTS.primary} style={styles.addSquareGradient}>
-            <Ionicons name="add" size={24} color="#FFF" />
+            <Ionicons name="add" size={24} color="#1E1738" />
           </LinearGradient>
         </Pressable>
       </View>
@@ -380,7 +472,7 @@ function IngredientsList({ onRequestCreateIngredient }: { onRequestCreateIngredi
       {/* Contador de Ingredientes */}
       <View style={styles.countBadgeRow}>
         <Text style={styles.countBadgeText}>
-          {list.length} INGREDIENTE{list.length === 1 ? '' : 'S'} REGISTRADO{list.length === 1 ? '' : 'S'}
+          ✦ {list.length} ALIMENTO{list.length === 1 ? '' : 'S'} REGISTRADO{list.length === 1 ? '' : 'S'} ✦
         </Text>
       </View>
 
@@ -392,13 +484,13 @@ function IngredientsList({ onRequestCreateIngredient }: { onRequestCreateIngredi
           style={({ pressed }) => [styles.ingredientCardWrapper, pressed && s.btnPressed]}
         >
           <LinearGradient
-            colors={['rgba(24, 32, 54, 0.75)', 'rgba(14, 18, 34, 0.85)']}
+            colors={['rgba(32, 42, 74, 0.75)', 'rgba(20, 26, 50, 0.85)']}
             style={styles.ingredientCardGradient}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.ingredientCardTitle}>{ing.name}</Text>
               <View style={styles.servingBadge}>
-                <Ionicons name="scale-outline" size={11} color={C.accentCyan} />
+                <Ionicons name="scale-outline" size={11} color={C.pastelPurple} />
                 <Text style={styles.servingBadgeText}>por {ing.servingGrams}g</Text>
               </View>
             </View>
@@ -469,7 +561,7 @@ function IngredientFormModal({
         {icon && <Ionicons name={icon} size={13} color={color || C.sub} />}
         <Text style={[styles.fieldLabel, color && { color }]}>{label}</Text>
       </View>
-      <View style={[styles.fieldInputBox, color && { borderColor: color + '40' }]}>
+      <View style={[styles.fieldInputBox, color && { borderColor: color + '50' }]}>
         <TextInput
           value={form[key]}
           onChangeText={(t) => setForm({ ...form, [key]: t })}
@@ -490,7 +582,7 @@ function IngredientFormModal({
         <Pressable style={styles.formModalBackdrop} onPress={onClose} />
         <View style={styles.formModalSheet}>
           <LinearGradient
-            colors={['rgba(24, 32, 54, 0.98)', 'rgba(12, 16, 28, 0.99)']}
+            colors={['rgba(28, 38, 66, 0.98)', 'rgba(16, 22, 42, 0.99)']}
             style={{ padding: 20 }}
           >
             <View style={styles.sheetHandleBar} />
@@ -499,14 +591,14 @@ function IngredientFormModal({
             <View style={styles.formHeaderRow}>
               <View>
                 <Text style={styles.formTitle}>
-                  {ing.name ? 'EDITAR INGREDIENTE' : 'NUEVO INGREDIENTE'}
+                  {ing.name ? 'EDITAR ALIMENTO' : 'NUEVO ALIMENTO'}
                 </Text>
                 <Text style={styles.formSubtitle}>
-                  Copia los datos del empaque nutricional
+                  Introduce los valores tal como figuran en el empaque
                 </Text>
               </View>
               <Pressable onPress={onClose} style={styles.sheetCloseMiniBtn}>
-                <Ionicons name="close" size={20} color={C.sub} />
+                <Ionicons name="close" size={20} color={C.text} />
               </Pressable>
             </View>
 
@@ -516,7 +608,7 @@ function IngredientFormModal({
               <TextInput
                 value={form.name}
                 onChangeText={(t) => setForm({ ...form, name: t })}
-                placeholder="Ej. Pechuga de pavo, Mantequilla de maní..."
+                placeholder="Ej. Mantequilla de maní, Avena, Huevos..."
                 placeholderTextColor={C.subMuted}
                 style={styles.fieldTextInput}
               />
@@ -524,7 +616,7 @@ function IngredientFormModal({
 
             {/* Porción base y Calorías */}
             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-              {renderField('servingGrams', 'Porción empaque (g)', C.accentCyan, 'scale-outline')}
+              {renderField('servingGrams', 'Porción empaque (g)', C.pastelPurple, 'scale-outline')}
               {renderField('kcal', 'Calorías (kcal)', C.kcal, 'flame')}
             </View>
 
@@ -542,10 +634,10 @@ function IngredientFormModal({
               )}
               <PrimaryButton
                 icon="checkmark-circle"
-                label="Guardar ingrediente"
+                label="Guardar alimento"
                 onPress={() => {
                   if (!form.name.trim() || parseNum('servingGrams') <= 0) {
-                    Alert.alert('Datos incompletos', 'Ingresa un nombre y la cantidad de gramos base.');
+                    Alert.alert('Datos incompletos', 'Ingresa un nombre y los gramos de porción base.');
                     return;
                   }
                   onSave({
@@ -568,20 +660,32 @@ function IngredientFormModal({
 }
 
 /* --- Lista de Comidas Guardadas --- */
-function SavedMealsList() {
+function SavedMealsList({
+  draft,
+  setDraft,
+  onOpenPickerForDraft,
+}: {
+  draft: SavedMeal | null;
+  setDraft: (d: SavedMeal | null) => void;
+  onOpenPickerForDraft: (itemId: string) => void;
+}) {
   const { savedMeals, ingredients, upsertSavedMeal, deleteSavedMeal } = useStore();
-  const [draft, setDraft] = useState<SavedMeal | null>(null);
 
   return (
     <View style={{ marginTop: 6 }}>
       {draft ? (
         <View>
           <View style={styles.editorBanner}>
-            <Ionicons name="create-outline" size={16} color={C.accentCyan} />
+            <Ionicons name="create-outline" size={16} color={C.pastelPurple} />
             <Text style={styles.editorBannerText}>EDITANDO RECETA / COMIDA GUARDADA</Text>
           </View>
 
-          <MealBlockCard block={draft} ingredients={ingredients} onChange={setDraft} />
+          <MealBlockCard
+            block={draft}
+            ingredients={ingredients}
+            onChange={setDraft}
+            onOpenPickerForItem={onOpenPickerForDraft}
+          />
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
             <PrimaryButton
@@ -609,7 +713,7 @@ function SavedMealsList() {
         <>
           <PrimaryButton
             icon="add-circle"
-            label="Crear nueva comida guardada"
+            label="+ Crear nueva comida guardada"
             onPress={() =>
               setDraft({
                 id: uid(),
@@ -624,9 +728,9 @@ function SavedMealsList() {
           {savedMeals.length === 0 && (
             <View style={styles.emptyDayCard}>
               <Ionicons name="fast-food-outline" size={36} color={C.subMuted} />
-              <Text style={styles.emptyDayTitle}>No hay comidas guardadas</Text>
+              <Text style={styles.emptyDayTitle}>No tienes comidas guardadas</Text>
               <Text style={styles.emptyDaySubtitle}>
-                Crea combinaciones de alimentos que consumas con frecuencia para agregarlas en 1 toque.
+                Crea combinaciones de alimentos que consumes con frecuencia para cargarlas en 1 toque.
               </Text>
             </View>
           )}
@@ -640,7 +744,7 @@ function SavedMealsList() {
                 style={({ pressed }) => [styles.savedMealCardWrapper, pressed && s.btnPressed]}
               >
                 <LinearGradient
-                  colors={['rgba(24, 32, 54, 0.75)', 'rgba(14, 18, 34, 0.85)']}
+                  colors={['rgba(32, 42, 74, 0.75)', 'rgba(20, 26, 50, 0.85)']}
                   style={styles.savedMealCardGradient}
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -682,7 +786,7 @@ function SavedMealsList() {
 }
 
 /* ==========================================================
-   ESTILOS ESPECÍFICOS DE FOOD SCREEN
+   ESTILOS ESPECÍFICOS DE FOOD SCREEN (PASTEL ANIME)
 ========================================================== */
 const styles = StyleSheet.create({
   scrollContent: {
@@ -698,20 +802,14 @@ const styles = StyleSheet.create({
   cyberTagRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     marginBottom: 2,
   },
-  cyberDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: C.accentCyan,
-  },
   cyberTagText: {
-    color: C.accentCyan,
-    fontSize: 10,
+    color: C.pastelPink,
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
   },
   screenTitle: {
     color: '#FFF',
@@ -723,16 +821,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(28, 36, 62, 0.8)',
-    paddingHorizontal: 10,
+    backgroundColor: 'rgba(32, 42, 74, 0.8)',
+    paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: C.borderLight,
+    borderColor: C.borderPastelPurple,
     marginTop: 6,
   },
   dateChipMiniText: {
-    color: C.textDim,
+    color: C.textSub,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -751,14 +849,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(0, 242, 254, 0.1)',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(184, 161, 255, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.25)',
+    borderColor: 'rgba(184, 161, 255, 0.3)',
     marginBottom: 12,
   },
   emptyDayTitle: {
@@ -783,7 +881,7 @@ const styles = StyleSheet.create({
   // Modal selector de comida guardada
   modalBackdropDismiss: {
     flex: 1,
-    backgroundColor: 'rgba(4, 6, 12, 0.8)',
+    backgroundColor: 'rgba(6, 9, 18, 0.8)',
     justifyContent: 'flex-end',
   },
   savedMealsPickerSheet: {
@@ -791,13 +889,13 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: C.borderGlow,
-    backgroundColor: C.cardSolid,
+    borderColor: C.borderPastelPurple,
+    backgroundColor: C.bgDark,
   },
   sheetHandleBar: {
     width: 38,
     height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 14,
@@ -812,11 +910,11 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(0, 242, 254, 0.12)',
+    backgroundColor: 'rgba(255, 183, 197, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.3)',
+    borderColor: 'rgba(255, 183, 197, 0.3)',
   },
   sheetHeaderTitle: {
     color: C.text,
@@ -846,7 +944,7 @@ const styles = StyleSheet.create({
     maxWidth: 260,
   },
   savedMealSelectCard: {
-    backgroundColor: 'rgba(28, 36, 62, 0.65)',
+    backgroundColor: 'rgba(32, 42, 74, 0.65)',
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
@@ -885,7 +983,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(24, 32, 54, 0.8)',
+    backgroundColor: 'rgba(32, 42, 74, 0.8)',
     borderRadius: 14,
     paddingHorizontal: 12,
     borderWidth: 1,
@@ -927,7 +1025,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.borderLight,
-    backgroundColor: C.cardSolid,
+    backgroundColor: C.bgCard,
   },
   ingredientCardGradient: {
     padding: 14,
@@ -942,15 +1040,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(0, 242, 254, 0.1)',
+    backgroundColor: 'rgba(184, 161, 255, 0.12)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.25)',
+    borderColor: 'rgba(184, 161, 255, 0.25)',
   },
   servingBadgeText: {
-    color: C.accentCyan,
+    color: C.pastelPurple,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -962,15 +1060,15 @@ const styles = StyleSheet.create({
   },
   formModalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(4, 6, 12, 0.8)',
+    backgroundColor: 'rgba(6, 9, 18, 0.8)',
   },
   formModalSheet: {
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: C.borderGlow,
-    backgroundColor: C.cardSolid,
+    borderColor: C.borderPastelPurple,
+    backgroundColor: C.bgDark,
   },
   formHeaderRow: {
     flexDirection: 'row',
@@ -996,7 +1094,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   fieldInputBox: {
-    backgroundColor: 'rgba(28, 36, 62, 0.8)',
+    backgroundColor: 'rgba(32, 42, 74, 0.8)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: C.borderLight,
@@ -1014,16 +1112,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0, 242, 254, 0.1)',
+    backgroundColor: 'rgba(184, 161, 255, 0.12)',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(0, 242, 254, 0.25)',
+    borderColor: 'rgba(184, 161, 255, 0.3)',
     marginBottom: 12,
   },
   editorBannerText: {
-    color: C.accentCyan,
+    color: C.pastelPurple,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -1034,7 +1132,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.borderLight,
-    backgroundColor: C.cardSolid,
+    backgroundColor: C.bgCard,
   },
   savedMealCardGradient: {
     padding: 16,
