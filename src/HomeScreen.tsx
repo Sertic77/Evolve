@@ -9,11 +9,10 @@ import {
   TextInput,
   Switch,
   Platform,
-  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { C, fmt } from './theme';
+import { fmt } from './theme';
 import {
   useStore,
   dateKey,
@@ -73,8 +72,6 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 
   const rawDayStr = today.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
   const dayStrClean = rawDayStr.replace('.', '');
-  const weekdayStr = today.toLocaleDateString('es-ES', { weekday: 'long' });
-  const capitalizedWeekday = weekdayStr.charAt(0).toUpperCase() + weekdayStr.slice(1);
 
   // Tipografías activas
   const titleFont = getFontFamily(typography?.titles || 'system');
@@ -155,145 +152,126 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         showsVerticalScrollIndicator={false}
       >
         {/* ==========================================================
-            HEADER PRINCIPAL: NOMBRE Y NICKNAME (ARRIBA A LA IZQUIERDA)
-            + BOTÓN DE AJUSTES (ARRIBA A LA DERECHA)
+            ESTRUCTURA DE PERFIL SUPERIOR (SOLICITADA POR EL USUARIO):
+            - Perfil al lado izquierdo
+            - Nombre
+            - Nickname-fecha
+            - Rango
+            - Barra XP
+            - Al lado derecho la racha (llamita) y botón de ajustes
         ========================================================== */}
-        <View style={styles.topHeaderRow}>
-          <View style={styles.userInfoLeft}>
-            {/* Avatar con iniciales */}
+        <View
+          style={[
+            styles.userHeroCard,
+            {
+              backgroundColor: palette.cardBg,
+              borderColor: palette.border,
+            },
+          ]}
+        >
+          <View style={styles.userHeroRow}>
+            {/* Perfil al lado izquierdo (Avatar) */}
             <LinearGradient
               colors={[palette.primary, palette.secondary]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.avatarGradient}
+              style={styles.heroAvatar}
             >
-              <Text style={styles.avatarInitials}>{initials}</Text>
+              <Text style={styles.heroAvatarText}>{initials}</Text>
             </LinearGradient>
 
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <View style={styles.nameRow}>
+            {/* Bloque Central de Datos */}
+            <View style={styles.heroCenterCol}>
+              {/* Nombre */}
+              <Text
+                style={[styles.heroName, { color: palette.text, fontFamily: titleFont }]}
+                numberOfLines={1}
+              >
+                {userName}
+              </Text>
+
+              {/* Nickname - Fecha */}
+              <Text
+                style={[styles.heroNickDate, { color: palette.textSub, fontFamily: bodyFont }]}
+                numberOfLines={1}
+              >
+                <Text style={{ color: palette.primary, fontWeight: '700' }}>{userNick}</Text> - {dayStrClean}
+              </Text>
+
+              {/* Rango */}
+              <View style={styles.heroRankRow}>
+                <Ionicons name="sparkles" size={12} color={palette.primary} />
                 <Text
-                  style={[styles.userNameText, { color: palette.text, fontFamily: titleFont }]}
-                  numberOfLines={1}
+                  style={[styles.heroRankText, { color: palette.primary, fontFamily: subtitleFont }]}
                 >
-                  {userName}
-                </Text>
-              </View>
-              <View style={styles.subUserRow}>
-                <Text
-                  style={[styles.userNickText, { color: palette.primary, fontFamily: subtitleFont }]}
-                >
-                  {userNick}
-                </Text>
-                <Text style={[styles.dateDot, { color: palette.textSub }]}>·</Text>
-                <Text
-                  style={[styles.dateSmallText, { color: palette.textSub, fontFamily: bodyFont }]}
-                >
-                  {capitalizedWeekday}, {dayStrClean}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* BOTÓN DE SETTINGS (ESQUINA SUPERIOR DERECHA) */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.settingsBtn,
-              {
-                backgroundColor: palette.cardBg,
-                borderColor: palette.border,
-                shadowColor: palette.primary,
-              },
-              pressed && { transform: [{ scale: 0.92 }] },
-            ]}
-            onPress={() => setSettingsModalOpen(true)}
-            hitSlop={8}
-          >
-            <LinearGradient
-              colors={
-                palette.isDark
-                  ? ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)']
-                  : ['#FFFFFF', '#F8FAFF']
-              }
-              style={styles.settingsBtnGradient}
-            >
-              <Ionicons name="options-outline" size={22} color={palette.primary} />
-            </LinearGradient>
-          </Pressable>
-        </View>
-
-        {/* ==========================================================
-            WIDGET 1: BLOQUE DE NIVEL RPG CON NOMBRE Y NICKNAME INTEGRADO
-        ========================================================== */}
-        {homeWidgets?.profile && (
-          <View style={[styles.cardOuter, { borderColor: palette.border }]}>
-            <LinearGradient
-              colors={
-                palette.isDark
-                  ? ['#1E293B', '#0F172A']
-                  : ['#FFFFFF', '#F8FAFF']
-              }
-              style={styles.cardGradient}
-            >
-              <View style={styles.rpgHeaderRow}>
-                <View style={styles.rpgIdentityBlock}>
-                  <View style={styles.rpgBadge}>
-                    <Ionicons name="sparkles" size={13} color={palette.primary} />
-                    <Text
-                      style={[
-                        styles.rpgBadgeText,
-                        { color: palette.primary, fontFamily: subtitleFont },
-                      ]}
-                    >
-                      NIVEL {userLevel} · ATLETA
-                    </Text>
-                  </View>
-                  <Text
-                    style={[styles.rpgHeroName, { color: palette.text, fontFamily: titleFont }]}
-                  >
-                    {userName}{' '}
-                    <Text style={{ fontSize: 13, color: palette.textSub, fontWeight: '500' }}>
-                      ({userNick})
-                    </Text>
-                  </Text>
-                </View>
-
-                <View style={[styles.streakPill, { borderColor: palette.secondary }]}>
-                  <Ionicons name="flame" size={16} color={palette.secondary} />
-                  <Text
-                    style={[
-                      styles.streakText,
-                      { color: palette.secondary, fontFamily: dataFont },
-                    ]}
-                  >
-                    {Math.max(1, totalDaysLogged)} Días
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.xpInfoRow}>
-                <Text style={[styles.rpgSubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  Rango Élite · Experiencia
-                </Text>
-                <Text style={[styles.xpCountText, { color: palette.text, fontFamily: dataFont }]}>
-                  {xpCurrent * 30} / 3,000 XP
+                  Nivel {userLevel} · Atleta Élite
                 </Text>
               </View>
 
-              <View style={styles.xpTrack}>
+              {/* Barra XP */}
+              <View
+                style={[
+                  styles.heroXpTrack,
+                  {
+                    backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.4)',
+                  },
+                ]}
+              >
                 <LinearGradient
                   colors={[palette.primary, palette.secondary]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={[styles.xpFill, { width: `${xpCurrent}%` }]}
+                  style={[styles.heroXpFill, { width: `${xpCurrent}%` }]}
                 />
               </View>
-            </LinearGradient>
+            </View>
+
+            {/* Al lado derecho: Racha (la llamita) y Botón de Ajustes */}
+            <View style={styles.heroRightCol}>
+              {/* Botón de Ajustes */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.heroSettingsBtn,
+                  {
+                    borderColor: palette.border,
+                    backgroundColor: palette.bg,
+                  },
+                  pressed && { transform: [{ scale: 0.92 }] },
+                ]}
+                onPress={() => setSettingsModalOpen(true)}
+                hitSlop={8}
+              >
+                <Ionicons name="options-outline" size={17} color={palette.primary} />
+              </Pressable>
+
+              {/* Racha con la llamita */}
+              <View
+                style={[
+                  styles.heroStreakBadge,
+                  {
+                    borderColor: palette.secondary,
+                    backgroundColor: `${palette.secondary}15`,
+                  },
+                ]}
+              >
+                <Ionicons name="flame" size={17} color={palette.secondary} />
+                <Text
+                  style={[styles.heroStreakNum, { color: palette.secondary, fontFamily: dataFont }]}
+                >
+                  {Math.max(1, totalDaysLogged)}
+                </Text>
+                <Text
+                  style={[styles.heroStreakLabel, { color: palette.secondary, fontFamily: subtitleFont }]}
+                >
+                  Días
+                </Text>
+              </View>
+            </View>
           </View>
-        )}
+        </View>
 
         {/* ==========================================================
-            WIDGET 2: NUTRICIÓN Y MACROS
+            WIDGET 1: NUTRICIÓN Y MACROS (COLORES ESTRICTOS DE LA PALETA)
         ========================================================== */}
         {homeWidgets?.calories && (
           <View style={[styles.cardOuter, { borderColor: palette.border }]}>
@@ -307,8 +285,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             >
               <View style={styles.cardHeaderRow}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.iconBoxMini, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                    <Ionicons name="nutrition-outline" size={18} color="#10B981" />
+                  <View style={[styles.iconBoxMini, { backgroundColor: `${palette.primary}18` }]}>
+                    <Ionicons name="nutrition-outline" size={18} color={palette.primary} />
                   </View>
                   <View>
                     <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
@@ -346,18 +324,25 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   </Text>
                 </View>
 
+                {/* Desglose de Macros usando colores de la paleta */}
                 <View style={styles.macroPillRow}>
-                  <View style={styles.macroPill}>
-                    <Text style={styles.macroPillLabel}>P</Text>
-                    <Text style={[styles.macroPillVal, { fontFamily: dataFont }]}>{fmt(totalProtein)}g</Text>
+                  <View style={[styles.macroPill, { backgroundColor: `${palette.primary}12` }]}>
+                    <Text style={[styles.macroPillLabel, { color: palette.primary }]}>P</Text>
+                    <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
+                      {fmt(totalProtein)}g
+                    </Text>
                   </View>
-                  <View style={styles.macroPill}>
-                    <Text style={[styles.macroPillLabel, { color: '#D97706' }]}>C</Text>
-                    <Text style={[styles.macroPillVal, { fontFamily: dataFont }]}>{fmt(totalCarbs)}g</Text>
+                  <View style={[styles.macroPill, { backgroundColor: `${palette.secondary}12` }]}>
+                    <Text style={[styles.macroPillLabel, { color: palette.secondary }]}>C</Text>
+                    <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
+                      {fmt(totalCarbs)}g
+                    </Text>
                   </View>
-                  <View style={styles.macroPill}>
-                    <Text style={[styles.macroPillLabel, { color: '#8B5CF6' }]}>G</Text>
-                    <Text style={[styles.macroPillVal, { fontFamily: dataFont }]}>{fmt(totalFat)}g</Text>
+                  <View style={[styles.macroPill, { backgroundColor: `${palette.primary}12` }]}>
+                    <Text style={[styles.macroPillLabel, { color: palette.primary }]}>G</Text>
+                    <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
+                      {fmt(totalFat)}g
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -366,7 +351,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         )}
 
         {/* ==========================================================
-            WIDGET 3: ENTRENAMIENTO DEL DÍA
+            WIDGET 2: ENTRENAMIENTO DEL DÍA
         ========================================================== */}
         {homeWidgets?.workout && (
           <View style={[styles.cardOuter, { borderColor: palette.border }]}>
@@ -380,8 +365,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             >
               <View style={styles.cardHeaderRow}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.iconBoxMini, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
-                    <Ionicons name="barbell-outline" size={18} color={palette.primary} />
+                  <View style={[styles.iconBoxMini, { backgroundColor: `${palette.secondary}18` }]}>
+                    <Ionicons name="barbell-outline" size={18} color={palette.secondary} />
                   </View>
                   <View>
                     <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
@@ -407,7 +392,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               </View>
 
               <View style={styles.statsTwoCol}>
-                <View style={styles.statBox}>
+                <View style={[styles.statBox, { backgroundColor: palette.bg }]}>
                   <Text style={[styles.statBoxVal, { color: palette.text, fontFamily: dataFont }]}>
                     {exercisesCount}
                   </Text>
@@ -416,7 +401,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   </Text>
                 </View>
 
-                <View style={styles.statBox}>
+                <View style={[styles.statBox, { backgroundColor: palette.bg }]}>
                   <Text style={[styles.statBoxVal, { color: palette.primary, fontFamily: dataFont }]}>
                     {setsCount}
                   </Text>
@@ -430,7 +415,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         )}
 
         {/* ==========================================================
-            WIDGET 4: SUPLEMENTACIÓN DIARIA
+            WIDGET 3: SUPLEMENTACIÓN DIARIA
         ========================================================== */}
         {homeWidgets?.supplements && (
           <View style={[styles.cardOuter, { borderColor: palette.border }]}>
@@ -444,8 +429,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             >
               <View style={styles.cardHeaderRow}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.iconBoxMini, { backgroundColor: 'rgba(244, 114, 182, 0.12)' }]}>
-                    <Ionicons name="medkit-outline" size={18} color={palette.secondary} />
+                  <View style={[styles.iconBoxMini, { backgroundColor: `${palette.primary}18` }]}>
+                    <Ionicons name="medkit-outline" size={18} color={palette.primary} />
                   </View>
                   <View>
                     <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
@@ -480,7 +465,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                       <Ionicons
                         name={isDone ? 'checkmark-circle' : 'time-outline'}
                         size={16}
-                        color={isDone ? '#10B981' : palette.textSub}
+                        color={isDone ? palette.primary : palette.textSub}
                       />
                       <Text
                         style={[
@@ -504,7 +489,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         )}
 
         {/* ==========================================================
-            WIDGET 5: BIOMARCADORES DE SALUD
+            WIDGET 4: BIOMARCADORES DE SALUD
         ========================================================== */}
         {homeWidgets?.health && (
           <View style={[styles.cardOuter, { borderColor: palette.border }]}>
@@ -518,8 +503,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             >
               <View style={styles.cardHeaderRow}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.iconBoxMini, { backgroundColor: 'rgba(6, 182, 212, 0.12)' }]}>
-                    <Ionicons name="pulse-outline" size={18} color="#06B6D4" />
+                  <View style={[styles.iconBoxMini, { backgroundColor: `${palette.secondary}18` }]}>
+                    <Ionicons name="pulse-outline" size={18} color={palette.secondary} />
                   </View>
                   <View>
                     <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
@@ -545,7 +530,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               </View>
 
               <View style={styles.healthRowMini}>
-                <View style={styles.healthBox}>
+                <View style={[styles.healthBox, { backgroundColor: palette.bg }]}>
                   <Text style={[styles.healthLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
                     Presión Arterial
                   </Text>
@@ -553,12 +538,12 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     {pressureVal ? `${pressureVal}/${pressureSec || 80}` : '119/78'}{' '}
                     <Text style={{ fontSize: 11, color: palette.textSub }}>mmHg</Text>
                   </Text>
-                  <View style={[styles.healthPillMini, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#10B981' }}>Óptima</Text>
+                  <View style={[styles.healthPillMini, { backgroundColor: `${palette.primary}18` }]}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: palette.primary }}>Óptima</Text>
                   </View>
                 </View>
 
-                <View style={styles.healthBox}>
+                <View style={[styles.healthBox, { backgroundColor: palette.bg }]}>
                   <Text style={[styles.healthLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
                     Glucosa / Azúcar
                   </Text>
@@ -566,8 +551,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     {glucoseVal || '94'}{' '}
                     <Text style={{ fontSize: 11, color: palette.textSub }}>mg/dL</Text>
                   </Text>
-                  <View style={[styles.healthPillMini, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#10B981' }}>Normal</Text>
+                  <View style={[styles.healthPillMini, { backgroundColor: `${palette.primary}18` }]}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: palette.primary }}>Normal</Text>
                   </View>
                 </View>
               </View>
@@ -576,7 +561,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         )}
 
         {/* ==========================================================
-            WIDGET 6: PESO Y MEDIDAS
+            WIDGET 5: PESO Y MEDIDAS
         ========================================================== */}
         {homeWidgets?.body && (
           <View style={[styles.cardOuter, { borderColor: palette.border }]}>
@@ -590,8 +575,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             >
               <View style={styles.cardHeaderRow}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.iconBoxMini, { backgroundColor: 'rgba(59, 130, 246, 0.12)' }]}>
-                    <Ionicons name="body-outline" size={18} color="#3B82F6" />
+                  <View style={[styles.iconBoxMini, { backgroundColor: `${palette.primary}18` }]}>
+                    <Ionicons name="body-outline" size={18} color={palette.primary} />
                   </View>
                   <View>
                     <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
@@ -623,9 +608,17 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     kg
                   </Text>
                 </Text>
-                <View style={[styles.bodyWeightBadge, { borderColor: palette.border }]}>
-                  <Ionicons name="trending-down-outline" size={14} color="#10B981" />
-                  <Text style={[styles.bodyWeightBadgeText, { color: '#10B981', fontFamily: dataFont }]}>
+                <View
+                  style={[
+                    styles.bodyWeightBadge,
+                    {
+                      borderColor: palette.secondary,
+                      backgroundColor: `${palette.secondary}15`,
+                    },
+                  ]}
+                >
+                  <Ionicons name="trending-down-outline" size={14} color={palette.secondary} />
+                  <Text style={[styles.bodyWeightBadgeText, { color: palette.secondary, fontFamily: dataFont }]}>
                     Estable
                   </Text>
                 </View>
@@ -651,6 +644,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
           - Paleta de color
           - Tipografía
           - Qué datos mostrar en el home
+          - Perfil de Usuario
       ========================================================== */}
       <SettingsModal
         visible={settingsModalOpen}
@@ -726,7 +720,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={modalStyles.backdrop}>
-        {/* Área superior transparente que cierra al pulsar (sin robar toques de la hoja) */}
+        {/* Área superior transparente para descartar al pulsar */}
         <Pressable style={modalStyles.backdropTouchDismiss} onPress={onClose} />
 
         <View style={[modalStyles.sheetContainer, { backgroundColor: palette.cardBg }]}>
@@ -768,7 +762,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 ]}
                 onPress={() => toggleSection('palette')}
               >
-                <View style={[modalStyles.accordionIconBox, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
+                <View style={[modalStyles.accordionIconBox, { backgroundColor: `${palette.primary}18` }]}>
                   <Ionicons name="color-palette-outline" size={20} color={palette.primary} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -789,7 +783,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
               {expandedSection === 'palette' && (
                 <View style={modalStyles.accordionContent}>
                   <Text style={[modalStyles.contentSubNotice, { color: palette.textSub }]}>
-                    Elige una paleta con muestras de mínimo 2 colores o crea una propia:
+                    Elige una paleta con muestras de colores o crea tu propia combinación:
                   </Text>
 
                   {/* Grid / Lista de Paletas */}
@@ -826,7 +820,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                             )}
                           </View>
 
-                          {/* Muestras de colores (mínimo 2 colores variables) + muestra de fondo */}
+                          {/* Muestras de colores */}
                           <View style={modalStyles.swatchesRow}>
                             {sampleColors.map((col, idx) => (
                               <View
@@ -855,8 +849,8 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
                             {p.isDark && (
                               <View style={modalStyles.darkTagMini}>
-                                <Ionicons name="moon" size={11} color="#94A3B8" />
-                                <Text style={modalStyles.darkTagText}>Dark</Text>
+                                <Ionicons name="moon" size={11} color={palette.textSub} />
+                                <Text style={[modalStyles.darkTagText, { color: palette.textSub }]}>Dark</Text>
                               </View>
                             )}
 
@@ -869,7 +863,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                                 }}
                                 hitSlop={8}
                               >
-                                <Ionicons name="trash-outline" size={15} color="#EF4444" />
+                                <Ionicons name="trash-outline" size={15} color={palette.secondary} />
                               </Pressable>
                             )}
                           </View>
@@ -913,7 +907,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                           },
                         ]}
                         placeholder="Ej. Fuego Dragón, Neón Azul..."
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor={palette.textSub}
                         value={newPaletteName}
                         onChangeText={setNewPaletteName}
                       />
@@ -959,7 +953,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                         <Switch
                           value={newIsDark}
                           onValueChange={setNewIsDark}
-                          trackColor={{ false: '#CBD5E1', true: palette.primary }}
+                          trackColor={{ false: palette.border, true: palette.primary }}
                           thumbColor="#FFFFFF"
                         />
                       </View>
@@ -983,10 +977,6 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
             {/* ==========================================================
                 OPCIÓN 2: TIPOGRAFÍA (DESPLEGABLE)
-                - Títulos
-                - Subtítulos
-                - Textos
-                - Datos
             ========================================================== */}
             <View style={[modalStyles.accordionCard, { borderColor: palette.border }]}>
               <Pressable
@@ -999,7 +989,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 ]}
                 onPress={() => toggleSection('typography')}
               >
-                <View style={[modalStyles.accordionIconBox, { backgroundColor: 'rgba(236, 72, 153, 0.12)' }]}>
+                <View style={[modalStyles.accordionIconBox, { backgroundColor: `${palette.secondary}18` }]}>
                   <Ionicons name="text-outline" size={20} color={palette.secondary} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -1023,7 +1013,6 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     Personaliza independientemente el estilo de fuente para cada nivel de texto:
                   </Text>
 
-                  {/* 1. TÍTULOS */}
                   <TypographyCategoryRow
                     categoryTitle="TÍTULOS"
                     categoryDesc="Encabezados grandes y nombres de módulos"
@@ -1032,7 +1021,6 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     palette={palette}
                   />
 
-                  {/* 2. SUBTÍTULOS */}
                   <TypographyCategoryRow
                     categoryTitle="SUBTÍTULOS"
                     categoryDesc="Metas, etiquetas y encabezados de sección"
@@ -1041,7 +1029,6 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     palette={palette}
                   />
 
-                  {/* 3. TEXTOS */}
                   <TypographyCategoryRow
                     categoryTitle="TEXTOS"
                     categoryDesc="Párrafos, notas, descripciones y listas"
@@ -1050,7 +1037,6 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     palette={palette}
                   />
 
-                  {/* 4. DATOS / NÚMEROS */}
                   <TypographyCategoryRow
                     categoryTitle="DATOS Y NÚMEROS"
                     categoryDesc="Kcal, gramos, series, repeticiones y presión arterial"
@@ -1144,8 +1130,8 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 ]}
                 onPress={() => toggleSection('widgets')}
               >
-                <View style={[modalStyles.accordionIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                  <Ionicons name="grid-outline" size={20} color="#10B981" />
+                <View style={[modalStyles.accordionIconBox, { backgroundColor: `${palette.primary}18` }]}>
+                  <Ionicons name="grid-outline" size={20} color={palette.primary} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={[modalStyles.accordionTitle, { color: palette.text }]}>
@@ -1158,7 +1144,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 <Ionicons
                   name={expandedSection === 'widgets' ? 'chevron-up' : 'chevron-down'}
                   size={20}
-                  color="#10B981"
+                  color={palette.primary}
                 />
               </Pressable>
 
@@ -1169,18 +1155,8 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                   </Text>
 
                   <WidgetToggleRow
-                    icon="sparkles-outline"
-                    iconColor={palette.primary}
-                    title="Nivel RPG y Racha de Días"
-                    desc="Tu nivel de atleta, experiencia y racha de hábitos activa."
-                    enabled={!!homeWidgets?.profile}
-                    onToggle={() => toggleHomeWidget('profile')}
-                    palette={palette}
-                  />
-
-                  <WidgetToggleRow
                     icon="nutrition-outline"
-                    iconColor="#10B981"
+                    iconColor={palette.primary}
                     title="Nutrición y Macronutrientes"
                     desc="Calorías consumidas hoy vs meta y desglose de Proteína, Carbos y Grasas."
                     enabled={!!homeWidgets?.calories}
@@ -1190,7 +1166,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
                   <WidgetToggleRow
                     icon="barbell-outline"
-                    iconColor="#8B5CF6"
+                    iconColor={palette.secondary}
                     title="Entrenamiento del Día"
                     desc="Número de ejercicios registrados y total de series completadas hoy."
                     enabled={!!homeWidgets?.workout}
@@ -1200,7 +1176,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
                   <WidgetToggleRow
                     icon="medkit-outline"
-                    iconColor="#F472B6"
+                    iconColor={palette.primary}
                     title="Suplementación Diaria"
                     desc="Lista de suplementos del día y tomas completadas."
                     enabled={!!homeWidgets?.supplements}
@@ -1210,7 +1186,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
                   <WidgetToggleRow
                     icon="pulse-outline"
-                    iconColor="#06B6D4"
+                    iconColor={palette.secondary}
                     title="Biomarcadores de Salud"
                     desc="Últimos registros de Presión Arterial, Glucosa y semáforo clínico."
                     enabled={!!homeWidgets?.health}
@@ -1220,7 +1196,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
                   <WidgetToggleRow
                     icon="body-outline"
-                    iconColor="#3B82F6"
+                    iconColor={palette.primary}
                     title="Peso y Medidas Corporales"
                     desc="Último peso registrado en báscula y control antropométrico."
                     enabled={!!homeWidgets?.body}
@@ -1232,7 +1208,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
             </View>
 
             {/* ==========================================================
-                OPCIÓN 4: PERFIL DEL USUARIO (NOMBRE Y NICKNAME)
+                OPCIÓN 4: PERFIL DE USUARIO
             ========================================================== */}
             <View style={[modalStyles.accordionCard, { borderColor: palette.border }]}>
               <Pressable
@@ -1245,8 +1221,8 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 ]}
                 onPress={() => toggleSection('profile')}
               >
-                <View style={[modalStyles.accordionIconBox, { backgroundColor: 'rgba(59, 130, 246, 0.12)' }]}>
-                  <Ionicons name="person-outline" size={20} color="#3B82F6" />
+                <View style={[modalStyles.accordionIconBox, { backgroundColor: `${palette.secondary}18` }]}>
+                  <Ionicons name="person-outline" size={20} color={palette.secondary} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={[modalStyles.accordionTitle, { color: palette.text }]}>
@@ -1259,7 +1235,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 <Ionicons
                   name={expandedSection === 'profile' ? 'chevron-up' : 'chevron-down'}
                   size={20}
-                  color="#3B82F6"
+                  color={palette.secondary}
                 />
               </Pressable>
 
@@ -1422,7 +1398,7 @@ function WidgetToggleRow({
       <Switch
         value={enabled}
         onValueChange={onToggle}
-        trackColor={{ false: '#CBD5E1', true: palette.primary }}
+        trackColor={{ false: palette.border, true: palette.primary }}
         thumbColor="#FFFFFF"
       />
     </View>
@@ -1439,79 +1415,102 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'android' ? 14 : 10,
-    paddingBottom: 110, // Espacio para el TabBar flotante
+    paddingBottom: 110,
   },
 
-  // Header superior
-  topHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 2,
-  },
-  userInfoLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarGradient: {
-    width: 44,
-    height: 44,
+  // Tarjeta de perfil superior solicitada por el usuario
+  userHeroCard: {
     borderRadius: 22,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  userHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#8B5CF6',
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
   },
-  avatarInitials: {
-    fontSize: 16,
+  heroAvatarText: {
+    fontSize: 18,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  heroCenterCol: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
   },
-  userNameText: {
-    fontSize: 18,
+  heroName: {
+    fontSize: 16,
     fontWeight: '900',
     letterSpacing: -0.3,
   },
-  subUserRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  heroNickDate: {
+    fontSize: 11,
     marginTop: 1,
   },
-  userNickText: {
-    fontSize: 12,
+  heroRankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  heroRankText: {
+    fontSize: 11,
     fontWeight: '800',
   },
-  dateDot: {
-    marginHorizontal: 5,
-    fontSize: 12,
-  },
-  dateSmallText: {
-    fontSize: 12,
-  },
-  settingsBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
+  heroXpTrack: {
+    height: 5,
+    borderRadius: 3,
+    marginTop: 6,
     overflow: 'hidden',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    marginLeft: 12,
   },
-  settingsBtnGradient: {
-    flex: 1,
+  heroXpFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+
+  // Lado derecho del héroe: Ajustes y Racha
+  heroRightCol: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroSettingsBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  heroStreakBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    minWidth: 42,
+  },
+  heroStreakNum: {
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 15,
+  },
+  heroStreakLabel: {
+    fontSize: 9,
+    fontWeight: '800',
   },
 
   // Tarjetas genéricas del Home
@@ -1566,70 +1565,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // RPG Widget
-  rpgHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  rpgIdentityBlock: {
-    flex: 1,
-    marginRight: 10,
-  },
-  rpgBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
-  },
-  rpgBadgeText: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  rpgHeroName: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  streakPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    backgroundColor: 'rgba(244, 114, 182, 0.08)',
-  },
-  streakText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  xpInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  rpgSubtitle: {
-    fontSize: 11,
-  },
-  xpCountText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  xpTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(203, 213, 225, 0.3)',
-    overflow: 'hidden',
-  },
-  xpFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-
   // Macro Row
   macroHeroRow: {
     flexDirection: 'row',
@@ -1657,13 +1592,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
-    backgroundColor: 'rgba(203, 213, 225, 0.15)',
     alignItems: 'center',
   },
   macroPillLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#10B981',
     marginBottom: 2,
   },
   macroPillVal: {
@@ -1681,7 +1614,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     borderRadius: 14,
-    backgroundColor: 'rgba(203, 213, 225, 0.12)',
   },
   statBoxVal: {
     fontSize: 22,
@@ -1722,7 +1654,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     borderRadius: 14,
-    backgroundColor: 'rgba(203, 213, 225, 0.12)',
   },
   healthLabel: {
     fontSize: 11,
@@ -1763,7 +1694,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 10,
     borderWidth: 1,
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
   },
   bodyWeightBadgeText: {
     fontSize: 12,
@@ -1798,7 +1728,7 @@ const modalStyles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   backdropTouchDismiss: {
-    flex: 1, // Cubre únicamente la zona superior transparente
+    flex: 1,
   },
   sheetContainer: {
     maxHeight: '90%',
@@ -1915,7 +1845,6 @@ const modalStyles = StyleSheet.create({
   },
   darkTagText: {
     fontSize: 10,
-    color: '#94A3B8',
     fontWeight: '700',
   },
   deleteCustomBtn: {

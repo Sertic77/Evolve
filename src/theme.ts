@@ -1,14 +1,14 @@
 import { ColorPalette, TypographySettings } from './store';
 
 export const C = {
-  // Fondos y Superficies Anime (Light Cream & Cloud Pastel)
+  // Fondos y Superficies
   bg: '#F3F5FA',
   bgDark: '#FFFFFF',
   bgCard: 'rgba(255, 255, 255, 0.92)',
   bgCardLight: 'rgba(245, 247, 255, 0.95)',
   bgCardHover: 'rgba(238, 242, 255, 1)',
   
-  // Bordes Suaves Glassmorphism Pastel Claro
+  // Bordes
   border: 'rgba(203, 213, 225, 0.6)',
   borderLight: 'rgba(226, 232, 240, 0.85)',
   borderPastelPurple: 'rgba(167, 139, 250, 0.45)',
@@ -16,39 +16,39 @@ export const C = {
   borderPastelMint: 'rgba(13, 148, 136, 0.35)',
 
   // Textos Nítidos
-  text: '#1E1B4B',           // Índigo oscuro profundo
-  textSub: '#334155',        // Gris pizarra oscuro
-  sub: '#64748B',            // Gris medio nítido
-  subMuted: '#94A3B8',       // Gris suave
+  text: '#1E1B4B',
+  textSub: '#334155',
+  sub: '#64748B',
+  subMuted: '#94A3B8',
 
-  // Colores Pastel Anime
-  pastelPurple: '#8B5CF6',   // Lavanda Mágico Anime
-  pastelPink: '#F472B6',     // Sakura Blossom
-  pastelBlue: '#60A5FA',     // Cielo Anime
-  pastelMint: '#14B8A6',     // Menta Mágica
-  pastelPeach: '#FB7185',    // Melocotón Suave
-  pastelHoney: '#F59E0B',    // Sol Vainilla / Miel
+  // Colores de la Paleta
+  pastelPurple: '#8B5CF6',
+  pastelPink: '#F472B6',
+  pastelBlue: '#8B5CF6',
+  pastelMint: '#F472B6',
+  pastelPeach: '#F472B6',
+  pastelHoney: '#8B5CF6',
 
-  // Macros en Tonos Pastel Vivos para fondo claro
-  kcal: '#10B981',          // Kcal Ganadas (Verde Esmeralda Pastel)
-  carbs: '#D97706',         // Miel Ámbar Pastel
-  protein: '#0D9488',       // Menta Esmeralda Pastel
-  fat: '#8B5CF6',           // Lavanda Pastel
+  // Macros alineados con la paleta de colores
+  kcal: '#8B5CF6',
+  carbs: '#F472B6',
+  protein: '#8B5CF6',
+  fat: '#F472B6',
 
   // Estados
   danger: '#EF4444',
   dangerBg: 'rgba(239, 68, 68, 0.1)',
-  success: '#10B981',
+  success: '#8B5CF6',
   
   // Acento principal
   accent: '#8B5CF6',
 };
 
 export const GRADIENTS = {
-  // Acento Anime Suave
-  primary: ['#A78BFA', '#F472B6'] as [string, string],
-  pastelMintToBlue: ['#14B8A6', '#60A5FA'] as [string, string],
-  pastelSunset: ['#FB7185', '#F59E0B'] as [string, string],
+  // Acentos de la paleta
+  primary: ['#8B5CF6', '#F472B6'] as [string, string],
+  pastelMintToBlue: ['#8B5CF6', '#F472B6'] as [string, string],
+  pastelSunset: ['#8B5CF6', '#F472B6'] as [string, string],
   
   // Tarjetas Glass Pastel
   cardGlass: ['rgba(255, 255, 255, 0.98)', 'rgba(248, 250, 255, 0.94)'] as [string, string],
@@ -56,12 +56,12 @@ export const GRADIENTS = {
   
   // TabBar y Floating Home
   tabBar: ['rgba(255, 255, 255, 0.98)', 'rgba(248, 250, 255, 0.96)'] as [string, string],
-  floatingHomeActive: ['#A78BFA', '#F472B6'] as [string, string],
+  floatingHomeActive: ['#8B5CF6', '#F472B6'] as [string, string],
   floatingHomeInactive: ['#E2E8F0', '#CBD5E1'] as [string, string],
   
-  // Macros
-  kcalGradient: ['#10B981', '#6EE7B7'] as [string, string],
-  proteinGradient: ['#0D9488', '#5EEAD4'] as [string, string],
+  // Macros con la paleta
+  kcalGradient: ['#8B5CF6', '#A78BFA'] as [string, string],
+  proteinGradient: ['#F472B6', '#FB7185'] as [string, string],
 };
 
 export const fmt = (n: number) => {
@@ -74,13 +74,13 @@ export const fmt = (n: number) => {
    SINCRONIZADOR GLOBAL DE TEMA Y ESTILOS PARA TODA LA APP
 ========================================================== */
 export function registerThemeSheet(_sheet: any) {
-  // No-op seguro: StyleSheet.create congela los objetos en React Native/Hermes
+  // No-op seguro para Hermes
 }
 
 export function applyGlobalTheme(palette: ColorPalette, _typography?: TypographySettings) {
   if (!palette) return;
 
-  // 1. Mutar de forma segura las variables globales de C (son mutables)
+  // 1. Mutar de forma segura las variables globales de C usando EXCLUSIVAMENTE colores de la paleta
   C.bg = palette.bg;
   C.bgDark = palette.isDark ? '#0F172A' : '#FFFFFF';
   C.bgCard = palette.isDark ? 'rgba(30, 41, 59, 0.96)' : 'rgba(255, 255, 255, 0.92)';
@@ -98,7 +98,18 @@ export function applyGlobalTheme(palette: ColorPalette, _typography?: Typography
   C.pastelPink = palette.secondary;
   C.accent = palette.accent || palette.primary;
 
-  // 2. Mutar de forma segura GRADIENTS
+  // Macros y acentos remapeados a la paleta activa (sin colores ajenos)
+  C.kcal = palette.primary;
+  C.protein = palette.primary;
+  C.carbs = palette.secondary;
+  C.fat = palette.secondary;
+  C.pastelBlue = palette.primary;
+  C.pastelMint = palette.secondary;
+  C.pastelPeach = palette.secondary;
+  C.pastelHoney = palette.primary;
+  C.success = palette.primary;
+
+  // 2. Mutar GRADIENTS para fondos y botones con los colores de la paleta activa
   (GRADIENTS.primary as any)[0] = palette.primary;
   (GRADIENTS.primary as any)[1] = palette.secondary;
   (GRADIENTS.cardGlass as any)[0] = palette.isDark ? '#1E293B' : 'rgba(255, 255, 255, 0.98)';
@@ -109,4 +120,8 @@ export function applyGlobalTheme(palette: ColorPalette, _typography?: Typography
   (GRADIENTS.tabBar as any)[1] = palette.isDark ? '#0F172A' : 'rgba(248, 250, 255, 0.96)';
   (GRADIENTS.floatingHomeActive as any)[0] = palette.primary;
   (GRADIENTS.floatingHomeActive as any)[1] = palette.secondary;
+  (GRADIENTS.kcalGradient as any)[0] = palette.primary;
+  (GRADIENTS.kcalGradient as any)[1] = palette.secondary;
+  (GRADIENTS.proteinGradient as any)[0] = palette.secondary;
+  (GRADIENTS.proteinGradient as any)[1] = palette.primary;
 }
