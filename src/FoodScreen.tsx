@@ -28,6 +28,8 @@ import {
 } from './store';
 import {
   MacroSummary,
+  MainNavigationSegmented,
+  SubSegmented,
   Segmented,
   DateSelector,
   MealBlockCard,
@@ -118,7 +120,12 @@ export default function FoodScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          tab === 1 && { paddingBottom: 320 }, // <--- Espacio amplio para scrollear libremente sobre el teclado
+        ]}
+        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -143,9 +150,8 @@ export default function FoodScreen() {
         {/* Resumen de Macros Animado */}
         <MacroSummary m={total} />
 
-        {/* Selector de Pestaña Principal */}
-        <Segmented
-          options={['Agregar comidas', 'Ingredientes y comidas']}
+        {/* Selector Maestro de Pestaña Principal (Nivel 1 con Gap Reducido) */}
+        <MainNavigationSegmented
           value={tab}
           onChange={setTab}
         />
@@ -432,8 +438,8 @@ function Library({
   const [subTab, setSubTab] = useState(0);
 
   return (
-    <View style={{ marginTop: 6 }}>
-      <Segmented
+    <View style={{ marginTop: 2 }}>
+      <SubSegmented
         options={['Ingredientes', 'Comidas guardadas']}
         value={subTab}
         onChange={setSubTab}
@@ -527,11 +533,23 @@ function IngredientsList() {
         </Text>
       </View>
 
+      {/* Mensaje si la búsqueda no arroja resultados */}
+      {list.length === 0 && (
+        <View style={styles.emptySearchListBox}>
+          <Ionicons name="search-outline" size={32} color={C.subMuted} />
+          <Text style={styles.emptySearchListTitle}>Sin resultados para "{query}"</Text>
+          <Text style={styles.emptySearchListSub}>Toca en el botón '+' de arriba para crearlo ahora mismo.</Text>
+        </View>
+      )}
+
       {/* Lista de Tarjetas */}
       {list.map((ing) => (
         <Pressable
           key={ing.id}
-          onPress={() => setEditingIng(ing)}
+          onPress={() => {
+            Keyboard.dismiss();
+            setEditingIng(ing);
+          }}
           style={({ pressed }) => [styles.ingredientCardWrapper, pressed && s.btnPressed]}
         >
           <LinearGradient
@@ -894,6 +912,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+
+  // Empty state Búsqueda Lista
+  emptySearchListBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  emptySearchListTitle: {
+    color: C.text,
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  emptySearchListSub: {
+    color: C.sub,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
   },
 
   // Empty state Día

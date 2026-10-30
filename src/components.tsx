@@ -283,7 +283,100 @@ export function MacroSummary({ m }: { m: Macros }) {
   );
 }
 
-/* ---------------- Selector Segmentado (Cápsula Pastel) ---------------- */
+/* ---------------- Selector Maestro Principal (Nivel 1) ---------------- */
+export function MainNavigationSegmented({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (i: number) => void;
+}) {
+  const options = [
+    { label: 'Agregar comidas', icon: 'restaurant-outline', activeIcon: 'restaurant' },
+    { label: 'Ingredientes y comidas', icon: 'library-outline', activeIcon: 'library' },
+  ];
+
+  return (
+    <View style={s.mainSegmentedContainer}>
+      {options.map((opt, i) => {
+        const active = value === i;
+        return (
+          <Pressable
+            key={opt.label}
+            onPress={() => onChange(i)}
+            style={({ pressed }) => [
+              s.mainSegmentedBtn,
+              pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+            ]}
+          >
+            {active ? (
+              <LinearGradient
+                colors={['#8B5CF6', '#EC4899']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={s.mainSegmentedActiveGradient}
+              >
+                <Ionicons
+                  name={opt.activeIcon as any}
+                  size={17}
+                  color="#FFFFFF"
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={s.mainSegmentedActiveText}>{opt.label}</Text>
+              </LinearGradient>
+            ) : (
+              <View style={s.mainSegmentedInactiveBtn}>
+                <Ionicons
+                  name={opt.icon as any}
+                  size={16}
+                  color={C.sub}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={s.mainSegmentedInactiveText}>{opt.label}</Text>
+              </View>
+            )}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/* ---------------- Sub-Selector Secundario de Biblioteca (Nivel 2) ---------------- */
+export function SubSegmented({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[];
+  value: number;
+  onChange: (i: number) => void;
+}) {
+  return (
+    <View style={s.subSegmentedContainer}>
+      {options.map((opt, i) => {
+        const active = value === i;
+        return (
+          <Pressable
+            key={opt}
+            onPress={() => onChange(i)}
+            style={({ pressed }) => [
+              s.subSegmentedBtn,
+              active && s.subSegmentedBtnActive,
+              pressed && { opacity: 0.8 },
+            ]}
+          >
+            <Text style={[s.subSegmentedText, active && s.subSegmentedTextActive]}>
+              {opt}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/* ---------------- Selector Segmentado Tradicional ---------------- */
 export function Segmented({
   options,
   value,
@@ -1000,7 +1093,92 @@ export const s = StyleSheet.create({
     borderRadius: 3,
   },
 
-  // Segmented
+  // Selector Maestro Principal (Nivel 1)
+  mainSegmentedContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 5,
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 92, 246, 0.28)',
+    marginTop: -4, // <--- Gap reducido pegado a la gráfica
+    marginBottom: 14,
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  mainSegmentedBtn: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  mainSegmentedActiveGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 16,
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  mainSegmentedActiveText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 13.5,
+    letterSpacing: 0.2,
+  },
+  mainSegmentedInactiveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  mainSegmentedInactiveText: {
+    color: '#475569',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+
+  // Sub-Selector Secundario de Biblioteca (Nivel 2)
+  subSegmentedContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(241, 245, 249, 0.9)',
+    borderRadius: 14,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.7)',
+    marginVertical: 10,
+  },
+  subSegmentedBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subSegmentedBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  subSegmentedText: {
+    color: C.sub,
+    fontWeight: '600',
+    fontSize: 12.5,
+  },
+  subSegmentedTextActive: {
+    color: '#1E1B4B',
+    fontWeight: '800',
+  },
+
+  // Segmented Tradicional
   segmentedContainer: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
