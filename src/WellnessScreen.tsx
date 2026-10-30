@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { C, GRADIENTS } from './theme';
 import { DateSelector, PrimaryButton, s } from './components';
-import { useStore, dateKey, Supplement, isSupplementActiveOnDate, HealthMetricDefinition, HealthLogEntry, uid } from './store';
+import { useStore, dateKey, Supplement, isSupplementActiveOnDate, HealthMetricDefinition, HealthLogEntry, uid, SEED_HEALTH_METRICS, SEED_HEALTH_LOGS } from './store';
 import {
   formatAlarmTime12h,
   parseAlarmTime,
@@ -2962,20 +2962,28 @@ function HealthSection({
   setDate: (d: Date) => void;
 }) {
   const {
-    healthMetrics,
-    healthLogs,
+    healthMetrics: rawHealthMetrics,
+    healthLogs: rawHealthLogs,
     setHealthLog,
     addHealthMetric,
     deleteHealthMetric,
   } = useStore();
 
+  const healthMetrics =
+    rawHealthMetrics && Array.isArray(rawHealthMetrics) && rawHealthMetrics.length > 0
+      ? rawHealthMetrics
+      : SEED_HEALTH_METRICS;
+  const healthLogs = rawHealthLogs || SEED_HEALTH_LOGS;
+
   const [selectedChartMetricId, setSelectedChartMetricId] = useState<string>('presion');
   const [modalOpen, setModalOpen] = useState(false);
 
   const key = dateKey(date);
-  const dayData = healthLogs[key] || {};
+  const dayData = (healthLogs && healthLogs[key]) || {};
   const selectedMetric =
-    healthMetrics.find((m) => m.id === selectedChartMetricId) || healthMetrics[0];
+    (healthMetrics && healthMetrics.find((m) => m.id === selectedChartMetricId)) ||
+    (healthMetrics && healthMetrics[0]) ||
+    SEED_HEALTH_METRICS[0];
 
   const updateMetricValue = (
     metricId: string,

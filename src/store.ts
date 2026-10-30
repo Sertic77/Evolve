@@ -148,6 +148,10 @@ export function isSupplementActiveOnDate(supp: Supplement, dateStr: string): boo
   return true;
 }
 
+export function dateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const genRecentDateKey = (daysAgo: number) => {
   const d = new Date();
@@ -184,8 +188,7 @@ export const SEED_HEALTH_LOGS: Record<string, Record<string, HealthLogEntry>> = 
 
 export const ZERO: Macros = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
-export const dateKey = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 
 /** Escala los macros del ingrediente a la cantidad indicada. */
 export function scaleMacros(ing: Ingredient | undefined, grams: number): Macros {
@@ -672,20 +675,23 @@ export const useStore = create<State>()(
       healthLogs: SEED_HEALTH_LOGS,
 
       setHealthLog: (date, metricId, entry) =>
-        set((s) => ({
-          healthLogs: {
-            ...s.healthLogs,
-            [date]: {
-              ...(s.healthLogs[date] || {}),
-              [metricId]: entry,
+        set((s) => {
+          const logs = s.healthLogs || {};
+          return {
+            healthLogs: {
+              ...logs,
+              [date]: {
+                ...(logs[date] || {}),
+                [metricId]: entry,
+              },
             },
-          },
-        })),
+          };
+        }),
 
       addHealthMetric: (metric) =>
         set((s) => ({
           healthMetrics: [
-            ...s.healthMetrics,
+            ...(s.healthMetrics || SEED_HEALTH_METRICS),
             {
               ...metric,
               id: uid(),
@@ -696,9 +702,24 @@ export const useStore = create<State>()(
 
       deleteHealthMetric: (id) =>
         set((s) => ({
-          healthMetrics: s.healthMetrics.filter((m) => m.id !== id),
+          healthMetrics: (s.healthMetrics || SEED_HEALTH_METRICS).filter((m) => m.id !== id),
         })),
     }),
-    { name: 'evolve-app-data', storage: createJSONStorage(() => AsyncStorage) },
+    {
+      name: 'evolve-app-data',
+      storage: createJSONStorage(() => AsyncStorage),
+      merge: (persistedState: any, currentState) => ({
+        ...currentState,
+        ...(persistedState || {}),
+        healthMetrics:
+          persistedState && Array.isArray(persistedState.healthMetrics) && persistedState.healthMetrics.length > 0
+            ? persistedState.healthMetrics
+            : SEED_HEALTH_METRICS,
+        healthLogs:
+          persistedState && persistedState.healthLogs && Object.keys(persistedState.healthLogs).length > 0
+            ? persistedState.healthLogs
+            : SEED_HEALTH_LOGS,
+      }),
+    },
   ),
 );
