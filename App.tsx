@@ -99,26 +99,22 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.rootSafeArea} edges={['top']}>
+      <SafeAreaView style={[styles.rootSafeArea, { backgroundColor: palette.bg }]} edges={['top']}>
         {/* StatusBar en dark para contraste sobre fondo claro */}
-        <StatusBar style="dark" />
+        <StatusBar style={palette.isDark ? 'light' : 'dark'} />
 
         {/* Pantalla Activa */}
         <View style={styles.mainContent}>
-          {tab === 'sleep' ? (
+          {tab === 'home' ? (
+            <HomeScreen onNavigate={(newTab) => setTab(newTab)} />
+          ) : tab === 'sleep' ? (
             <WellnessScreen />
           ) : tab === 'food' ? (
             <FoodScreen />
           ) : tab === 'train' ? (
             <TrainScreen />
-          ) : tab === 'measure' ? (
-            <MeasureScreen />
           ) : (
-            <ComingSoonHUD
-              title={currentLabel}
-              icon={currentIcon}
-              subtitle={getSubtitle(tab)}
-            />
+            <MeasureScreen />
           )}
         </View>
 
