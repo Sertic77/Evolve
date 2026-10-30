@@ -26,12 +26,14 @@ import Svg, {
   Line,
 } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { C, GRADIENTS } from './theme';
 import { DateSelector, PrimaryButton, s } from './components';
 import {
   useStore,
   dateKey,
+  uid,
   BodyPartKey,
   DayMeasurements,
   ProgressPhoto,
@@ -238,6 +240,8 @@ export default function MeasureScreen() {
     deletePartMeasurement,
     setDayWeight,
     deleteDayWeight,
+    addProgressPhoto,
+    deleteProgressPhoto,
   } = useStore();
 
   const dayMeasurements = measurementLogs[key] || {};
@@ -375,7 +379,18 @@ export default function MeasureScreen() {
             <ProgressPhotosSection
               date={date}
               setDate={setDate}
-              photos={dayPhotos}
+              dayPhotos={dayPhotos}
+              photoLogs={photoLogs}
+              weightLogs={weightLogs}
+              onSavePhoto={(angle, uri) =>
+                addProgressPhoto(key, {
+                  id: uid(),
+                  uri,
+                  angle,
+                  timestamp: date.getTime(),
+                })
+              }
+              onDeletePhoto={(photoId) => deleteProgressPhoto(key, photoId)}
             />
           )}
         </Animated.View>
@@ -2078,77 +2093,790 @@ function WeightEditModal({
 }
 
 /* ==========================================================
-   PESTAÑA 2: SECCIÓN FOTOS DE PROGRESO
+   PESTAÑA 2: SECCIÓN FOTOS DE PROGRESO Y PROYECTOR TIPO GIF
 ========================================================== */
+type PhotoAngleFilter = 'front' | 'side' | 'back' | 'all';
+
+const PHOTO_ANGLES: {
+  key: 'front' | 'side' | 'back';
+  label: string;
+  shortDesc: string;
+  icon: any;
+  accent: string;
+}[] = [
+  {
+    key: 'front',
+    label: 'Frente',
+    shortDesc: 'Vista frontal',
+    icon: 'person-outline',
+    accent: '#8B5CF6',
+  },
+  {
+    key: 'side',
+    label: 'Perfil',
+    shortDesc: 'Vista lateral',
+    icon: 'body-outline',
+    accent: '#EC4899',
+  },
+  {
+    key: 'back',
+    label: 'Espalda',
+    shortDesc: 'Vista posterior',
+    icon: 'refresh-outline',
+    accent: '#10B981',
+  },
+];
+
+const PROJECTOR_FILTER_OPTIONS: {
+  key: PhotoAngleFilter;
+  label: string;
+  icon: any;
+}[] = [
+  { key: 'front', label: 'Frente', icon: 'person-outline' },
+  { key: 'side', label: 'Perfil', icon: 'body-outline' },
+  { key: 'back', label: 'Espalda', icon: 'refresh-outline' },
+  { key: 'all', label: 'Todas', icon: 'albums-outline' },
+];
+
+const GIF_SPEEDS: { label: string; ms: number }[] = [
+  { label: '0.5x', ms: 950 },
+  { label: '1x', ms: 550 },
+  { label: '2x', ms: 280 },
+];
+
 function ProgressPhotosSection({
   date,
   setDate,
-  photos,
+  dayPhotos,
+  photoLogs,
+  weightLogs,
+  onSavePhoto,
+  onDeletePhoto,
 }: {
   date: Date;
   setDate: (d: Date) => void;
-  photos: ProgressPhoto[];
+  dayPhotos: ProgressPhoto[];
+  photoLogs: Record<string, ProgressPhoto[]>;
+  weightLogs: Record<string, number>;
+  onSavePhoto: (angle: 'front' | 'side' | 'back', uri: string) => void;
+  onDeletePhoto: (photoId: string) => void;
 }) {
-  const angles: { key: 'front' | 'side' | 'back'; label: string; icon: any }[] = [
-    { key: 'front', label: 'Frente', icon: 'person-outline' },
-    { key: 'side', label: 'Perfil', icon: 'body-outline' },
-    { key: 'back', label: 'Espalda', icon: 'refresh-outline' },
-  ];
+  // Modal para escoger Cámara o Galería al pulsar cualquiera de los 3 botones
+  const [activeAngleModal, setActiveAngleModal] = useState<'front' | 'side' | 'back' | null>(null);
+
+  // Estado del Proyector de Avance (Filtro de ángulo, fotograma actual, reproducción GIF y velocidad)
+  const [projectorFilter, setProjectorFilter] = useState<PhotoAngleFilter>('front');
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [isPlayingGif, setIsPlayingGif] = useState<boolean>(false);
+  const [gifSpeedIdx, setGifSpeedIdx] = useState<number>(1); // 1x por defecto
+
+  // Construye la lista ordenada de PRIMERA a ÚLTIMA según el filtro seleccionado
+  const projectedFrames = React.useMemo(() => {
+    const angleOrder: Record<'front' | 'side' | 'back', number> = {
+      front: 0,
+      side: 1,
+      back: 2,
+    };
+
+    const sortedDateKeys = Object.keys(photoLogs).sort(); // Orden cronológico: más antigua -> más reciente
+    const list: {
+      id: string;
+      uri: string;
+      angle: 'front' | 'side' | 'back';
+      dateStr: string;
+      formattedDate: string;
+      weight?: number;
+    }[] = [];
+
+    const monthNames = [
+      'ENE',
+      'FEB',
+      'MAR',
+      'ABR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AGO',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DIC',
+    ];
+
+    for (const dStr of sortedDateKeys) {
+      const entries = photoLogs[dStr] || [];
+      if (!entries.length) continue;
+
+      const filtered = entries
+        .filter((p) => (projectorFilter === 'all' ? true : p.angle === projectorFilter))
+        .sort((a, b) => angleOrder[a.angle] - angleOrder[b.angle]);
+
+      for (const item of filtered) {
+        const [y, m, d] = dStr.split('-');
+        const mLabel = monthNames[(parseInt(m, 10) || 1) - 1] || '';
+        list.push({
+          id: `${dStr}_${item.id}`,
+          uri: item.uri,
+          angle: item.angle,
+          dateStr: dStr,
+          formattedDate: `${parseInt(d, 10)} ${mLabel} ${y}`,
+          weight: weightLogs[dStr],
+        });
+      }
+    }
+
+    return list;
+  }, [photoLogs, weightLogs, projectorFilter]);
+
+  // Ajusta el índice si cambia el filtro o la cantidad de fotos
+  useEffect(() => {
+    setIsPlayingGif(false);
+    if (projectedFrames.length === 0) {
+      setCurrentIndex(0);
+    } else if (currentIndex >= projectedFrames.length) {
+      setCurrentIndex(projectedFrames.length - 1);
+    }
+  }, [projectorFilter, projectedFrames.length]);
+
+  // Temporizador para el modo de proyección tipo GIF
+  useEffect(() => {
+    if (!isPlayingGif || projectedFrames.length <= 1) {
+      return;
+    }
+    const intervalMs = GIF_SPEEDS[gifSpeedIdx]?.ms || 550;
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % projectedFrames.length);
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [isPlayingGif, projectedFrames.length, gifSpeedIdx]);
+
+  // Captura de foto con la Cámara del dispositivo
+  const handleTakePhotoWithCamera = async (angle: 'front' | 'side' | 'back') => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permiso de cámara requerido',
+          'Por favor autoriza el acceso a la cámara en los ajustes de tu dispositivo para tomar tu foto de progreso.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uri = result.assets[0].uri;
+        onSavePhoto(angle, uri);
+        setActiveAngleModal(null);
+        // Sincronizar filtro del proyector para ver la foto recién tomada
+        if (projectorFilter !== 'all' && projectorFilter !== angle) {
+          setProjectorFilter(angle);
+        }
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo abrir la cámara en este dispositivo.');
+    }
+  };
+
+  // Selección de foto desde la Galería del dispositivo
+  const handlePickFromGallery = async (angle: 'front' | 'side' | 'back') => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permiso de galería requerido',
+          'Por favor autoriza el acceso a tus fotos para elegir una imagen de tu galería.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uri = result.assets[0].uri;
+        onSavePhoto(angle, uri);
+        setActiveAngleModal(null);
+        if (projectorFilter !== 'all' && projectorFilter !== angle) {
+          setProjectorFilter(angle);
+        }
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo abrir la galería de fotos.');
+    }
+  };
+
+  const safeIndex =
+    projectedFrames.length > 0
+      ? Math.min(currentIndex, projectedFrames.length - 1)
+      : 0;
+  const activeFrame = projectedFrames[safeIndex];
+
+  const stepPrev = () => {
+    setIsPlayingGif(false);
+    if (projectedFrames.length <= 1) return;
+    setCurrentIndex((prev) => (prev - 1 + projectedFrames.length) % projectedFrames.length);
+  };
+
+  const stepNext = () => {
+    setIsPlayingGif(false);
+    if (projectedFrames.length <= 1) return;
+    setCurrentIndex((prev) => (prev + 1) % projectedFrames.length);
+  };
+
+  const selectedModalAngleInfo = activeAngleModal
+    ? PHOTO_ANGLES.find((a) => a.key === activeAngleModal) || PHOTO_ANGLES[0]
+    : null;
+  const selectedModalExistingPhoto = activeAngleModal
+    ? dayPhotos.find((p) => p.angle === activeAngleModal)
+    : undefined;
 
   return (
     <View style={{ marginTop: 2 }}>
-      {/* Selector de Fecha */}
+      {/* 1. BOTÓN DE CALENDARIO (POR DEFECTO HOY) */}
       <DateSelector date={date} onChange={setDate} />
 
-      {/* Tarjeta de Galería Fotográfica */}
+      {/* 2. TRES BOTONES UNO AL LADO DEL OTRO: FRENTE, PERFIL Y ESPALDA */}
       <View style={measureStyles.croquisGlassCard}>
         <LinearGradient colors={GRADIENTS.cardGlass} style={measureStyles.croquisCardGradient}>
           <View style={measureStyles.croquisHeaderRow}>
-            <View>
+            <View style={{ flex: 1 }}>
               <View style={s.hudBadge}>
                 <Ionicons name="camera-outline" size={11} color={C.pastelPurple} />
-                <Text style={s.hudBadgeText}>✦ REGISTRO FOTOGRÁFICO ✦</Text>
+                <Text style={s.hudBadgeText}>✦ CAPTURA DEL DÍA ✦</Text>
               </View>
               <Text style={measureStyles.croquisSubTitle}>
-                Compara tu transformación física día a día
+                Toca un ángulo para tomar foto con cámara o subir de galería
               </Text>
+            </View>
+            <View style={measureStyles.measureProgressBadge}>
+              <Text style={measureStyles.measureProgressText}>{dayPhotos.length} / 3</Text>
+              <Text style={measureStyles.measureProgressSub}>ÁNGULOS</Text>
             </View>
           </View>
 
-          <View style={measureStyles.photosGrid}>
-            {angles.map((ang) => {
-              const photo = photos.find((p) => p.angle === ang.key);
+          {/* Fila de 3 botones uno al lado del otro */}
+          <View style={measureStyles.photosThreeRow}>
+            {PHOTO_ANGLES.map((ang) => {
+              const photo = dayPhotos.find((p) => p.angle === ang.key);
+              const hasPhoto = !!photo;
+
               return (
-                <View key={ang.key} style={measureStyles.photoSlotCard}>
-                  <View style={measureStyles.photoSlotHeader}>
-                    <Ionicons name={ang.icon} size={13} color={C.pastelPurple} />
-                    <Text style={measureStyles.photoSlotTitle}>{ang.label}</Text>
+                <Pressable
+                  key={ang.key}
+                  onPress={() => setActiveAngleModal(ang.key)}
+                  style={({ pressed }) => [
+                    measureStyles.photoAngleBtnCard,
+                    hasPhoto && measureStyles.photoAngleBtnCardActive,
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  {/* Encabezado compacto del ángulo */}
+                  <View style={measureStyles.photoAngleHeaderRow}>
+                    <View
+                      style={[
+                        measureStyles.photoAngleIconDot,
+                        { backgroundColor: `${ang.accent}1F` },
+                      ]}
+                    >
+                      <Ionicons name={ang.icon} size={12} color={ang.accent} />
+                    </View>
+                    <Text style={measureStyles.photoAngleTitle} numberOfLines={1}>
+                      {ang.label}
+                    </Text>
                   </View>
 
-                  <Pressable
-                    onPress={() => {
-                      Alert.alert(
-                        `Fotografía de ${ang.label}`,
-                        'Elige una opción para registrar tu avance físico:',
-                        [
-                          { text: 'Tomar Foto con Cámara', onPress: () => {} },
-                          { text: 'Seleccionar de Galería', onPress: () => {} },
-                          { text: 'Cancelar', style: 'cancel' },
-                        ]
-                      );
-                    }}
-                    style={measureStyles.photoSlotEmptyBox}
-                  >
-                    <Ionicons name="camera" size={32} color={C.pastelPurple} />
-                    <Text style={measureStyles.photoSlotUploadText}>+ Añadir foto</Text>
-                    <Text style={measureStyles.photoSlotSubText}>Ángulo {ang.label.toLowerCase()}</Text>
-                  </Pressable>
-                </View>
+                  {/* Contenido del botón: Miniatura si ya hay foto o estado de captura */}
+                  {hasPhoto ? (
+                    <View style={measureStyles.photoThumbPreviewBox}>
+                      <Image
+                        source={{ uri: photo.uri }}
+                        style={measureStyles.photoThumbImage}
+                        resizeMode="cover"
+                      />
+                      <View style={measureStyles.photoThumbSavedBadge}>
+                        <Ionicons name="checkmark-circle" size={13} color="#10B981" />
+                        <Text style={measureStyles.photoThumbSavedText}>Lista</Text>
+                      </View>
+                      <View style={measureStyles.photoThumbEditCorner}>
+                        <Ionicons name="camera" size={12} color="#FFFFFF" />
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={measureStyles.photoAngleEmptySlot}>
+                      <View style={measureStyles.photoAngleCameraOrb}>
+                        <Ionicons name="camera" size={20} color={C.pastelPurple} />
+                      </View>
+                      <Text style={measureStyles.photoAngleActionText}>+ Foto</Text>
+                      <Text style={measureStyles.photoAngleSubHint} numberOfLines={1}>
+                        Cámara / Galería
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
               );
             })}
           </View>
         </LinearGradient>
       </View>
+
+      {/* 3. PROYECTOR DE AVANCE FÍSICO (ORDEN DE PRIMERAS A ÚLTIMAS + MODO GIF) */}
+      <View style={measureStyles.croquisGlassCard}>
+        <LinearGradient colors={GRADIENTS.cardGlass} style={measureStyles.croquisCardGradient}>
+          {/* Cabecera del Proyector */}
+          <View style={measureStyles.projectorHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <View style={measureStyles.chartTagBadge}>
+                <Ionicons name="film-outline" size={12} color="#8B5CF6" />
+                <Text style={measureStyles.chartTagText}>✦ PROYECCIÓN CRONOLÓGICA ✦</Text>
+              </View>
+              <Text style={measureStyles.chartTitle}>Avance en Modo GIF</Text>
+              <Text style={measureStyles.croquisSubTitle}>
+                Proyección ordenada de la primera a la última foto
+              </Text>
+            </View>
+
+            {/* Indicador de total de fotos en la secuencia */}
+            <View style={measureStyles.framesCounterBadge}>
+              <Text style={measureStyles.framesCounterValue}>{projectedFrames.length}</Text>
+              <Text style={measureStyles.framesCounterLabel}>FOTOS</Text>
+            </View>
+          </View>
+
+          {/* Selector de Ángulo a Proyectar: Frente | Perfil | Espalda | Todas */}
+          <View style={measureStyles.projectorFilterBar}>
+            {PROJECTOR_FILTER_OPTIONS.map((opt) => {
+              const active = projectorFilter === opt.key;
+              return (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => setProjectorFilter(opt.key)}
+                  style={({ pressed }) => [
+                    measureStyles.projectorFilterPill,
+                    active && measureStyles.projectorFilterPillActive,
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <Ionicons
+                    name={opt.icon}
+                    size={13}
+                    color={active ? '#FFFFFF' : C.sub}
+                  />
+                  <Text
+                    style={[
+                      measureStyles.projectorFilterText,
+                      active && measureStyles.projectorFilterTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Escenario de Proyección */}
+          {projectedFrames.length === 0 ? (
+            <View style={measureStyles.projectorEmptyStage}>
+              <View style={measureStyles.emptyStateIconCircle}>
+                <Ionicons name="images-outline" size={26} color="#8B5CF6" />
+              </View>
+              <Text style={measureStyles.emptyStateTitle}>
+                Sin fotos para proyectar ({PROJECTOR_FILTER_OPTIONS.find((o) => o.key === projectorFilter)?.label})
+              </Text>
+              <Text style={measureStyles.emptyStateSubtitle}>
+                Registra tus fotos de Frente, Perfil o Espalda usando los 3 botones de arriba en distintas fechas para ver tu transformación física paso a paso o en tipo GIF.
+              </Text>
+              <Pressable
+                onPress={() =>
+                  setActiveAngleModal(projectorFilter === 'all' ? 'front' : projectorFilter)
+                }
+                style={({ pressed }) => [
+                  measureStyles.emptyAddBtn,
+                  pressed && s.btnPressed,
+                ]}
+              >
+                <Ionicons name="camera-outline" size={14} color="#8B5CF6" />
+                <Text style={measureStyles.emptyAddBtnText}>Subir primera foto ahora</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={measureStyles.projectorStageContainer}>
+              {/* Visor Principal de la Imagen Proyectada */}
+              <View style={measureStyles.projectorViewport}>
+                <Image
+                  source={{ uri: activeFrame.uri }}
+                  style={measureStyles.projectorMainImage}
+                  resizeMode="cover"
+                />
+
+                {/* Badge Superior Izquierdo: Fecha y Peso del Día */}
+                <View style={measureStyles.projectorTopLeftBadge}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Ionicons name="calendar" size={12} color="#F0ABFC" />
+                    <Text style={measureStyles.projectorDateText}>
+                      {activeFrame.formattedDate}
+                    </Text>
+                  </View>
+                  {activeFrame.weight !== undefined && activeFrame.weight > 0 && (
+                    <Text style={measureStyles.projectorWeightSub}>
+                      Peso: {activeFrame.weight} kg
+                    </Text>
+                  )}
+                </View>
+
+                {/* Badge Superior Derecho: Ángulo + Posición en la Secuencia */}
+                <View style={measureStyles.projectorTopRightBadge}>
+                  <Text style={measureStyles.projectorAngleTagText}>
+                    {activeFrame.angle === 'front'
+                      ? 'FRENTE'
+                      : activeFrame.angle === 'side'
+                      ? 'PERFIL'
+                      : 'ESPALDA'}
+                  </Text>
+                  <Text style={measureStyles.projectorFrameCountText}>
+                    {safeIndex + 1} / {projectedFrames.length}
+                  </Text>
+                </View>
+
+                {/* Botones flotantes laterales en el visor para pasar una por una */}
+                {projectedFrames.length > 1 && (
+                  <>
+                    <Pressable
+                      onPress={stepPrev}
+                      style={({ pressed }) => [
+                        measureStyles.stageSideNavBtn,
+                        { left: 10 },
+                        pressed && s.btnPressed,
+                      ]}
+                    >
+                      <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
+                    </Pressable>
+
+                    <Pressable
+                      onPress={stepNext}
+                      style={({ pressed }) => [
+                        measureStyles.stageSideNavBtn,
+                        { right: 10 },
+                        pressed && s.btnPressed,
+                      ]}
+                    >
+                      <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+                    </Pressable>
+                  </>
+                )}
+
+                {/* Barra de progreso inferior dentro del visor (Primera -> Última) */}
+                <View style={measureStyles.projectorBottomHudBar}>
+                  <View style={measureStyles.projectorOrderLabelsRow}>
+                    <Text style={measureStyles.projectorOrderEdgeText}>
+                      {safeIndex === 0 ? '★ PRIMERA FOTO' : 'PRIMERA'}
+                    </Text>
+                    {isPlayingGif && (
+                      <View style={measureStyles.gifLivePill}>
+                        <View style={measureStyles.gifLiveDot} />
+                        <Text style={measureStyles.gifLiveText}>MODO GIF ACTIVO</Text>
+                      </View>
+                    )}
+                    <Text style={measureStyles.projectorOrderEdgeText}>
+                      {safeIndex === projectedFrames.length - 1 ? 'ÚLTIMA FOTO ★' : 'ÚLTIMA'}
+                    </Text>
+                  </View>
+
+                  <View style={measureStyles.projectorProgressTrack}>
+                    <View
+                      style={[
+                        measureStyles.projectorProgressFill,
+                        {
+                          width: `${
+                            projectedFrames.length === 1
+                              ? 100
+                              : Math.round(((safeIndex + 1) / projectedFrames.length) * 100)
+                          }%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Controles de Reproducción Tipo GIF y Paso a Paso */}
+              <View style={measureStyles.projectorControlsBar}>
+                {/* Botón Anterior (Pasar una por una) */}
+                <Pressable
+                  onPress={stepPrev}
+                  disabled={projectedFrames.length <= 1}
+                  style={({ pressed }) => [
+                    measureStyles.stepControlBtn,
+                    projectedFrames.length <= 1 && { opacity: 0.45 },
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <Ionicons name="play-skip-back" size={15} color={C.text} />
+                  <Text style={measureStyles.stepControlBtnText}>Anterior</Text>
+                </Pressable>
+
+                {/* Botón Central: Reproducir / Pausar Avance Tipo GIF */}
+                <Pressable
+                  onPress={() => {
+                    if (projectedFrames.length <= 1) {
+                      Alert.alert(
+                        'Añade más fotos',
+                        'Registra al menos 2 fotos en este filtro para reproducir la animación de avance tipo GIF.'
+                      );
+                      return;
+                    }
+                    setIsPlayingGif((prev) => !prev);
+                  }}
+                  style={({ pressed }) => [
+                    measureStyles.gifPlayMainBtn,
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={isPlayingGif ? ['#EC4899', '#8B5CF6'] : ['#8B5CF6', '#EC4899']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={measureStyles.gifPlayMainGradient}
+                  >
+                    <Ionicons
+                      name={isPlayingGif ? 'pause' : 'play'}
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                    <Text style={measureStyles.gifPlayMainText}>
+                      {isPlayingGif ? 'Pausar GIF' : 'Ver en GIF'}
+                    </Text>
+                  </LinearGradient>
+                </Pressable>
+
+                {/* Botón Siguiente (Pasar una por una) */}
+                <Pressable
+                  onPress={stepNext}
+                  disabled={projectedFrames.length <= 1}
+                  style={({ pressed }) => [
+                    measureStyles.stepControlBtn,
+                    projectedFrames.length <= 1 && { opacity: 0.45 },
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <Text style={measureStyles.stepControlBtnText}>Siguiente</Text>
+                  <Ionicons name="play-skip-forward" size={15} color={C.text} />
+                </Pressable>
+              </View>
+
+              {/* Selector de Velocidad del GIF + Tira de Fotogramas (De primera a última) */}
+              <View style={measureStyles.projectorTimelineSection}>
+                <View style={measureStyles.timelineHeaderRow}>
+                  <Text style={measureStyles.timelineHintText}>
+                    SECUENCIA (PRIMERA → ÚLTIMA):
+                  </Text>
+                  <View style={measureStyles.gifSpeedRow}>
+                    <Text style={measureStyles.gifSpeedLabel}>Velocidad GIF:</Text>
+                    {GIF_SPEEDS.map((sp, idx) => {
+                      const active = gifSpeedIdx === idx;
+                      return (
+                        <Pressable
+                          key={sp.label}
+                          onPress={() => setGifSpeedIdx(idx)}
+                          style={[
+                            measureStyles.gifSpeedChip,
+                            active && measureStyles.gifSpeedChipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              measureStyles.gifSpeedChipText,
+                              active && measureStyles.gifSpeedChipTextActive,
+                            ]}
+                          >
+                            {sp.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={measureStyles.framesStripScroll}
+                >
+                  {projectedFrames.map((item, idx) => {
+                    const selected = idx === safeIndex;
+                    return (
+                      <Pressable
+                        key={item.id}
+                        onPress={() => {
+                          setIsPlayingGif(false);
+                          setCurrentIndex(idx);
+                        }}
+                        style={[
+                          measureStyles.frameStripThumbCard,
+                          selected && measureStyles.frameStripThumbCardActive,
+                        ]}
+                      >
+                        <Image
+                          source={{ uri: item.uri }}
+                          style={measureStyles.frameStripThumbImg}
+                          resizeMode="cover"
+                        />
+                        <View style={measureStyles.frameStripIndexBadge}>
+                          <Text style={measureStyles.frameStripIndexText}>#{idx + 1}</Text>
+                        </View>
+                        <Text style={measureStyles.frameStripDateText} numberOfLines={1}>
+                          {item.formattedDate.slice(0, 6)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
+          )}
+        </LinearGradient>
+      </View>
+
+      {/* MODAL PARA TOMAR FOTO CON CÁMARA O ELEGIR DE GALERÍA */}
+      <Modal
+        visible={activeAngleModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveAngleModal(null)}
+      >
+        <Pressable
+          style={measureStyles.modalBackdropOverlay}
+          onPress={() => setActiveAngleModal(null)}
+        >
+          <Pressable
+            style={measureStyles.modalDialogCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {selectedModalAngleInfo && (
+              <>
+                <View style={measureStyles.modalHeaderRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <View style={measureStyles.modalIconCircle}>
+                      <Ionicons
+                        name={selectedModalAngleInfo.icon}
+                        size={20}
+                        color={C.pastelPurple}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={measureStyles.modalTitle}>
+                        Foto de {selectedModalAngleInfo.label}
+                      </Text>
+                      <Text style={measureStyles.modalSubtitle}>
+                        {date.toLocaleDateString('es-ES', {
+                          day: '2-digit',
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Pressable
+                    onPress={() => setActiveAngleModal(null)}
+                    style={measureStyles.modalCloseBtn}
+                    hitSlop={10}
+                  >
+                    <Ionicons name="close" size={22} color={C.sub} />
+                  </Pressable>
+                </View>
+
+                <Text style={measureStyles.selectModelDescription}>
+                  Elige cómo deseas registrar tu fotografía de{' '}
+                  {selectedModalAngleInfo.label.toLowerCase()} para esta fecha:
+                </Text>
+
+                <View style={{ gap: 10, marginTop: 14 }}>
+                  {/* Opción 1: Abrir Cámara */}
+                  <Pressable
+                    onPress={() => handleTakePhotoWithCamera(selectedModalAngleInfo.key)}
+                    style={({ pressed }) => [
+                      measureStyles.photoSourceOptionBtn,
+                      pressed && s.btnPressed,
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={['#8B5CF6', '#EC4899']}
+                      style={measureStyles.photoSourceIconBadge}
+                    >
+                      <Ionicons name="camera" size={20} color="#FFFFFF" />
+                    </LinearGradient>
+                    <View style={{ flex: 1 }}>
+                      <Text style={measureStyles.photoSourceOptionTitle}>
+                        Tomar foto con la Cámara
+                      </Text>
+                      <Text style={measureStyles.photoSourceOptionSub}>
+                        Abre la cámara de tu dispositivo ahora mismo
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={C.pastelPurple} />
+                  </Pressable>
+
+                  {/* Opción 2: Elegir de la Galería */}
+                  <Pressable
+                    onPress={() => handlePickFromGallery(selectedModalAngleInfo.key)}
+                    style={({ pressed }) => [
+                      measureStyles.photoSourceOptionBtn,
+                      pressed && s.btnPressed,
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={['#3B82F6', '#8B5CF6']}
+                      style={measureStyles.photoSourceIconBadge}
+                    >
+                      <Ionicons name="images" size={20} color="#FFFFFF" />
+                    </LinearGradient>
+                    <View style={{ flex: 1 }}>
+                      <Text style={measureStyles.photoSourceOptionTitle}>
+                        Seleccionar de la Galería
+                      </Text>
+                      <Text style={measureStyles.photoSourceOptionSub}>
+                        Elige una foto guardada en tu teléfono
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={C.pastelPurple} />
+                  </Pressable>
+
+                  {/* Opción 3: Eliminar foto actual si ya existe en este día */}
+                  {selectedModalExistingPhoto && (
+                    <Pressable
+                      onPress={() => {
+                        onDeletePhoto(selectedModalExistingPhoto.id);
+                        setActiveAngleModal(null);
+                      }}
+                      style={({ pressed }) => [
+                        measureStyles.photoDeleteOptionBtn,
+                        pressed && s.btnPressed,
+                      ]}
+                    >
+                      <Ionicons name="trash-outline" size={17} color={C.danger} />
+                      <Text style={measureStyles.photoDeleteOptionText}>
+                        Eliminar foto actual de {selectedModalAngleInfo.label.toLowerCase()}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -3139,48 +3867,511 @@ const measureStyles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  // Fotos de Progreso
-  photosGrid: {
-    gap: 12,
+  // Fotos de Progreso: 3 botones uno al lado del otro + Proyector Tipo GIF
+  photosThreeRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    justifyContent: 'space-between',
+    gap: 8,
     marginTop: 4,
   },
-  photoSlotCard: {
+  photoAngleBtnCard: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 14,
+    padding: 8,
+    borderWidth: 1.5,
+    borderColor: C.borderLight,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  photoAngleBtnCardActive: {
+    borderColor: 'rgba(139, 92, 246, 0.55)',
+    backgroundColor: '#FAF5FF',
+  },
+  photoAngleHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginBottom: 7,
+  },
+  photoAngleIconDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoAngleTitle: {
+    color: C.text,
+    fontSize: 12.5,
+    fontWeight: '900',
+  },
+  photoAngleEmptySlot: {
+    height: 118,
+    borderRadius: 12,
+    borderWidth: 1.4,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(167, 139, 250, 0.45)',
+    backgroundColor: 'rgba(245, 247, 255, 0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    gap: 4,
+  },
+  photoAngleCameraOrb: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  photoAngleActionText: {
+    color: C.pastelPurple,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  photoAngleSubHint: {
+    color: C.subMuted,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  photoThumbPreviewBox: {
+    height: 118,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0F172A',
+  },
+  photoThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  photoThumbSavedBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+  },
+  photoThumbSavedText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  photoThumbEditCorner: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(139, 92, 246, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Proyector de Avance Físico (Modo GIF y Paso a Paso)
+  projectorHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  framesCounterBadge: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: C.borderLight,
   },
-  photoSlotHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
+  framesCounterValue: {
+    color: '#8B5CF6',
+    fontSize: 15,
+    fontWeight: '900',
   },
-  photoSlotTitle: {
-    color: C.text,
-    fontSize: 14,
+  framesCounterLabel: {
+    color: C.subMuted,
+    fontSize: 8,
     fontWeight: '800',
+    letterSpacing: 0.7,
   },
-  photoSlotEmptyBox: {
-    height: 120,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(167, 139, 250, 0.4)',
-    backgroundColor: 'rgba(245, 247, 255, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  projectorFilterBar: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(238, 242, 255, 0.9)',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: C.borderLight,
     gap: 4,
   },
-  photoSlotUploadText: {
-    color: C.pastelPurple,
-    fontSize: 13,
+  projectorFilterPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 10,
+    gap: 4,
+  },
+  projectorFilterPillActive: {
+    backgroundColor: '#8B5CF6',
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.28,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  projectorFilterText: {
+    color: C.sub,
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  projectorFilterTextActive: {
+    color: '#FFFFFF',
     fontWeight: '800',
   },
-  photoSlotSubText: {
-    color: C.subMuted,
+  projectorEmptyStage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(248, 250, 252, 0.75)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(167, 139, 250, 0.4)',
+  },
+  projectorStageContainer: {
+    gap: 12,
+  },
+  projectorViewport: {
+    width: '100%',
+    height: 370,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#1E293B',
+    position: 'relative',
+    borderWidth: 1.5,
+    borderColor: 'rgba(167, 139, 250, 0.5)',
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  projectorMainImage: {
+    width: '100%',
+    height: '100%',
+  },
+  projectorTopLeftBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(240, 171, 252, 0.45)',
+  },
+  projectorDateText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  projectorWeightSub: {
+    color: '#34D399',
     fontSize: 10,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  projectorTopRightBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    alignItems: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(196, 181, 253, 0.45)',
+  },
+  projectorAngleTagText: {
+    color: '#F0ABFC',
+    fontSize: 9.5,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  projectorFrameCountText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    marginTop: 1,
+  },
+  stageSideNavBtn: {
+    position: 'absolute',
+    top: '44%',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(15, 23, 42, 0.68)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  projectorBottomHudBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  projectorOrderLabelsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  projectorOrderEdgeText: {
+    color: 'rgba(226, 232, 240, 0.9)',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  gifLivePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(236, 72, 153, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F472B6',
+  },
+  gifLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F472B6',
+  },
+  gifLiveText: {
+    color: '#FBCFE8',
+    fontSize: 8.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  projectorProgressTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(148, 163, 184, 0.35)',
+    overflow: 'hidden',
+  },
+  projectorProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: '#E879F9',
+  },
+  projectorControlsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  stepControlBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    minWidth: 92,
+  },
+  stepControlBtnText: {
+    color: C.text,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  gifPlayMainBtn: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  gifPlayMainGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+  },
+  gifPlayMainText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  projectorTimelineSection: {
+    marginTop: 2,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(226, 232, 240, 0.65)',
+  },
+  timelineHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  timelineHintText: {
+    color: C.subMuted,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  gifSpeedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  gifSpeedLabel: {
+    color: C.sub,
+    fontSize: 10,
+    fontWeight: '700',
+    marginRight: 2,
+  },
+  gifSpeedChip: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: C.borderLight,
+  },
+  gifSpeedChipActive: {
+    backgroundColor: '#8B5CF6',
+    borderColor: '#8B5CF6',
+  },
+  gifSpeedChipText: {
+    color: C.sub,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  gifSpeedChipTextActive: {
+    color: '#FFFFFF',
+  },
+  framesStripScroll: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  frameStripThumbCard: {
+    width: 62,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 3,
+    borderWidth: 1.5,
+    borderColor: C.borderLight,
+    alignItems: 'center',
+  },
+  frameStripThumbCardActive: {
+    borderColor: '#8B5CF6',
+    backgroundColor: '#FAF5FF',
+  },
+  frameStripThumbImg: {
+    width: '100%',
+    height: 64,
+    borderRadius: 7,
+    backgroundColor: '#1E293B',
+  },
+  frameStripIndexBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    paddingHorizontal: 4.5,
+    paddingVertical: 1,
+    borderRadius: 5,
+  },
+  frameStripIndexText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  frameStripDateText: {
+    color: C.sub,
+    fontSize: 8.5,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+
+  // Modal de Cámara / Galería
+  photoSourceOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F8FAFF',
+    padding: 13,
+    borderRadius: 16,
+    borderWidth: 1.2,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  photoSourceIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoSourceOptionTitle: {
+    color: C.text,
+    fontSize: 13.5,
+    fontWeight: '900',
+  },
+  photoSourceOptionSub: {
+    color: C.sub,
+    fontSize: 11,
     fontWeight: '600',
+    marginTop: 1,
+  },
+  photoDeleteOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 14,
+    backgroundColor: C.dangerBg,
+    borderWidth: 1,
+    borderColor: C.danger,
+    marginTop: 2,
+  },
+  photoDeleteOptionText: {
+    color: C.danger,
+    fontSize: 12.5,
+    fontWeight: '800',
   },
 });
