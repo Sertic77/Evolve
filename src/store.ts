@@ -191,8 +191,50 @@ export const useStore = create<State>()(
 
       setDayWorkout: (date, exercises) =>
         set((s) => ({ workoutLogs: { ...s.workoutLogs, [date]: exercises } })),
-      // Medidas Corporales
+      // Medidas Corporales (Semillas con historial para gráfica de crecimiento)
       measurementLogs: {
+        '2026-09-15': {
+          chest: 99.5,
+          right_arm: 34.5,
+          left_arm: 34.0,
+          waist: 83.5,
+          right_thigh: 56.0,
+          left_thigh: 56.0,
+          glutes: 95.5,
+          back: 106.5,
+          right_calf: 36.0,
+          left_calf: 36.0,
+          right_forearm: 28.0,
+          left_forearm: 28.0,
+        },
+        '2026-10-10': {
+          chest: 100.8,
+          right_arm: 35.2,
+          left_arm: 34.8,
+          waist: 82.2,
+          right_thigh: 57.0,
+          left_thigh: 57.0,
+          glutes: 96.8,
+          back: 108.2,
+          right_calf: 36.5,
+          left_calf: 36.5,
+          right_forearm: 28.5,
+          left_forearm: 28.5,
+        },
+        '2026-10-24': {
+          chest: 101.6,
+          right_arm: 35.8,
+          left_arm: 35.3,
+          waist: 81.4,
+          right_thigh: 57.6,
+          left_thigh: 57.6,
+          glutes: 97.6,
+          back: 109.5,
+          right_calf: 36.8,
+          left_calf: 36.8,
+          right_forearm: 28.8,
+          left_forearm: 28.8,
+        },
         '2026-10-30': {
           chest: 102,
           right_arm: 36,
@@ -202,6 +244,10 @@ export const useStore = create<State>()(
           left_thigh: 58,
           glutes: 98,
           back: 110,
+          right_calf: 37,
+          left_calf: 37,
+          right_forearm: 29,
+          left_forearm: 29,
         },
       },
       setPartMeasurement: (date, part, value) =>
