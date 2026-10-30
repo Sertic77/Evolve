@@ -348,7 +348,7 @@ function WorkoutDynamicChart({
   const WORKOUT_RING_CIRC = 2 * Math.PI * WORKOUT_RING_R;
 
   // Altura animada: crece cuando pasa a estadísticas (222 matching Comidas, 288 en Estadísticas)
-  const heightAnim = useRef(new Animated.Value(tab === 0 ? 222 : 288)).current;
+  const heightAnim = useRef(new Animated.Value(tab === 0 ? 234 : 288)).current;
 
   // Animación del fondo (orbes flotantes)
   const floatAnim1 = useRef(new Animated.Value(0)).current;
@@ -367,7 +367,7 @@ function WorkoutDynamicChart({
 
   useEffect(() => {
     Animated.timing(heightAnim, {
-      toValue: tab === 0 ? 222 : 288,
+      toValue: tab === 0 ? 234 : 288,
       duration: 320,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
@@ -887,34 +887,34 @@ function WorkoutDynamicChart({
               </View>
             </View>
 
-            {/* Métricas laterales en tarjetas pastel */}
-            <View style={{ flex: 1, marginLeft: 18, gap: 9 }}>
-              <View style={styles.metricPillCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="barbell-outline" size={15} color={C.pastelPurple} />
-                  <Text style={styles.metricPillLabel}>Volumen levantado</Text>
+            {/* Métricas laterales en tarjetas pastel (Divididas en 2 líneas de texto para óptima legibilidad y UX) */}
+            <View style={{ flex: 1, marginLeft: 14, gap: 7, justifyContent: 'center' }}>
+              <View style={styles.metricBlockCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="barbell-outline" size={13} color={C.pastelPurple} />
+                  <Text style={styles.metricBlockLabel} numberOfLines={1}>Volumen levantado</Text>
                 </View>
-                <Text style={styles.metricPillValue}>
+                <Text style={styles.metricBlockValue}>
                   {dayStats.totalVolume > 9999
                     ? `${(dayStats.totalVolume / 1000).toFixed(1)}k kg`
-                    : `${Math.round(dayStats.totalVolume)} kg`}
+                    : `${Math.round(dayStats.totalVolume).toLocaleString()} kg`}
                 </Text>
               </View>
 
-              <View style={styles.metricPillCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="layers-outline" size={15} color={C.pastelMint} />
-                  <Text style={styles.metricPillLabel}>Series realizadas</Text>
+              <View style={styles.metricBlockCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="layers-outline" size={13} color={C.pastelMint} />
+                  <Text style={styles.metricBlockLabel} numberOfLines={1}>Series realizadas</Text>
                 </View>
-                <Text style={[styles.metricPillValue, { color: C.pastelMint }]}>{dayStats.totalSets} sets</Text>
+                <Text style={[styles.metricBlockValue, { color: C.pastelMint }]}>{dayStats.totalSets} sets</Text>
               </View>
 
-              <View style={styles.metricPillCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="repeat-outline" size={15} color={C.pastelPink} />
-                  <Text style={styles.metricPillLabel}>Repeticiones totales</Text>
+              <View style={styles.metricBlockCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="repeat-outline" size={13} color={C.pastelPink} />
+                  <Text style={styles.metricBlockLabel} numberOfLines={1}>Repeticiones totales</Text>
                 </View>
-                <Text style={[styles.metricPillValue, { color: C.pastelPink }]}>{dayStats.totalReps} reps</Text>
+                <Text style={[styles.metricBlockValue, { color: C.pastelPink }]}>{dayStats.totalReps} reps</Text>
               </View>
             </View>
           </View>
@@ -1996,7 +1996,7 @@ const styles = StyleSheet.create({
   dayWorkoutSummaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 14,
+    marginTop: 10,
   },
   workoutVolRingContainer: {
     width: 152,
@@ -2050,13 +2050,10 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: 'rgba(244, 63, 94, 0.25)',
   },
-  metricPillCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  metricBlockCard: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 9.5,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: C.borderLight,
@@ -2064,16 +2061,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
+    justifyContent: 'center',
   },
-  metricPillLabel: {
+  metricBlockLabel: {
     color: C.sub,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
+    flexShrink: 1,
   },
-  metricPillValue: {
+  metricBlockValue: {
     color: C.pastelPurple,
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 14.5,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+    marginTop: 2,
   },
 
   // Estadísticas rotativas
