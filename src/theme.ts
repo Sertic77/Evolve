@@ -28,7 +28,7 @@ export const C = {
   pastelHoney: '#F59E0B',    // Sol Vainilla / Miel
 
   // Macros en Tonos Pastel Vivos para fondo claro
-  kcal: '#FF5E7E',          // Fuego Coral Pastel
+  kcal: '#10B981',          // Kcal Ganadas (Verde Esmeralda Pastel)
   carbs: '#D97706',         // Miel Ámbar Pastel
   protein: '#0D9488',       // Menta Esmeralda Pastel
   fat: '#8B5CF6',           // Lavanda Pastel
@@ -58,7 +58,7 @@ export const GRADIENTS = {
   floatingHomeInactive: ['#E2E8F0', '#CBD5E1'] as const,
   
   // Macros
-  kcalGradient: ['#FF5E7E', '#FDA4AF'] as const,
+  kcalGradient: ['#10B981', '#6EE7B7'] as const,
   proteinGradient: ['#0D9488', '#5EEAD4'] as const,
 };
 

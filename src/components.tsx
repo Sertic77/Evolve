@@ -27,12 +27,20 @@ export function MacroSummary({ m }: { m: Macros }) {
 
   // Valores de Animación Anime
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const flameTranslateY = useRef(new Animated.Value(0)).current;
+  const flameRotate = useRef(new Animated.Value(0)).current;
+  const flameAura = useRef(new Animated.Value(0.4)).current;
   const ringScaleAnim = useRef(new Animated.Value(0.92)).current;
   const barsAnim = useRef(new Animated.Value(0)).current;
 
   // Animación del Fondo de Energía Flotante Anime
   const floatAnim1 = useRef(new Animated.Value(0)).current;
   const floatAnim2 = useRef(new Animated.Value(0)).current;
+
+  const flameRotateDeg = flameRotate.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ['-6deg', '6deg'],
+  });
 
   useEffect(() => {
     // 1. Animación de Ignición / Entrada del Anillo
@@ -52,24 +60,76 @@ export function MacroSummary({ m }: { m: Macros }) {
       useNativeDriver: false,
     }).start();
 
-    // 3. Pulso expresivo continuo de la llama de Kcal (Respiración de fuego anime)
-    const loop = Animated.loop(
+    // 3. Pulso expresivo continuo de la llama de Kcal ganadas (pulso, movimiento y brillo verde)
+    const pulseLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.22,
-          duration: 800,
-          easing: Easing.inOut(Easing.ease),
+        Animated.parallel([
+          Animated.timing(pulseAnim, {
+            toValue: 1.25,
+            duration: 750,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+          Animated.timing(flameAura, {
+            toValue: 0.85,
+            duration: 750,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(pulseAnim, {
+            toValue: 0.94,
+            duration: 750,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+          Animated.timing(flameAura, {
+            toValue: 0.35,
+            duration: 750,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    );
+    pulseLoop.start();
+
+    const bobbingLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(flameTranslateY, {
+          toValue: -3.5,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
-        Animated.timing(pulseAnim, {
-          toValue: 0.94,
-          duration: 800,
-          easing: Easing.inOut(Easing.ease),
+        Animated.timing(flameTranslateY, {
+          toValue: 2,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
       ]),
     );
-    loop.start();
+    bobbingLoop.start();
+
+    const tiltLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(flameRotate, {
+          toValue: 1,
+          duration: 480,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(flameRotate, {
+          toValue: -1,
+          duration: 480,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    tiltLoop.start();
 
     // 4. Animación continua de fondo flotante anime (ondas de maná/energía)
     const bgLoop1 = Animated.loop(
@@ -110,7 +170,9 @@ export function MacroSummary({ m }: { m: Macros }) {
     bgLoop2.start();
 
     return () => {
-      loop.stop();
+      pulseLoop.stop();
+      bobbingLoop.stop();
+      tiltLoop.stop();
       bgLoop1.stop();
       bgLoop2.stop();
     };
@@ -222,19 +284,36 @@ export function MacroSummary({ m }: { m: Macros }) {
               )}
             </Svg>
 
-            {/* Centro del Anillo: LLAMA DE FUEGO GRANDE Y ANIMADA */}
+            {/* Centro del Anillo: LLAMA DE FUEGO VERDE (KCAL GANADAS) CON AURA Y ANIMACIÓN */}
             <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
               <View style={s.ringCenterGlow}>
-                <Animated.View
-                  style={[
-                    s.flameContainer,
-                    { transform: [{ scale: pulseAnim }] },
-                  ]}
-                >
-                  <Ionicons name="flame" size={32} color={C.kcal} />
-                </Animated.View>
+                <View style={{ width: 44, height: 38, alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
+                  <Animated.View
+                    style={[
+                      s.flameHaloGlowGreen,
+                      {
+                        transform: [{ scale: pulseAnim }],
+                        opacity: flameAura,
+                      },
+                    ]}
+                  />
+                  <Animated.View
+                    style={[
+                      s.flameContainer,
+                      {
+                        transform: [
+                          { translateY: flameTranslateY },
+                          { rotate: flameRotateDeg },
+                          { scale: pulseAnim },
+                        ],
+                      },
+                    ]}
+                  >
+                    <Ionicons name="flame" size={32} color={C.kcal} />
+                  </Animated.View>
+                </View>
                 <Text style={s.kcalBigNumber}>{Math.round(m.kcal || 0)}</Text>
-                <Text style={s.kcalUnit}>KCAL</Text>
+                <Text style={s.kcalUnit}>KCAL GANADAS</Text>
               </View>
             </View>
           </Animated.View>
@@ -1061,12 +1140,19 @@ export const s = StyleSheet.create({
     borderRadius: 51,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255, 94, 126, 0.3)',
+    borderColor: 'rgba(16, 185, 129, 0.28)',
     shadowColor: C.kcal,
     shadowOpacity: 0.2,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
+  },
+  flameHaloGlowGreen: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
   },
   flameContainer: {
     alignItems: 'center',
@@ -1084,9 +1170,9 @@ export const s = StyleSheet.create({
   },
   kcalUnit: {
     color: C.kcal,
-    fontSize: 10,
+    fontSize: 8.5,
     fontWeight: '800',
-    letterSpacing: 1.5,
+    letterSpacing: 0.8,
   },
 
   // Stats
