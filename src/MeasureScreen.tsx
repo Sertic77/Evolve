@@ -13,6 +13,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Keyboard,
+  Image,
 } from 'react-native';
 import Svg, {
   Path,
@@ -634,8 +635,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Pecho"
                   value={measurements.chest}
-                  top={90}
-                  left={168}
+                  top={114}
+                  left={175}
                   onPress={() => onSelectPart('chest')}
                 />
 
@@ -643,8 +644,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Bíceps D"
                   value={measurements.right_arm}
-                  top={112}
-                  left={6}
+                  top={135}
+                  left={8}
                   onPress={() => onSelectPart('right_arm')}
                 />
 
@@ -652,8 +653,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Bíceps I"
                   value={measurements.left_arm}
-                  top={112}
-                  right={6}
+                  top={135}
+                  right={8}
                   onPress={() => onSelectPart('left_arm')}
                 />
 
@@ -661,8 +662,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Cintura"
                   value={measurements.waist}
-                  top={145}
-                  left={168}
+                  top={180}
+                  left={175}
                   onPress={() => onSelectPart('waist')}
                 />
 
@@ -670,8 +671,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Muslo D"
                   value={measurements.right_thigh}
-                  top={220}
-                  left={24}
+                  top={275}
+                  left={18}
                   onPress={() => onSelectPart('right_thigh')}
                 />
 
@@ -679,8 +680,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Muslo I"
                   value={measurements.left_thigh}
-                  top={220}
-                  right={24}
+                  top={275}
+                  right={18}
                   onPress={() => onSelectPart('left_thigh')}
                 />
               </>
@@ -690,8 +691,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Espalda"
                   value={measurements.back}
-                  top={96}
-                  left={168}
+                  top={125}
+                  left={175}
                   onPress={() => onSelectPart('back')}
                 />
 
@@ -699,8 +700,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Nalgas"
                   value={measurements.glutes}
-                  top={162}
-                  left={168}
+                  top={232}
+                  left={175}
                   onPress={() => onSelectPart('glutes')}
                 />
 
@@ -708,8 +709,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Antebrazo D"
                   value={measurements.right_forearm}
-                  top={174}
-                  left={6}
+                  top={215}
+                  left={8}
                   onPress={() => onSelectPart('right_forearm')}
                 />
 
@@ -717,8 +718,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Antebrazo I"
                   value={measurements.left_forearm}
-                  top={174}
-                  right={6}
+                  top={215}
+                  right={8}
                   onPress={() => onSelectPart('left_forearm')}
                 />
 
@@ -726,8 +727,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Gemelo D"
                   value={measurements.right_calf}
-                  top={322}
-                  left={18}
+                  top={395}
+                  left={16}
                   onPress={() => onSelectPart('right_calf')}
                 />
 
@@ -735,8 +736,8 @@ function AnimeBodyMapCard({
                 <BodyMeasureBubble
                   label="Gemelo I"
                   value={measurements.left_calf}
-                  top={322}
-                  right={18}
+                  top={395}
+                  right={16}
                   onPress={() => onSelectPart('left_calf')}
                 />
               </>
@@ -944,7 +945,8 @@ function GenderModelSelectModal({
 }
 
 /* ==========================================================
-   VECTOR SVG: SILUETAS ANIME ANATÓMICAMENTE DETALLADAS
+   CROQUIS ANIME: ILUSTRACIONES ANATÓMICAS DE ALTA FIDELIDAD
+   CON CAPA INTERACTIVA SVG DE TOQUE Y RESALTADO
 ========================================================== */
 function AnimeBodyVector({
   genderModel,
@@ -958,9 +960,20 @@ function AnimeBodyVector({
   onSelectPart: (p: BodyPartKey) => void;
 }) {
   const width = 300;
-  const height = 416;
+  const height = 520;
 
-  const renderMuscleSection = (
+  // Selección de ilustración según género y vista anatómica (exacta a las fotos de referencia)
+  const imageSource =
+    genderModel === 'male'
+      ? view === 'front'
+        ? require('../assets/croquis/male_front.png')
+        : require('../assets/croquis/male_back.png')
+      : view === 'front'
+      ? require('../assets/croquis/female_front.png')
+      : require('../assets/croquis/female_back.png');
+
+  // Renderizador de zona muscular interactiva sobre el croquis
+  const renderMuscleTarget = (
     partKey: BodyPartKey,
     d: string,
     centerLabelX: number,
@@ -969,29 +982,34 @@ function AnimeBodyVector({
     const val = measurements[partKey];
     const isMeasured = val !== undefined && val > 0;
 
-    const fillColor = isMeasured
-      ? 'rgba(139, 92, 246, 0.4)'
-      : 'rgba(238, 242, 255, 0.9)';
-    const strokeColor = isMeasured ? '#8B5CF6' : 'rgba(167, 139, 250, 0.7)';
-    const strokeWidth = isMeasured ? 2.5 : 1.5;
-
     return (
       <G key={partKey} onPress={() => onSelectPart(partKey)}>
+        {/* Capa de toque y resaltado translúcido con glow al tener medida */}
         <Path
           d={d}
-          fill={fillColor}
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
+          fill={isMeasured ? 'rgba(139, 92, 246, 0.35)' : 'rgba(255, 255, 255, 0.01)'}
+          stroke={isMeasured ? '#8B5CF6' : 'transparent'}
+          strokeWidth={isMeasured ? 2 : 0}
           strokeLinejoin="round"
           strokeLinecap="round"
         />
         {isMeasured && (
-          <Circle
-            cx={centerLabelX}
-            cy={centerLabelY}
-            r={3.8}
-            fill="#8B5CF6"
-          />
+          <G>
+            <Circle
+              cx={centerLabelX}
+              cy={centerLabelY}
+              r={7}
+              fill="rgba(139, 92, 246, 0.28)"
+            />
+            <Circle
+              cx={centerLabelX}
+              cy={centerLabelY}
+              r={4}
+              fill="#8B5CF6"
+              stroke="#FFFFFF"
+              strokeWidth={1.5}
+            />
+          </G>
         )}
       </G>
     );
@@ -1001,87 +1019,26 @@ function AnimeBodyVector({
 
   return (
     <View style={measureStyles.svgContainer}>
-      <Svg width={width} height={height} viewBox="0 0 300 416">
+      {/* 1. Ilustración Anime de Referencia en Alta Definición */}
+      <Image
+        source={imageSource}
+        style={measureStyles.croquisIllustrationImage}
+        resizeMode="contain"
+      />
+
+      {/* 2. Capa Interactiva SVG sobre el Croquis */}
+      <Svg
+        width={width}
+        height={height}
+        viewBox="0 0 300 520"
+        style={StyleSheet.absoluteFill}
+      >
         <Defs>
           <SvgGradient id="animeGlowActive" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#A78BFA" stopOpacity="0.45" />
-            <Stop offset="100%" stopColor="#F472B6" stopOpacity="0.3" />
-          </SvgGradient>
-
-          <SvgGradient id="animeHeadGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="rgba(241, 245, 249, 0.98)" />
-            <Stop offset="100%" stopColor="rgba(226, 232, 240, 0.9)" />
+            <Stop offset="0%" stopColor="#A78BFA" stopOpacity="0.5" />
+            <Stop offset="100%" stopColor="#F472B6" stopOpacity="0.35" />
           </SvgGradient>
         </Defs>
-
-        {/* 1. CABEZA ANIME DETALLADA (No interactúa) */}
-        <G>
-          <Circle cx="150" cy="38" r="23" fill="rgba(203, 213, 225, 0.16)" />
-          {isMale ? (
-            /* Cabeza masculina anime con peinado puntiagudo y mandíbula marcada */
-            <>
-              <Path
-                d="M 150 12 C 132 12, 124 23, 124 39 C 124 53, 133 65, 143 69 L 142 77 L 158 77 L 157 69 C 167 65, 176 53, 176 39 C 176 23, 168 12, 150 12 Z"
-                fill="url(#animeHeadGrad)"
-                stroke="rgba(148, 163, 184, 0.7)"
-                strokeWidth="1.5"
-              />
-              {/* Mechones anime detallados */}
-              <Path d="M 130 26 Q 142 16 150 24 Q 158 16 170 26" stroke="rgba(167, 139, 250, 0.5)" strokeWidth="1.2" fill="none" />
-              <Path d="M 138 34 Q 150 28 162 34" stroke="rgba(167, 139, 250, 0.4)" strokeWidth="1.1" fill="none" />
-            </>
-          ) : (
-            /* Cabeza femenina anime con mentón fino y peinado suave */
-            <>
-              <Path
-                d="M 150 14 C 135 14, 127 25, 127 39 C 127 52, 135 63, 144 68 L 145 77 L 155 77 L 156 68 C 165 63, 173 52, 173 39 C 173 25, 165 14, 150 14 Z"
-                fill="url(#animeHeadGrad)"
-                stroke="rgba(148, 163, 184, 0.7)"
-                strokeWidth="1.5"
-              />
-              <Path d="M 134 26 C 144 20, 156 20, 166 26" stroke="rgba(244, 114, 182, 0.5)" strokeWidth="1.2" fill="none" />
-            </>
-          )}
-          {/* Cuello con trapecios */}
-          <Path
-            d={isMale ? 'M 142 74 L 140 83 L 160 83 L 158 74 Z' : 'M 145 74 L 144 83 L 156 83 L 155 74 Z'}
-            fill="rgba(226, 232, 240, 0.9)"
-            stroke="rgba(148, 163, 184, 0.6)"
-            strokeWidth="1.2"
-          />
-        </G>
-
-        {/* 2. MANOS ANATÓMICAS (No interactúan) */}
-        <G>
-          <Path
-            d="M 44 218 C 42 224, 39 232, 42 238 C 44 242, 49 242, 51 236 L 53 218 Z"
-            fill="rgba(226, 232, 240, 0.85)"
-            stroke="rgba(148, 163, 184, 0.6)"
-            strokeWidth="1.3"
-          />
-          <Path
-            d="M 256 218 C 258 224, 261 232, 258 238 C 256 242, 251 242, 249 236 L 247 218 Z"
-            fill="rgba(226, 232, 240, 0.85)"
-            stroke="rgba(148, 163, 184, 0.6)"
-            strokeWidth="1.3"
-          />
-        </G>
-
-        {/* 3. PIES ANATÓMICOS (No interactúan) */}
-        <G>
-          <Path
-            d="M 114 380 C 112 388, 107 396, 103 401 C 100 404, 107 406, 116 405 C 124 404, 126 399, 125 380 Z"
-            fill="rgba(226, 232, 240, 0.85)"
-            stroke="rgba(148, 163, 184, 0.6)"
-            strokeWidth="1.3"
-          />
-          <Path
-            d="M 186 380 C 188 388, 193 396, 197 401 C 200 404, 193 406, 184 405 C 176 404, 174 399, 175 380 Z"
-            fill="rgba(226, 232, 240, 0.85)"
-            stroke="rgba(148, 163, 184, 0.6)"
-            strokeWidth="1.3"
-          />
-        </G>
 
         {/* ========================================================
             VISTA FRONTAL (FRENTE)
@@ -1089,184 +1046,105 @@ function AnimeBodyVector({
         {view === 'front' && (
           <G>
             {isMale ? (
-              /* --- HOMBRE FRONTAL (Musculoso / V-Taper) --- */
+              /* --- HOMBRE FRONTAL (Musculoso) --- */
               <>
-                {/* Clavículas & Trapecios decorativos */}
-                <Line x1="141" y1="83" x2="110" y2="87" stroke="rgba(148, 163, 184, 0.45)" strokeWidth="1.2" />
-                <Line x1="159" y1="83" x2="190" y2="87" stroke="rgba(148, 163, 184, 0.45)" strokeWidth="1.2" />
-
-                {/* PECHO - Pectorales Esculpidos con surco esternal */}
-                {renderMuscleSection(
+                {/* Pecho */}
+                {renderMuscleTarget(
                   'chest',
-                  'M 140 82 C 114 82, 97 90, 86 102 C 80 116, 88 133, 114 136 C 132 138, 146 131, 150 119 C 154 131, 168 138, 186 136 C 212 133, 220 116, 214 102 C 203 90, 186 82, 160 82 Z',
+                  'M 116 112 C 132 108, 148 108, 150 114 C 152 108, 168 108, 184 112 C 196 118, 198 135, 188 152 C 172 158, 158 158, 150 154 C 142 158, 128 158, 112 152 C 102 135, 104 118, 116 112 Z',
                   150,
-                  108
+                  134
                 )}
 
-                {/* CINTURA - Oblicuos & Core Atlético en V */}
-                {renderMuscleSection(
+                {/* Cintura (Abdominales y oblicuos) */}
+                {renderMuscleTarget(
                   'waist',
-                  'M 114 136 C 132 138, 147 131, 150 120 C 153 131, 168 138, 186 136 L 178 178 C 164 183, 136 183, 122 178 Z',
+                  'M 118 156 C 134 154, 166 154, 182 156 C 188 180, 192 208, 184 232 C 166 235, 134 235, 116 232 C 108 208, 112 180, 118 156 Z',
                   150,
-                  155
+                  194
                 )}
 
-                {/* Líneas de definición abdominal (Six-pack) */}
-                <Line x1="150" y1="126" x2="150" y2="176" stroke="rgba(167, 139, 250, 0.45)" strokeWidth="1.2" />
-                <Line x1="136" y1="145" x2="164" y2="145" stroke="rgba(167, 139, 250, 0.35)" strokeWidth="1.1" />
-                <Line x1="138" y1="160" x2="162" y2="160" stroke="rgba(167, 139, 250, 0.35)" strokeWidth="1.1" />
-
-                {/* BRAZO D - Deltoides & Bíceps marcado */}
-                {renderMuscleSection(
+                {/* Bíceps D (Brazo derecho - visual izquierda) */}
+                {renderMuscleTarget(
                   'right_arm',
-                  'M 85 96 C 75 96, 63 107, 59 124 C 54 139, 53 153, 57 159 L 76 159 C 82 148, 87 132, 89 114 Z',
-                  71,
-                  128
-                )}
-
-                {/* BRAZO I - Deltoides & Bíceps marcado */}
-                {renderMuscleSection(
-                  'left_arm',
-                  'M 215 96 C 225 96, 237 107, 241 124 C 246 139, 247 153, 243 159 L 224 159 C 218 148, 213 132, 211 114 Z',
-                  229,
-                  128
-                )}
-
-                {/* ANTEBRAZO D */}
-                {renderMuscleSection(
-                  'right_forearm',
-                  'M 57 161 L 75 161 C 73 180, 67 200, 51 218 L 43 218 C 45 198, 51 176, 57 161 Z',
-                  59,
-                  188
-                )}
-
-                {/* ANTEBRAZO I */}
-                {renderMuscleSection(
-                  'left_forearm',
-                  'M 243 161 L 225 161 C 227 180, 233 200, 249 218 L 257 218 C 255 198, 249 176, 243 161 Z',
-                  241,
-                  188
-                )}
-
-                {/* MUSLO D - Cuádriceps con barrido de vasto lateral y medial */}
-                {renderMuscleSection(
-                  'right_thigh',
-                  'M 122 179 L 148 180 L 144 246 C 141 268, 137 284, 128 290 L 108 290 C 101 278, 97 250, 101 220 C 105 195, 114 184, 122 179 Z',
-                  124,
-                  234
-                )}
-
-                {/* MUSLO I - Cuádriceps con barrido de vasto lateral y medial */}
-                {renderMuscleSection(
-                  'left_thigh',
-                  'M 178 179 L 152 180 L 156 246 C 159 268, 163 284, 172 290 L 192 290 C 199 278, 203 250, 199 220 C 195 195, 186 184, 178 179 Z',
-                  176,
-                  234
-                )}
-
-                {/* PANTORRILLA D - Diamante gastrocnemio */}
-                {renderMuscleSection(
-                  'right_calf',
-                  'M 108 292 L 128 292 C 131 312, 133 342, 125 378 L 113 378 C 104 346, 102 318, 108 292 Z',
-                  118,
-                  334
-                )}
-
-                {/* PANTORRILLA I - Diamante gastrocnemio */}
-                {renderMuscleSection(
-                  'left_calf',
-                  'M 192 292 L 172 292 C 169 312, 167 342, 175 378 L 187 378 C 196 346, 198 318, 192 292 Z',
-                  182,
-                  334
-                )}
-              </>
-            ) : (
-              /* --- MUJER FRONTAL (Esbelta / Fit Hourglass) --- */
-              <>
-                <Line x1="143" y1="83" x2="116" y2="86" stroke="rgba(244, 114, 182, 0.4)" strokeWidth="1.1" />
-                <Line x1="157" y1="83" x2="184" y2="86" stroke="rgba(244, 114, 182, 0.4)" strokeWidth="1.1" />
-
-                {/* PECHO - Tonificado y Femenino */}
-                {renderMuscleSection(
-                  'chest',
-                  'M 142 82 C 122 82, 108 90, 100 102 C 94 114, 102 128, 122 131 C 136 133, 146 126, 150 118 C 154 126, 164 133, 178 131 C 198 128, 206 114, 200 102 C 192 90, 178 82, 158 82 Z',
-                  150,
-                  106
-                )}
-
-                {/* CINTURA - Estrecha Reloj de Arena Fit */}
-                {renderMuscleSection(
-                  'waist',
-                  'M 122 131 C 136 133, 146 126, 150 118 C 154 126, 164 133, 178 131 L 186 176 C 168 180, 132 180, 114 176 Z',
-                  150,
+                  'M 84 110 C 96 115, 98 140, 96 170 C 94 186, 82 196, 70 194 C 56 188, 50 168, 52 145 C 54 125, 68 110, 84 110 Z',
+                  72,
                   152
                 )}
 
-                {/* Línea sutil de abdomen plano femenino */}
-                <Line x1="150" y1="124" x2="150" y2="172" stroke="rgba(244, 114, 182, 0.35)" strokeWidth="1.1" />
-
-                {/* BRAZO D - Esbelto y Tonificado */}
-                {renderMuscleSection(
-                  'right_arm',
-                  'M 98 96 C 88 96, 76 106, 73 122 C 70 136, 70 152, 74 158 L 89 158 C 94 148, 98 130, 100 114 Z',
-                  82,
-                  128
-                )}
-
-                {/* BRAZO I - Esbelto y Tonificado */}
-                {renderMuscleSection(
+                {/* Bíceps I (Brazo izquierdo - visual derecha) */}
+                {renderMuscleTarget(
                   'left_arm',
-                  'M 202 96 C 212 96, 224 106, 227 122 C 230 136, 230 152, 226 158 L 211 158 C 206 148, 202 130, 200 114 Z',
-                  218,
-                  128
+                  'M 216 110 C 232 110, 246 125, 248 145 C 250 168, 244 188, 230 194 C 218 196, 206 186, 204 170 C 202 140, 204 115, 216 110 Z',
+                  228,
+                  152
                 )}
 
-                {/* ANTEBRAZO D */}
-                {renderMuscleSection(
-                  'right_forearm',
-                  'M 74 160 L 89 160 C 86 178, 80 198, 54 218 L 45 218 C 50 198, 66 176, 74 160 Z',
-                  68,
-                  188
-                )}
-
-                {/* ANTEBRAZO I */}
-                {renderMuscleSection(
-                  'left_forearm',
-                  'M 226 160 L 211 160 C 214 178, 220 198, 246 218 L 255 218 C 250 198, 234 176, 226 160 Z',
-                  232,
-                  188
-                )}
-
-                {/* MUSLO D - Curva de cadera y pierna esbelta */}
-                {renderMuscleSection(
+                {/* Muslo D (Cuádriceps derecho - visual izquierda) */}
+                {renderMuscleTarget(
                   'right_thigh',
-                  'M 114 177 L 148 178 L 144 246 C 141 268, 136 284, 126 290 L 110 290 C 100 278, 96 250, 100 220 C 104 195, 108 184, 114 177 Z',
-                  122,
-                  234
-                )}
-
-                {/* MUSLO I - Curva de cadera y pierna esbelta */}
-                {renderMuscleSection(
-                  'left_thigh',
-                  'M 186 177 L 152 178 L 156 246 C 159 268, 164 284, 174 290 L 190 290 C 200 278, 204 250, 200 220 C 196 195, 192 184, 186 177 Z',
-                  178,
-                  234
-                )}
-
-                {/* PANTORRILLA D - Estilizada */}
-                {renderMuscleSection(
-                  'right_calf',
-                  'M 110 292 L 126 292 C 128 312, 130 342, 124 378 L 114 378 C 106 346, 104 318, 110 292 Z',
+                  'M 114 234 C 134 234, 146 258, 148 298 C 150 338, 138 366, 126 368 C 108 368, 94 340, 90 300 C 88 260, 96 236, 114 234 Z',
                   118,
-                  334
+                  298
                 )}
 
-                {/* PANTORRILLA I - Estilizada */}
-                {renderMuscleSection(
-                  'left_calf',
-                  'M 190 292 L 174 292 C 172 312, 170 342, 176 378 L 186 378 C 194 346, 196 318, 190 292 Z',
+                {/* Muslo I (Cuádriceps izquierdo - visual derecha) */}
+                {renderMuscleTarget(
+                  'left_thigh',
+                  'M 186 234 C 204 236, 212 260, 210 300 C 206 340, 192 368, 174 368 C 162 366, 150 338, 152 298 C 154 258, 166 234, 186 234 Z',
                   182,
-                  334
+                  298
+                )}
+              </>
+            ) : (
+              /* --- MUJER FRONTAL (Esbelta / Fit) --- */
+              <>
+                {/* Pecho (Top deportivo fit) */}
+                {renderMuscleTarget(
+                  'chest',
+                  'M 120 110 C 136 108, 148 108, 150 114 C 152 108, 164 108, 180 110 C 194 116, 196 138, 186 158 C 172 164, 158 164, 150 160 C 142 164, 128 164, 114 158 C 104 138, 106 116, 120 110 Z',
+                  150,
+                  135
+                )}
+
+                {/* Cintura (Abdomen tonificado y cintura estrecha) */}
+                {renderMuscleTarget(
+                  'waist',
+                  'M 120 162 C 136 160, 164 160, 180 162 C 186 182, 190 206, 182 228 C 166 230, 134 230, 118 228 C 110 206, 114 182, 120 162 Z',
+                  150,
+                  194
+                )}
+
+                {/* Bíceps D */}
+                {renderMuscleTarget(
+                  'right_arm',
+                  'M 86 118 C 96 122, 98 144, 96 170 C 94 184, 84 192, 74 190 C 64 184, 60 168, 62 148 C 64 128, 74 118, 86 118 Z',
+                  78,
+                  152
+                )}
+
+                {/* Bíceps I */}
+                {renderMuscleTarget(
+                  'left_arm',
+                  'M 214 118 C 226 118, 236 128, 238 148 C 240 168, 236 184, 226 190 C 216 192, 206 184, 204 170 C 202 144, 204 122, 214 118 Z',
+                  222,
+                  152
+                )}
+
+                {/* Muslo D (Mallas deportivas - cuádriceps) */}
+                {renderMuscleTarget(
+                  'right_thigh',
+                  'M 116 232 C 136 232, 146 256, 148 296 C 150 336, 138 364, 126 366 C 110 366, 96 338, 92 298 C 90 258, 98 234, 116 232 Z',
+                  118,
+                  298
+                )}
+
+                {/* Muslo I (Mallas deportivas - cuádriceps) */}
+                {renderMuscleTarget(
+                  'left_thigh',
+                  'M 184 232 C 202 234, 210 258, 208 298 C 204 338, 190 366, 174 366 C 162 364, 150 336, 152 296 C 154 256, 164 232, 184 232 Z',
+                  182,
+                  298
                 )}
               </>
             )}
@@ -1279,175 +1157,105 @@ function AnimeBodyVector({
         {view === 'back' && (
           <G>
             {isMale ? (
-              /* --- HOMBRE POSTERIOR (Espalda V-Taper, Glúteos) --- */
+              /* --- HOMBRE POSTERIOR (Musculoso) --- */
               <>
-                {/* ESPALDA - Gran Dorsal y Trapecios en V */}
-                {renderMuscleSection(
+                {/* Espalda (Dorsales en V / Trapecios) */}
+                {renderMuscleTarget(
                   'back',
-                  'M 141 82 L 159 82 C 184 84, 204 92, 214 104 C 220 118, 210 138, 188 146 C 174 150, 150 152, 150 152 C 150 152, 126 150, 112 146 C 90 138, 80 118, 86 104 C 96 92, 116 84, 141 82 Z',
+                  'M 150 95 C 170 95, 200 115, 212 138 C 208 175, 186 212, 168 226 C 158 228, 142 228, 132 226 C 114 212, 92 175, 88 138 C 100 115, 130 95, 150 95 Z',
                   150,
-                  116
+                  152
                 )}
 
-                {/* Escápulas y corte dorsal */}
-                <Line x1="150" y1="84" x2="150" y2="150" stroke="rgba(167, 139, 250, 0.45)" strokeWidth="1.2" />
-                <Path d="M 132 108 Q 140 120 150 126 Q 160 120 168 108" stroke="rgba(167, 139, 250, 0.35)" strokeWidth="1.1" fill="none" />
-
-                {/* NALGAS / GLÚTEOS - Redondeados y firmes */}
-                {renderMuscleSection(
+                {/* Nalgas (Glúteos atléticos) */}
+                {renderMuscleTarget(
                   'glutes',
-                  'M 120 152 C 134 154, 150 155, 150 162 C 150 155, 166 154, 180 152 C 198 162, 200 188, 182 202 C 168 212, 154 206, 150 200 C 146 206, 132 212, 118 202 C 100 188, 102 162, 120 152 Z',
+                  'M 116 228 C 138 224, 162 224, 184 228 C 202 240, 204 266, 188 282 C 172 290, 158 288, 150 274 C 142 288, 128 290, 112 282 C 96 266, 98 240, 116 228 Z',
                   150,
-                  180
+                  254
                 )}
 
-                {/* BRAZO D - Tríceps */}
-                {renderMuscleSection(
-                  'right_arm',
-                  'M 86 96 C 76 96, 64 107, 60 124 C 55 139, 54 153, 58 159 L 77 159 C 83 148, 88 132, 90 114 Z',
-                  72,
-                  128
-                )}
-
-                {/* BRAZO I - Tríceps */}
-                {renderMuscleSection(
-                  'left_arm',
-                  'M 214 96 C 224 96, 236 107, 240 124 C 245 139, 246 153, 242 159 L 223 159 C 217 148, 212 132, 210 114 Z',
-                  228,
-                  128
-                )}
-
-                {/* ANTEBRAZO D */}
-                {renderMuscleSection(
+                {/* Antebrazo D (visual izquierda) */}
+                {renderMuscleTarget(
                   'right_forearm',
-                  'M 58 161 L 76 161 C 74 180, 68 200, 52 218 L 43 218 C 45 198, 52 176, 58 161 Z',
-                  60,
-                  188
+                  'M 68 194 C 80 196, 84 218, 80 250 C 78 272, 68 286, 56 284 C 44 280, 42 262, 44 238 C 46 218, 54 196, 68 194 Z',
+                  62,
+                  238
                 )}
 
-                {/* ANTEBRAZO I */}
-                {renderMuscleSection(
+                {/* Antebrazo I (visual derecha) */}
+                {renderMuscleTarget(
                   'left_forearm',
-                  'M 242 161 L 224 161 C 226 180, 232 200, 248 218 L 257 218 C 255 198, 248 176, 242 161 Z',
-                  240,
-                  188
+                  'M 232 194 C 246 196, 254 218, 256 238 C 258 262, 256 280, 244 284 C 232 286, 222 272, 220 250 C 216 218, 220 196, 232 194 Z',
+                  238,
+                  238
                 )}
 
-                {/* MUSLO D - Isquiotibiales */}
-                {renderMuscleSection(
-                  'right_thigh',
-                  'M 118 202 C 132 212, 146 206, 150 200 L 144 252 C 141 270, 137 284, 128 290 L 108 290 C 101 278, 98 250, 104 220 Z',
-                  124,
-                  248
-                )}
-
-                {/* MUSLO I - Isquiotibiales */}
-                {renderMuscleSection(
-                  'left_thigh',
-                  'M 182 202 C 168 212, 154 206, 150 200 L 156 252 C 159 270, 163 284, 172 290 L 192 290 C 199 278, 202 250, 196 220 Z',
-                  176,
-                  248
-                )}
-
-                {/* PANTORRILLA D - Gemelos posteriores */}
-                {renderMuscleSection(
+                {/* Gemelo D (Pantorrilla derecha - visual izquierda) */}
+                {renderMuscleTarget(
                   'right_calf',
-                  'M 108 292 L 128 292 C 132 314, 134 342, 125 378 L 113 378 C 103 346, 102 318, 108 292 Z',
-                  118,
-                  334
+                  'M 118 372 C 132 380, 134 412, 124 445 C 116 464, 108 470, 98 466 C 88 458, 86 438, 90 412 C 94 386, 104 372, 118 372 Z',
+                  110,
+                  416
                 )}
 
-                {/* PANTORRILLA I - Gemelos posteriores */}
-                {renderMuscleSection(
+                {/* Gemelo I (Pantorrilla izquierda - visual derecha) */}
+                {renderMuscleTarget(
                   'left_calf',
-                  'M 192 292 L 172 292 C 168 314, 166 342, 175 378 L 187 378 C 197 346, 198 318, 192 292 Z',
-                  182,
-                  334
+                  'M 182 372 C 196 372, 206 386, 210 412 C 214 438, 212 458, 202 466 C 192 470, 184 464, 176 445 C 166 412, 168 380, 182 372 Z',
+                  190,
+                  416
                 )}
               </>
             ) : (
-              /* --- MUJER POSTERIOR (Espalda Esbelta, Glúteos Pronunciados) --- */
+              /* --- MUJER POSTERIOR (Esbelta / Fit) --- */
               <>
-                {/* ESPALDA - Tónica y Femenina */}
-                {renderMuscleSection(
+                {/* Espalda (Top deportivo racerback y espalda esculpida) */}
+                {renderMuscleTarget(
                   'back',
-                  'M 144 82 L 156 82 C 176 84, 194 92, 202 104 C 208 116, 200 134, 182 142 C 170 146, 150 148, 150 148 C 150 148, 130 146, 118 142 C 100 134, 92 116, 98 104 C 106 92, 124 84, 144 82 Z',
+                  'M 150 98 C 168 98, 196 116, 204 138 C 202 172, 182 206, 166 220 C 158 222, 142 222, 134 220 C 118 206, 98 172, 96 138 C 104 116, 132 98, 150 98 Z',
                   150,
-                  114
+                  152
                 )}
 
-                <Line x1="150" y1="84" x2="150" y2="146" stroke="rgba(244, 114, 182, 0.4)" strokeWidth="1.1" />
-
-                {/* NALGAS / GLÚTEOS - Curvatura pronunciada y estética */}
-                {renderMuscleSection(
+                {/* Nalgas (Glúteos redondeados en mallas) */}
+                {renderMuscleTarget(
                   'glutes',
-                  'M 116 148 C 132 150, 150 152, 150 160 C 150 152, 168 150, 184 148 C 204 160, 208 188, 190 204 C 172 216, 156 210, 150 202 C 144 210, 128 216, 110 204 C 92 188, 96 160, 116 148 Z',
+                  'M 116 222 C 138 218, 162 218, 184 222 C 202 236, 204 262, 188 278 C 172 286, 158 284, 150 270 C 142 284, 128 286, 112 278 C 96 262, 98 236, 116 222 Z',
                   150,
-                  182
+                  250
                 )}
 
-                {/* BRAZO D - Tríceps */}
-                {renderMuscleSection(
-                  'right_arm',
-                  'M 98 96 C 88 96, 76 106, 73 122 C 70 136, 70 152, 74 158 L 89 158 C 94 148, 98 130, 100 114 Z',
-                  82,
-                  128
-                )}
-
-                {/* BRAZO I - Tríceps */}
-                {renderMuscleSection(
-                  'left_arm',
-                  'M 202 96 C 212 96, 224 106, 227 122 C 230 136, 230 152, 226 158 L 211 158 C 206 148, 202 130, 200 114 Z',
-                  218,
-                  128
-                )}
-
-                {/* ANTEBRAZO D */}
-                {renderMuscleSection(
+                {/* Antebrazo D */}
+                {renderMuscleTarget(
                   'right_forearm',
-                  'M 74 160 L 89 160 C 86 178, 80 198, 54 218 L 45 218 C 50 198, 66 176, 74 160 Z',
-                  68,
-                  188
+                  'M 70 192 C 80 194, 82 216, 80 246 C 78 268, 70 280, 60 278 C 50 274, 48 258, 50 236 C 52 216, 58 194, 70 192 Z',
+                  64,
+                  236
                 )}
 
-                {/* ANTEBRAZO I */}
-                {renderMuscleSection(
+                {/* Antebrazo I */}
+                {renderMuscleTarget(
                   'left_forearm',
-                  'M 226 160 L 211 160 C 214 178, 220 198, 246 218 L 255 218 C 250 198, 234 176, 226 160 Z',
-                  232,
-                  188
+                  'M 230 192 C 242 194, 248 216, 250 236 C 252 258, 250 274, 240 278 C 230 280, 222 268, 220 246 C 218 216, 220 194, 230 192 Z',
+                  236,
+                  236
                 )}
 
-                {/* MUSLO D - Isquiotibiales */}
-                {renderMuscleSection(
-                  'right_thigh',
-                  'M 110 204 C 128 216, 144 210, 150 202 L 144 252 C 141 270, 136 284, 126 290 L 110 290 C 100 278, 96 250, 100 220 Z',
-                  122,
-                  248
-                )}
-
-                {/* MUSLO I - Isquiotibiales */}
-                {renderMuscleSection(
-                  'left_thigh',
-                  'M 190 204 C 172 216, 156 210, 150 202 L 156 252 C 159 270, 164 284, 174 290 L 190 290 C 200 278, 204 250, 200 220 Z',
-                  178,
-                  248
-                )}
-
-                {/* PANTORRILLA D - Gemelos */}
-                {renderMuscleSection(
+                {/* Gemelo D */}
+                {renderMuscleTarget(
                   'right_calf',
-                  'M 110 292 L 126 292 C 130 314, 132 342, 124 378 L 114 378 C 106 346, 104 318, 110 292 Z',
-                  118,
-                  334
+                  'M 116 370 C 128 378, 130 408, 122 438 C 114 458, 106 464, 98 460 C 88 452, 86 432, 90 408 C 94 382, 104 370, 116 370 Z',
+                  110,
+                  414
                 )}
 
-                {/* PANTORRILLA I - Gemelos */}
-                {renderMuscleSection(
+                {/* Gemelo I */}
+                {renderMuscleTarget(
                   'left_calf',
-                  'M 190 292 L 174 292 C 170 314, 168 342, 176 378 L 186 378 C 194 346, 196 318, 190 292 Z',
-                  182,
-                  334
+                  'M 184 370 C 196 370, 206 382, 210 408 C 214 432, 212 452, 202 460 C 194 464, 186 458, 178 438 C 170 408, 172 378, 184 370 Z',
+                  190,
+                  414
                 )}
               </>
             )}
@@ -2125,7 +1933,7 @@ const measureStyles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Contenedor SVG
+  // Contenedor SVG y Croquis Anatómico Anime
   bodySvgCanvasWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -2134,10 +1942,25 @@ const measureStyles = StyleSheet.create({
   },
   svgContainer: {
     width: 300,
-    height: 416,
+    height: 520,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#F3F2EC',
+    borderWidth: 1.2,
+    borderColor: 'rgba(203, 213, 225, 0.7)',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  croquisIllustrationImage: {
+    width: 300,
+    height: 520,
+    borderRadius: 20,
   },
 
   // Burbujas de medida sobre la silueta (Interactivas)
