@@ -848,7 +848,7 @@ function SavedMealsList({
         <>
           <PrimaryButton
             icon="add-circle"
-            label="+ Crear nueva comida guardada"
+            label="Crear nueva comida guardada"
             onPress={() =>
               setDraft({
                 id: uid(),

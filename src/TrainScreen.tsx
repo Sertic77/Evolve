@@ -1341,7 +1341,7 @@ function WorkoutDayLog({
                 style={({ pressed }) => [styles.addSetDashedBtn, pressed && s.btnPressed]}
               >
                 <Ionicons name="add" size={16} color={C.pastelPurple} />
-                <Text style={styles.addSetDashedText}>+ Agregar serie</Text>
+                <Text style={styles.addSetDashedText}>Agregar serie</Text>
               </Pressable>
             </LinearGradient>
           </View>

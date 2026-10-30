@@ -998,7 +998,7 @@ export function MealBlockCard({
           }}
         >
           <Ionicons name="add" size={17} color={C.pastelPurple} />
-          <Text style={s.addIngredientDashedText}>+ Agregar ingrediente</Text>
+          <Text style={s.addIngredientDashedText}>Agregar ingrediente</Text>
         </Pressable>
       </LinearGradient>
     </View>
