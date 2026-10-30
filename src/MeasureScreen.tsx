@@ -180,7 +180,7 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
     shortLabel: 'Gemelo D',
     category: 'legs',
     interactive: true,
-    view: 'both',
+    view: 'back',
     icon: 'footsteps-outline',
     defaultAvg: 37,
     unit: 'cm',
@@ -191,7 +191,7 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
     shortLabel: 'Gemelo I',
     category: 'legs',
     interactive: true,
-    view: 'both',
+    view: 'back',
     icon: 'footsteps-outline',
     defaultAvg: 37,
     unit: 'cm',
@@ -683,24 +683,6 @@ function AnimeBodyMapCard({
                   right={24}
                   onPress={() => onSelectPart('left_thigh')}
                 />
-
-                {/* 7. Gemelo Derecho (Pantorrilla D) */}
-                <BodyMeasureBubble
-                  label="Gemelo D"
-                  value={measurements.right_calf}
-                  top={322}
-                  left={18}
-                  onPress={() => onSelectPart('right_calf')}
-                />
-
-                {/* 8. Gemelo Izquierdo (Pantorrilla I) */}
-                <BodyMeasureBubble
-                  label="Gemelo I"
-                  value={measurements.left_calf}
-                  top={322}
-                  right={18}
-                  onPress={() => onSelectPart('left_calf')}
-                />
               </>
             ) : (
               <>
@@ -738,6 +720,24 @@ function AnimeBodyMapCard({
                   top={174}
                   right={6}
                   onPress={() => onSelectPart('left_forearm')}
+                />
+
+                {/* 5. Gemelo Derecho (Pantorrilla D) */}
+                <BodyMeasureBubble
+                  label="Gemelo D"
+                  value={measurements.right_calf}
+                  top={322}
+                  left={18}
+                  onPress={() => onSelectPart('right_calf')}
+                />
+
+                {/* 6. Gemelo Izquierdo (Pantorrilla I) */}
+                <BodyMeasureBubble
+                  label="Gemelo I"
+                  value={measurements.left_calf}
+                  top={322}
+                  right={18}
+                  onPress={() => onSelectPart('left_calf')}
                 />
               </>
             )}
