@@ -152,7 +152,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         showsVerticalScrollIndicator={false}
       >
         {/* ==========================================================
-            ESTRUCTURA DE PERFIL SUPERIOR (SOLICITADA POR EL USUARIO):
+            ESTRUCTURA DE PERFIL SUPERIOR (TRANSPARENTE, SIN CONTAINER):
             - Perfil al lado izquierdo
             - Nombre
             - Nickname-fecha
@@ -160,15 +160,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             - Barra XP
             - Al lado derecho la racha (llamita) y botón de ajustes
         ========================================================== */}
-        <View
-          style={[
-            styles.userHeroCard,
-            {
-              backgroundColor: palette.cardBg,
-              borderColor: palette.border,
-            },
-          ]}
-        >
+        <View style={styles.userHeroTransparent}>
           <View style={styles.userHeroRow}>
             {/* Perfil al lado izquierdo (Avatar) */}
             <LinearGradient
@@ -1418,16 +1410,11 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
   },
 
-  // Tarjeta de perfil superior solicitada por el usuario
-  userHeroCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+  // Perfil superior transparente (sin contenedor ni fondo)
+  userHeroTransparent: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+    marginBottom: 16,
   },
   userHeroRow: {
     flexDirection: 'row',
