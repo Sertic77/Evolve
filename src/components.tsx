@@ -15,7 +15,7 @@ import {
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { C, GRADIENTS, fmt } from './theme';
+import { C, GRADIENTS, fmt, registerThemeSheet } from './theme';
 import { FoodUnit, Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTotal, uid } from './store';
 
 /* ---------------- Resumen de Macros (Animado con Fondo Flotante Anime) ---------------- */
@@ -1893,3 +1893,5 @@ export const s = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
 });
+
+registerThemeSheet(s);

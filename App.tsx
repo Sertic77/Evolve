@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { C, GRADIENTS } from './src/theme';
+import { C, GRADIENTS, applyGlobalTheme } from './src/theme';
 import FoodScreen from './src/FoodScreen';
 import TrainScreen from './src/TrainScreen';
 import MeasureScreen from './src/MeasureScreen';
@@ -71,7 +71,10 @@ export default function App() {
   const [tab, setTab] = useState<string>('home');
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
+  const typography = useStore((s) => s.typography);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  // Sincronizar paleta y tipografia con toda la app
+  applyGlobalTheme(palette, typography);
 
   const getSubtitle = (key: string) => {
     switch (key) {
@@ -104,7 +107,7 @@ export default function App() {
         <StatusBar style={palette.isDark ? 'light' : 'dark'} />
 
         {/* Pantalla Activa */}
-        <View style={styles.mainContent}>
+        <View key={`${activePaletteId}-${typography?.titles}-${typography?.subtitles}-${typography?.body}-${typography?.data}`} style={[styles.mainContent, { backgroundColor: palette.bg }]}>
           {tab === 'home' ? (
             <HomeScreen onNavigate={(newTab) => setTab(newTab)} />
           ) : tab === 'sleep' ? (

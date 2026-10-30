@@ -17,7 +17,7 @@ import {
 import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Line, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { C, GRADIENTS } from './theme';
+import { C, GRADIENTS, registerThemeSheet } from './theme';
 import { DateSelector, PrimaryButton, s } from './components';
 import { useStore, dateKey, Supplement, isSupplementActiveOnDate, HealthMetricDefinition, HealthLogEntry, uid, SEED_HEALTH_METRICS, SEED_HEALTH_LOGS } from './store';
 import {
@@ -3613,3 +3613,6 @@ const healthStyles = StyleSheet.create({
     elevation: 3,
   },
 });
+
+registerThemeSheet(wellnessStyles);
+registerThemeSheet(healthStyles);
