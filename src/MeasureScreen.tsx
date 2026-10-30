@@ -90,8 +90,8 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
   },
   right_arm: {
     key: 'right_arm',
-    label: 'Brazo derecho',
-    shortLabel: 'Bíceps D',
+    label: 'Brazo D',
+    shortLabel: 'Brazo D',
     category: 'arms',
     interactive: true,
     view: 'both',
@@ -101,8 +101,8 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
   },
   left_arm: {
     key: 'left_arm',
-    label: 'Brazo izquierdo',
-    shortLabel: 'Bíceps I',
+    label: 'Brazo I',
+    shortLabel: 'Brazo I',
     category: 'arms',
     interactive: true,
     view: 'both',
@@ -664,18 +664,18 @@ function AnimeBodyMapCard({
                     onPress={() => onSelectPart('chest')}
                   />
 
-                  {/* 2. Bíceps Derecho */}
+                  {/* 2. Brazo Derecho */}
                   <BodyMeasureBubble
-                    label="Bíceps D"
+                    label="Brazo D"
                     value={measurements.right_arm}
                     top={Math.round(canvasHeight * 0.190)}
                     left={6}
                     onPress={() => onSelectPart('right_arm')}
                   />
 
-                  {/* 3. Bíceps Izquierdo */}
+                  {/* 3. Brazo Izquierdo */}
                   <BodyMeasureBubble
-                    label="Bíceps I"
+                    label="Brazo I"
                     value={measurements.left_arm}
                     top={Math.round(canvasHeight * 0.190)}
                     right={6}
