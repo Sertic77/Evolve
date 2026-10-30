@@ -608,9 +608,8 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
   };
 
   const isToday = new Date().toDateString() === date.toDateString();
-  const label = isToday
-    ? 'Hoy'
-    : date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+  const rawDateStr = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  const label = rawDateStr.replace('.', '');
 
   return (
     <View style={s.dateSelectorRow}>

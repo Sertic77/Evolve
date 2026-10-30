@@ -95,10 +95,21 @@ export type HealthLogEntry = {
 /* ==========================================================
    CONFIGURACIÓN Y PERSONALIZACIÓN (PALETAS, TIPOGRAFÍA, HOME)
 ========================================================== */
+export type UserProfile = {
+  name: string;
+  nickname: string;
+};
+
+export const DEFAULT_USER_PROFILE: UserProfile = {
+  name: 'Sergio Tamayo',
+  nickname: 'Sertic77',
+};
+
 export type ColorPalette = {
   id: string;
   name: string;
   isDark?: boolean;
+  colors: string[]; // Muestra de colores (mínimo 2 colores, variable por paleta)
   primary: string;
   secondary: string;
   bg: string;
@@ -133,6 +144,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'default',
     name: 'Anime Pastel (Default)',
     isDark: false,
+    colors: ['#8B5CF6', '#F472B6', '#14B8A6'], // 3 colores
     primary: '#8B5CF6',
     secondary: '#F472B6',
     bg: '#F3F5FA',
@@ -146,6 +158,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'dark',
     name: 'Modo Nocturno (Midnight)',
     isDark: true,
+    colors: ['#818CF8', '#EC4899', '#38BDF8'], // 3 colores
     primary: '#818CF8',
     secondary: '#EC4899',
     bg: '#0F172A',
@@ -159,6 +172,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'sunset',
     name: 'Atardecer Cálido',
     isDark: false,
+    colors: ['#FB7185', '#F59E0B', '#EF4444'], // 3 colores
     primary: '#FB7185',
     secondary: '#F59E0B',
     bg: '#FFF7ED',
@@ -172,6 +186,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'emerald',
     name: 'Menta & Esmeralda',
     isDark: false,
+    colors: ['#10B981', '#06B6D4'], // 2 colores
     primary: '#10B981',
     secondary: '#06B6D4',
     bg: '#F0FDF4',
@@ -185,6 +200,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'cyberpunk',
     name: 'Cyberpunk Neón',
     isDark: true,
+    colors: ['#06B6D4', '#EC4899', '#FACC15', '#A855F7'], // 4 colores
     primary: '#06B6D4',
     secondary: '#EC4899',
     bg: '#18181B',
@@ -198,6 +214,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'ocean',
     name: 'Océano Profundo',
     isDark: false,
+    colors: ['#3B82F6', '#2DD4BF'], // 2 colores
     primary: '#3B82F6',
     secondary: '#2DD4BF',
     bg: '#F0F9FF',
@@ -206,6 +223,20 @@ export const PRESET_PALETTES: ColorPalette[] = [
     textSub: '#0284C7',
     border: '#BAE6FD',
     accent: '#3B82F6',
+  },
+  {
+    id: 'crimson',
+    name: 'Fuego Carmesí',
+    isDark: false,
+    colors: ['#DC2626', '#EA580C', '#F59E0B'], // 3 colores
+    primary: '#DC2626',
+    secondary: '#EA580C',
+    bg: '#FEF2F2',
+    cardBg: '#FFFFFF',
+    text: '#450A0A',
+    textSub: '#991B1B',
+    border: '#FECACA',
+    accent: '#DC2626',
   },
 ];
 
@@ -461,6 +492,10 @@ type State = {
   setHealthLog: (date: string, metricId: string, entry: HealthLogEntry) => void;
   addHealthMetric: (metric: Omit<HealthMetricDefinition, 'id'>) => void;
   deleteHealthMetric: (id: string) => void;
+  // Perfil del Usuario
+  userProfile: UserProfile;
+  setUserProfile: (profile: Partial<UserProfile>) => void;
+
   // Personalización
   activePaletteId: string;
   customPalettes: ColorPalette[];
@@ -874,6 +909,13 @@ export const useStore = create<State>()(
           healthMetrics: (s.healthMetrics || SEED_HEALTH_METRICS).filter((m) => m.id !== id),
         })),
 
+      // Perfil del Usuario
+      userProfile: DEFAULT_USER_PROFILE,
+      setUserProfile: (profile) =>
+        set((s) => ({
+          userProfile: { ...(s.userProfile || DEFAULT_USER_PROFILE), ...profile },
+        })),
+
       // Personalización
       activePaletteId: 'default',
       customPalettes: [],
@@ -884,7 +926,8 @@ export const useStore = create<State>()(
 
       addCustomPalette: (palette) =>
         set((s) => {
-          const newP: ColorPalette = { ...palette, id: uid(), custom: true };
+          const colors = palette.colors && palette.colors.length >= 2 ? palette.colors : [palette.primary, palette.secondary];
+          const newP: ColorPalette = { ...palette, colors, id: uid(), custom: true };
           return {
             customPalettes: [...(s.customPalettes || []), newP],
             activePaletteId: newP.id,
@@ -927,6 +970,7 @@ export const useStore = create<State>()(
           persistedState && persistedState.healthLogs && Object.keys(persistedState.healthLogs).length > 0
             ? persistedState.healthLogs
             : SEED_HEALTH_LOGS,
+        userProfile: { ...DEFAULT_USER_PROFILE, ...(persistedState?.userProfile || {}) },
         activePaletteId: persistedState?.activePaletteId || 'default',
         customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
         typography: { ...DEFAULT_TYPOGRAPHY, ...(persistedState?.typography || {}) },
