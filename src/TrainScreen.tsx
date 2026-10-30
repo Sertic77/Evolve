@@ -342,8 +342,13 @@ function WorkoutDynamicChart({
   timeRangeDays: number | null;
   onOpenRangePicker: () => void;
 }) {
-  // Altura animada: crece cuando pasa a estadísticas
-  const heightAnim = useRef(new Animated.Value(tab === 0 ? 172 : 288)).current;
+  const WORKOUT_RING_SIZE = 152;
+  const WORKOUT_RING_STROKE = 12;
+  const WORKOUT_RING_R = (WORKOUT_RING_SIZE - WORKOUT_RING_STROKE) / 2;
+  const WORKOUT_RING_CIRC = 2 * Math.PI * WORKOUT_RING_R;
+
+  // Altura animada: crece cuando pasa a estadísticas (222 matching Comidas, 288 en Estadísticas)
+  const heightAnim = useRef(new Animated.Value(tab === 0 ? 234 : 288)).current;
 
   // Animación del fondo (orbes flotantes)
   const floatAnim1 = useRef(new Animated.Value(0)).current;
@@ -362,7 +367,7 @@ function WorkoutDynamicChart({
 
   useEffect(() => {
     Animated.timing(heightAnim, {
-      toValue: tab === 0 ? 172 : 288,
+      toValue: tab === 0 ? 234 : 288,
       duration: 320,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
@@ -820,87 +825,96 @@ function WorkoutDynamicChart({
           )}
         </View>
 
-        {/* MODO 1: GRÁFICA RESUMEN DE SESIÓN DIARIA (KCAL QUEMADAS EN ROJO + LLAMA VIVA EN MOVIMIENTO) */}
+        {/* MODO 1: GRÁFICA RESUMEN DE SESIÓN DIARIA (KCAL QUEMADAS EN ROJO + LLAMA VIVA EN MOVIMIENTO - TAMAÑO MATCH COMIDAS 152px) */}
         {tab === 0 && (
           <View style={styles.dayWorkoutSummaryRow}>
-            {/* Medidor Circular de Calorías Quemadas en Rojo Anime */}
+            {/* Medidor Circular de Calorías Quemadas en Rojo Anime (152px) */}
             <View style={styles.workoutVolRingContainer}>
-              <Svg width={116} height={116} style={{ transform: [{ rotate: '-90deg' }] }}>
-                <Circle cx={58} cy={58} r={46} stroke="rgba(244, 63, 94, 0.12)" strokeWidth={10} fill="none" />
+              <Svg width={WORKOUT_RING_SIZE} height={WORKOUT_RING_SIZE} style={{ transform: [{ rotate: '-90deg' }] }}>
                 <Circle
-                  cx={58}
-                  cy={58}
-                  r={46}
-                  stroke="#F43F5E"
-                  strokeWidth={10}
+                  cx={WORKOUT_RING_SIZE / 2}
+                  cy={WORKOUT_RING_SIZE / 2}
+                  r={WORKOUT_RING_R}
+                  stroke="rgba(203, 213, 225, 0.35)"
+                  strokeWidth={WORKOUT_RING_STROKE}
                   fill="none"
-                  strokeDasharray={`${Math.min((dayStats.totalKcal / 450) * 289, 289)} 289`}
+                />
+                <Circle
+                  cx={WORKOUT_RING_SIZE / 2}
+                  cy={WORKOUT_RING_SIZE / 2}
+                  r={WORKOUT_RING_R}
+                  stroke="#F43F5E"
+                  strokeWidth={WORKOUT_RING_STROKE}
+                  fill="none"
+                  strokeDasharray={`${Math.min((dayStats.totalKcal / 500) * WORKOUT_RING_CIRC, WORKOUT_RING_CIRC)} ${WORKOUT_RING_CIRC}`}
                   strokeLinecap="round"
                 />
               </Svg>
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-                {/* Contenedor de la llamita viva en movimiento constante */}
-                <View style={{ width: 44, height: 42, alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
-                  {/* Halo resplandeciente animado */}
-                  <Animated.View
-                    style={[
-                      styles.flameHaloGlow,
-                      {
-                        transform: [{ scale: flameScale }],
-                        opacity: flameAura,
-                      },
-                    ]}
-                  />
+                <View style={styles.workoutRingCenterGlow}>
+                  {/* Contenedor de la llamita viva en movimiento constante */}
+                  <View style={{ width: 44, height: 38, alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
+                    {/* Halo resplandeciente animado */}
+                    <Animated.View
+                      style={[
+                        styles.flameHaloGlow,
+                        {
+                          transform: [{ scale: flameScale }],
+                          opacity: flameAura,
+                        },
+                      ]}
+                    />
 
-                  {/* Llama con movimiento completo (flotación, balanceo e intensidad) */}
-                  <Animated.View
-                    style={{
-                      transform: [
-                        { translateY: flameTranslateY },
-                        { rotate: flameRotateDeg },
-                        { scale: flameScale },
-                      ],
-                    }}
-                  >
-                    <Ionicons name="flame" size={32} color="#F43F5E" />
-                  </Animated.View>
+                    {/* Llama con movimiento completo (flotación, balanceo e intensidad) */}
+                    <Animated.View
+                      style={{
+                        transform: [
+                          { translateY: flameTranslateY },
+                          { rotate: flameRotateDeg },
+                          { scale: flameScale },
+                        ],
+                      }}
+                    >
+                      <Ionicons name="flame" size={32} color="#F43F5E" />
+                    </Animated.View>
+                  </View>
+
+                  <Text style={styles.workoutKcalNumber}>
+                    {dayStats.totalKcal}
+                  </Text>
+                  <Text style={styles.workoutKcalUnit}>KCAL QUEMADAS</Text>
                 </View>
-
-                <Text style={styles.workoutKcalNumber}>
-                  {dayStats.totalKcal}
-                </Text>
-                <Text style={styles.workoutKcalUnit}>KCAL QUEMADAS</Text>
               </View>
             </View>
 
-            {/* Métricas laterales en tarjetas pastel */}
-            <View style={{ flex: 1, marginLeft: 16, gap: 8 }}>
-              <View style={styles.metricPillCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="barbell-outline" size={14} color={C.pastelPurple} />
-                  <Text style={styles.metricPillLabel}>Volumen levantado</Text>
+            {/* Métricas laterales en tarjetas pastel (Divididas en 2 líneas de texto para óptima legibilidad y UX) */}
+            <View style={{ flex: 1, marginLeft: 14, gap: 7, justifyContent: 'center' }}>
+              <View style={styles.metricBlockCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="barbell-outline" size={13} color={C.pastelPurple} />
+                  <Text style={styles.metricBlockLabel} numberOfLines={1}>Volumen levantado</Text>
                 </View>
-                <Text style={styles.metricPillValue}>
+                <Text style={styles.metricBlockValue}>
                   {dayStats.totalVolume > 9999
                     ? `${(dayStats.totalVolume / 1000).toFixed(1)}k kg`
-                    : `${Math.round(dayStats.totalVolume)} kg`}
+                    : `${Math.round(dayStats.totalVolume).toLocaleString()} kg`}
                 </Text>
               </View>
 
-              <View style={styles.metricPillCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="layers-outline" size={14} color={C.pastelMint} />
-                  <Text style={styles.metricPillLabel}>Series realizadas</Text>
+              <View style={styles.metricBlockCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="layers-outline" size={13} color={C.pastelMint} />
+                  <Text style={styles.metricBlockLabel} numberOfLines={1}>Series realizadas</Text>
                 </View>
-                <Text style={[styles.metricPillValue, { color: C.pastelMint }]}>{dayStats.totalSets} sets</Text>
+                <Text style={[styles.metricBlockValue, { color: C.pastelMint }]}>{dayStats.totalSets} sets</Text>
               </View>
 
-              <View style={styles.metricPillCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="repeat-outline" size={14} color={C.pastelPink} />
-                  <Text style={styles.metricPillLabel}>Repeticiones totales</Text>
+              <View style={styles.metricBlockCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="repeat-outline" size={13} color={C.pastelPink} />
+                  <Text style={styles.metricBlockLabel} numberOfLines={1}>Repeticiones totales</Text>
                 </View>
-                <Text style={[styles.metricPillValue, { color: C.pastelPink }]}>{dayStats.totalReps} reps</Text>
+                <Text style={[styles.metricBlockValue, { color: C.pastelPink }]}>{dayStats.totalReps} reps</Text>
               </View>
             </View>
           </View>
@@ -1985,10 +1999,25 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   workoutVolRingContainer: {
-    width: 116,
-    height: 116,
+    width: 152,
+    height: 152,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  workoutRingCenterGlow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 102,
+    height: 102,
+    borderRadius: 51,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.28)',
+    shadowColor: '#F43F5E',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   workoutVolNumber: {
     color: C.text,
@@ -2004,7 +2033,7 @@ const styles = StyleSheet.create({
   },
   workoutKcalNumber: {
     color: C.text,
-    fontSize: 24,
+    fontSize: 27,
     fontWeight: '900',
     letterSpacing: -0.5,
   },
@@ -2016,35 +2045,36 @@ const styles = StyleSheet.create({
   },
   flameHaloGlow: {
     position: 'absolute',
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(244, 63, 94, 0.25)',
   },
-  metricPillCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  metricBlockCard: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 7,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: C.borderLight,
     shadowColor: C.pastelPurple,
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
+    justifyContent: 'center',
   },
-  metricPillLabel: {
+  metricBlockLabel: {
     color: C.sub,
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '600',
+    flexShrink: 1,
   },
-  metricPillValue: {
+  metricBlockValue: {
     color: C.pastelPurple,
-    fontSize: 12.5,
-    fontWeight: '800',
+    fontSize: 14.5,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+    marginTop: 2,
   },
 
   // Estadísticas rotativas
