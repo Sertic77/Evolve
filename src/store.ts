@@ -293,12 +293,15 @@ export const useStore = create<State>()(
       // Fotos de Progreso
       photoLogs: {},
       addProgressPhoto: (date, photo) =>
-        set((s) => ({
-          photoLogs: {
-            ...s.photoLogs,
-            [date]: [...(s.photoLogs[date] || []), photo],
-          },
-        })),
+        set((s) => {
+          const existing = (s.photoLogs[date] || []).filter((p) => p.angle !== photo.angle);
+          return {
+            photoLogs: {
+              ...s.photoLogs,
+              [date]: [...existing, photo],
+            },
+          };
+        }),
       deleteProgressPhoto: (date, photoId) =>
         set((s) => ({
           photoLogs: {
