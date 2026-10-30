@@ -16,7 +16,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { C, GRADIENTS, fmt } from './theme';
-import { Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTotal, uid } from './store';
+import { FoodUnit, Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTotal, uid } from './store';
 
 /* ---------------- Resumen de Macros (Animado con Fondo Flotante Anime) ---------------- */
 export function MacroSummary({ m }: { m: Macros }) {
@@ -537,11 +537,76 @@ if (Platform.OS !== 'web') {
 
 export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Date) => void }) {
   const [open, setOpen] = useState(false);
+
+  // Valores de animación notoria para cambio de fecha (Slide, Fade, Scale y Glow Flash)
+  const slideX = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const glowFlash = useRef(new Animated.Value(0)).current;
+
+  // Botones de navegación con rebote elástico táctil
+  const leftBounce = useRef(new Animated.Value(1)).current;
+  const rightBounce = useRef(new Animated.Value(1)).current;
+
+  const triggerDateTransition = (direction: -1 | 1) => {
+    // 1. Rebote en el botón presionado
+    const targetBounce = direction === -1 ? leftBounce : rightBounce;
+    Animated.sequence([
+      Animated.timing(targetBounce, {
+        toValue: 0.76,
+        duration: 70,
+        useNativeDriver: true,
+      }),
+      Animated.spring(targetBounce, {
+        toValue: 1,
+        friction: 4,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // 2. Transición marcada de deslizamiento, escala y destello de confirmación
+    slideX.setValue(direction === 1 ? 48 : -48);
+    fadeAnim.setValue(0.15);
+    scaleAnim.setValue(0.86);
+    glowFlash.setValue(1);
+
+    Animated.parallel([
+      Animated.spring(slideX, {
+        toValue: 0,
+        friction: 6,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 5,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(glowFlash, {
+        toValue: 0,
+        duration: 380,
+        easing: Easing.out(Easing.sin),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   const shift = (n: number) => {
+    const dir = n < 0 ? -1 : 1;
+    triggerDateTransition(dir);
     const d = new Date(date);
     d.setDate(d.getDate() + n);
     onChange(d);
   };
+
   const isToday = new Date().toDateString() === date.toDateString();
   const label = isToday
     ? 'Hoy'
@@ -549,37 +614,67 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
 
   return (
     <View style={s.dateSelectorRow}>
-      <Pressable
-        onPress={() => shift(-1)}
-        style={({ pressed }) => [s.dateNavBtn, pressed && s.btnPressed]}
-      >
-        <Ionicons name="chevron-back" size={18} color={C.pastelPurple} />
-      </Pressable>
+      <Animated.View style={{ transform: [{ scale: leftBounce }] }}>
+        <Pressable
+          onPress={() => shift(-1)}
+          style={({ pressed }) => [s.dateNavBtn, pressed && s.btnPressed]}
+          hitSlop={4}
+        >
+          <Ionicons name="chevron-back" size={20} color="#8B5CF6" />
+        </Pressable>
+      </Animated.View>
 
       <Pressable
         onPress={() => setOpen(true)}
         style={({ pressed }) => [s.dateCenterBtn, pressed && s.btnPressed]}
       >
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.95)', 'rgba(245, 248, 255, 0.95)']}
+          colors={['rgba(255, 255, 255, 0.98)', 'rgba(245, 248, 255, 0.96)']}
           style={s.dateCenterGradient}
         >
-          <Ionicons name="calendar-outline" size={16} color={C.pastelPink} />
-          <Text style={s.dateLabelText}>{label}</Text>
-          {isToday && (
-            <View style={s.todayTag}>
-              <Text style={s.todayTagText}>HOY</Text>
-            </View>
-          )}
+          {/* Destello de color anime pastel que confirma claramente el cambio de día */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: 'rgba(139, 92, 246, 0.22)',
+                opacity: glowFlash,
+              },
+            ]}
+          />
+
+          <Animated.View
+            style={[
+              s.dateAnimatedContentWrap,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateX: slideX }, { scale: scaleAnim }],
+              },
+            ]}
+          >
+            <Ionicons name="calendar" size={17} color={isToday ? '#8B5CF6' : C.pastelPink} />
+            <Text style={[s.dateLabelText, isToday && { color: '#7C3AED', fontWeight: '900' }]}>
+              {label}
+            </Text>
+            {isToday && (
+              <View style={s.todayTag}>
+                <Text style={s.todayTagText}>HOY</Text>
+              </View>
+            )}
+          </Animated.View>
         </LinearGradient>
       </Pressable>
 
-      <Pressable
-        onPress={() => shift(1)}
-        style={({ pressed }) => [s.dateNavBtn, pressed && s.btnPressed]}
-      >
-        <Ionicons name="chevron-forward" size={18} color={C.pastelPurple} />
-      </Pressable>
+      <Animated.View style={{ transform: [{ scale: rightBounce }] }}>
+        <Pressable
+          onPress={() => shift(1)}
+          style={({ pressed }) => [s.dateNavBtn, pressed && s.btnPressed]}
+          hitSlop={4}
+        >
+          <Ionicons name="chevron-forward" size={20} color="#8B5CF6" />
+        </Pressable>
+      </Animated.View>
 
       {open && DateTimePicker && (
         <Modal transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -593,7 +688,10 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
                 accentColor={C.pastelPurple}
                 locale="es-ES"
                 onChange={(_: any, d?: Date) => {
-                  if (d) onChange(d);
+                  if (d) {
+                    triggerDateTransition(d.getTime() >= date.getTime() ? 1 : -1);
+                    onChange(d);
+                  }
                   setOpen(false);
                 }}
               />
@@ -788,7 +886,7 @@ export function IngredientPickerModal({
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text style={s.ingredientItemName}>{item.name}</Text>
                       <View style={s.servingPill}>
-                        <Text style={s.servingPillText}>{item.servingGrams}g base</Text>
+                        <Text style={s.servingPillText}>{item.servingGrams}{item.unit || 'g'} base</Text>
                       </View>
                     </View>
                     <View style={{ marginTop: 8 }}>
@@ -804,6 +902,8 @@ export function IngredientPickerModal({
     </Modal>
   );
 }
+
+const FOOD_UNITS: FoodUnit[] = ['g', 'ml', 'ud'];
 
 /* ---------------- Fila de Ingrediente en la Comida ---------------- */
 function ItemRow({
@@ -821,6 +921,12 @@ function ItemRow({
 }) {
   const ing = ingredients.find((i) => i.id === item.ingredientId);
   const m = scaleMacros(ing, item.grams);
+  const currentUnit: FoodUnit = item.unit || ing?.unit || 'g';
+
+  const cycleUnit = () => {
+    const nextIdx = (FOOD_UNITS.indexOf(currentUnit) + 1) % FOOD_UNITS.length;
+    onChange({ ...item, unit: FOOD_UNITS[nextIdx] });
+  };
 
   return (
     <View style={s.itemRowContainer}>
@@ -848,7 +954,7 @@ function ItemRow({
           <Ionicons name="chevron-down" size={14} color={C.sub} style={{ marginLeft: 'auto' }} />
         </Pressable>
 
-        {/* Input de Gramos */}
+        {/* Input de Cantidad con selector interactivo de unidad */}
         <View style={s.gramsInputContainer}>
           <TextInput
             value={item.grams ? String(item.grams) : ''}
@@ -860,7 +966,14 @@ function ItemRow({
               onChange({ ...item, grams: parseFloat(t.replace(',', '.')) || 0 })
             }
           />
-          <Text style={s.gramsUnitText}>g</Text>
+          <Pressable
+            onPress={cycleUnit}
+            hitSlop={8}
+            style={({ pressed }) => [s.gramsUnitBadge, pressed && s.btnPressed]}
+          >
+            <Text style={s.gramsUnitText}>{currentUnit}</Text>
+            <Ionicons name="swap-vertical" size={10} color={C.pastelPurple} />
+          </Pressable>
         </View>
 
         {/* Botón eliminar item */}
@@ -1357,6 +1470,12 @@ export const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
+    overflow: 'hidden',
+  },
+  dateAnimatedContentWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
   dateLabelText: {
@@ -1542,11 +1661,22 @@ export const s = StyleSheet.create({
     textAlign: 'right',
     paddingVertical: 9,
   },
+  gramsUnitBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginLeft: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.25)',
+  },
   gramsUnitText: {
-    color: C.subMuted,
+    color: C.pastelPurple,
     fontSize: 12,
-    fontWeight: '700',
-    marginLeft: 3,
+    fontWeight: '800',
   },
   deleteItemBtn: {
     padding: 6,

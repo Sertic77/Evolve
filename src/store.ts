@@ -8,9 +8,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export type Macros = { kcal: number; carbs: number; protein: number; fat: number };
 
 /** Valores nutricionales tal como vienen en el empaque, para `servingGrams` gramos. */
-export type Ingredient = Macros & { id: string; name: string; servingGrams: number };
+export type FoodUnit = 'g' | 'ml' | 'ud';
+export type Ingredient = Macros & { id: string; name: string; servingGrams: number; unit?: FoodUnit };
 
-export type MealItem = { id: string; ingredientId: string | null; grams: number };
+export type MealItem = { id: string; ingredientId: string | null; grams: number; unit?: FoodUnit };
 export type MealBlock = { id: string; name: string; items: MealItem[] };
 export type SavedMeal = MealBlock;
 
@@ -20,13 +21,16 @@ export type SavedMeal = MealBlock;
 export type Exercise = {
   id: string;
   name: string;
-  muscleGroup: string; // ej. Pecho, Espalda, Piernas, Hombros, Brazos, Core
+  muscleGroup: string; // ej. Pecho, Espalda, Piernas, Hombros, Brazos, Core, CrossFit, Cardio
+  type?: 'reps' | 'time';
 };
 
 export type WorkoutSet = {
   id: string;
-  weight: number; // en kg
-  reps: number;
+  weight?: number; // en kg
+  timeSeconds?: number; // tiempo en segundos (CrossFit, correr, bicicleta)
+  distanceMeters?: number;
+  reps?: number;
 };
 
 export type WorkoutExercise = {
@@ -118,17 +122,23 @@ export function itemsTotal(items: MealItem[], ingredients: Ingredient[]): Macros
    SEMILLAS INICIALES (SEED DATA)
 ========================================================== */
 const SEED_INGREDIENTS: Ingredient[] = [
-  { id: 'seed-pb', name: 'Mantequilla de maní', servingGrams: 50, kcal: 110, protein: 12, carbs: 5, fat: 17 },
-  { id: 'seed-egg', name: 'Huevo', servingGrams: 50, kcal: 72, protein: 6.3, carbs: 0.4, fat: 4.8 },
-  { id: 'seed-rice', name: 'Arroz blanco cocido', servingGrams: 100, kcal: 130, protein: 2.7, carbs: 28, fat: 0.3 },
-  { id: 'seed-chicken', name: 'Pechuga de pollo', servingGrams: 100, kcal: 165, protein: 31, carbs: 0, fat: 3.6 },
-  { id: 'seed-oats', name: 'Avena', servingGrams: 40, kcal: 150, protein: 5, carbs: 27, fat: 3 },
+  { id: 'seed-pb', name: 'Mantequilla de maní', servingGrams: 50, kcal: 110, protein: 12, carbs: 5, fat: 17, unit: 'g' },
+  { id: 'seed-egg', name: 'Huevo', servingGrams: 1, kcal: 72, protein: 6.3, carbs: 0.4, fat: 4.8, unit: 'ud' },
+  { id: 'seed-milk', name: 'Leche entera', servingGrams: 200, kcal: 124, protein: 6.4, carbs: 9.6, fat: 6.8, unit: 'ml' },
+  { id: 'seed-rice', name: 'Arroz blanco cocido', servingGrams: 100, kcal: 130, protein: 2.7, carbs: 28, fat: 0.3, unit: 'g' },
+  { id: 'seed-chicken', name: 'Pechuga de pollo', servingGrams: 100, kcal: 165, protein: 31, carbs: 0, fat: 3.6, unit: 'g' },
+  { id: 'seed-oats', name: 'Avena', servingGrams: 40, kcal: 150, protein: 5, carbs: 27, fat: 3, unit: 'g' },
 ];
 
 const SEED_EXERCISES: Exercise[] = [
   { id: 'ex-bench', name: 'Press de Banca Plano', muscleGroup: 'Pecho' },
   { id: 'ex-squat', name: 'Sentadilla con Barra', muscleGroup: 'Piernas' },
   { id: 'ex-deadlift', name: 'Peso Muerto', muscleGroup: 'Espalda' },
+  { id: 'ex-run', name: 'Correr / Trote', muscleGroup: 'Cardio', type: 'time' },
+  { id: 'ex-bike', name: 'Bicicleta / AirBike', muscleGroup: 'Cardio', type: 'time' },
+  { id: 'ex-rower', name: 'Remo / Rower', muscleGroup: 'CrossFit', type: 'time' },
+  { id: 'ex-burpee', name: 'Burpees / WOD', muscleGroup: 'CrossFit', type: 'time' },
+  { id: 'ex-plank', name: 'Plancha Abdominal', muscleGroup: 'Core', type: 'time' },
   { id: 'ex-pullup', name: 'Dominadas', muscleGroup: 'Espalda' },
   { id: 'ex-military', name: 'Press Militar', muscleGroup: 'Hombros' },
   { id: 'ex-curl', name: 'Curl de Bíceps', muscleGroup: 'Brazos' },
