@@ -35,6 +35,36 @@ export type WorkoutExercise = {
   sets: WorkoutSet[];
 };
 
+
+/* ==========================================================
+   TIPOS DE MEDIDAS CORPORALES
+========================================================== */
+export type BodyPartKey =
+  | 'head'           // Cabeza (no interactua)
+  | 'chest'          // Pecho
+  | 'back'           // Espalda
+  | 'right_arm'      // Brazo derecho
+  | 'left_arm'       // Brazo izquierdo
+  | 'right_forearm'  // Antebrazo derecho
+  | 'left_forearm'   // Antebrazo izquierdo
+  | 'waist'          // Cintura
+  | 'right_thigh'    // Muslo derecho
+  | 'left_thigh'     // Muslo izquierdo
+  | 'right_calf'     // Pantorilla derecha
+  | 'left_calf'      // Pantorilla izquierda
+  | 'glutes'         // Nalgas
+  | 'hands'          // Manos (no interactua)
+  | 'feet';          // Pies (no interactua)
+
+export type DayMeasurements = Partial<Record<BodyPartKey, number>>;
+
+export type ProgressPhoto = {
+  id: string;
+  uri: string;
+  angle: 'front' | 'side' | 'back';
+  timestamp: number;
+};
+
 export const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 export const ZERO: Macros = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
@@ -103,6 +133,16 @@ type State = {
   upsertExercise: (ex: Exercise) => void;
   deleteExercise: (id: string) => void;
   setDayWorkout: (date: string, exercises: WorkoutExercise[]) => void;
+  // Medidas Corporales
+  measurementLogs: Record<string, DayMeasurements>;
+  setPartMeasurement: (date: string, part: BodyPartKey, value: number) => void;
+  deletePartMeasurement: (date: string, part: BodyPartKey) => void;
+
+  // Fotos de Progreso
+  photoLogs: Record<string, ProgressPhoto[]>;
+  addProgressPhoto: (date: string, photo: ProgressPhoto) => void;
+  deleteProgressPhoto: (date: string, photoId: string) => void;
+
 };
 
 export const useStore = create<State>()(
@@ -146,6 +186,58 @@ export const useStore = create<State>()(
 
       setDayWorkout: (date, exercises) =>
         set((s) => ({ workoutLogs: { ...s.workoutLogs, [date]: exercises } })),
+      // Medidas Corporales
+      measurementLogs: {
+        '2026-10-30': {
+          chest: 102,
+          right_arm: 36,
+          left_arm: 35.5,
+          waist: 81,
+          right_thigh: 58,
+          left_thigh: 58,
+          glutes: 98,
+          back: 110,
+        },
+      },
+      setPartMeasurement: (date, part, value) =>
+        set((s) => ({
+          measurementLogs: {
+            ...s.measurementLogs,
+            [date]: {
+              ...(s.measurementLogs[date] || {}),
+              [part]: value,
+            },
+          },
+        })),
+      deletePartMeasurement: (date, part) =>
+        set((s) => {
+          const current = { ...(s.measurementLogs[date] || {}) };
+          delete current[part];
+          return {
+            measurementLogs: {
+              ...s.measurementLogs,
+              [date]: current,
+            },
+          };
+        }),
+
+      // Fotos de Progreso
+      photoLogs: {},
+      addProgressPhoto: (date, photo) =>
+        set((s) => ({
+          photoLogs: {
+            ...s.photoLogs,
+            [date]: [...(s.photoLogs[date] || []), photo],
+          },
+        })),
+      deleteProgressPhoto: (date, photoId) =>
+        set((s) => ({
+          photoLogs: {
+            ...s.photoLogs,
+            [date]: (s.photoLogs[date] || []).filter((p) => p.id !== photoId),
+          },
+        })),
+
     }),
     { name: 'evolve-app-data', storage: createJSONStorage(() => AsyncStorage) },
   ),
