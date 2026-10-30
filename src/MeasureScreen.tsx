@@ -999,7 +999,7 @@ function AnimeBodyVector({
 
   const isMale = genderModel === 'male';
 
-  // Renderiza área anatómica proporcional (516x1024) con hit-test directo en Path
+  // Renderiza área anatómica proporcional (516x1024) únicamente si corresponde a la vista activa (Frontal o Posterior)
   const renderMuscleTarget = (
     partKey: BodyPartKey,
     d: string,
@@ -1007,33 +1007,25 @@ function AnimeBodyVector({
     centerY: number,
     isPrimaryForView: boolean
   ) => {
+    if (!isPrimaryForView) return null;
+
     const val = measurements[partKey];
     const isMeasured = val !== undefined && val > 0;
-    const showHighlight = isMeasured && isPrimaryForView;
-    const showUnmeasuredPrimary = !isMeasured && isPrimaryForView;
 
     // Si tiene medida: brillo neón violeta/magenta; si NO tiene valor definido: área oscura/opaca claramente visible
-    const pathFill = showHighlight
+    const pathFill = isMeasured
       ? 'rgba(232, 121, 249, 0.30)'
-      : showUnmeasuredPrimary
-      ? 'rgba(15, 23, 42, 0.56)'
-      : isMeasured
-      ? 'rgba(232, 121, 249, 0.14)'
-      : 'rgba(15, 23, 42, 0.36)';
+      : 'rgba(15, 23, 42, 0.56)';
 
-    const pathStroke = showHighlight
+    const pathStroke = isMeasured
       ? '#F0ABFC'
-      : showUnmeasuredPrimary
-      ? 'rgba(148, 163, 184, 0.82)'
-      : isMeasured
-      ? 'rgba(240, 171, 252, 0.45)'
-      : 'rgba(148, 163, 184, 0.48)';
+      : 'rgba(148, 163, 184, 0.82)';
 
-    const pathStrokeWidth = showHighlight ? 2.6 : showUnmeasuredPrimary ? 1.8 : 1.2;
+    const pathStrokeWidth = isMeasured ? 2.6 : 1.8;
 
     return (
       <G key={`${view}_${partKey}`}>
-        {showHighlight && (
+        {isMeasured && (
           <Path
             d={d}
             fill="none"
@@ -1054,26 +1046,24 @@ function AnimeBodyVector({
           strokeLinejoin="round"
           strokeLinecap="round"
         />
-        {isPrimaryForView && (
-          <G pointerEvents="none">
-            <Circle
-              cx={centerX}
-              cy={centerY}
-              r={showHighlight ? 11 : 9}
-              fill={showHighlight ? 'rgba(232, 121, 249, 0.32)' : 'rgba(15, 23, 42, 0.72)'}
-              stroke={showHighlight ? 'none' : 'rgba(148, 163, 184, 0.75)'}
-              strokeWidth={showHighlight ? 0 : 1.2}
-            />
-            <Circle
-              cx={centerX}
-              cy={centerY}
-              r={showHighlight ? 5.5 : 3.8}
-              fill={showHighlight ? '#E879F9' : 'rgba(226, 232, 240, 0.88)'}
-              stroke={showHighlight ? '#FFFFFF' : 'rgba(15, 23, 42, 0.9)'}
-              strokeWidth={1.5}
-            />
-          </G>
-        )}
+        <G pointerEvents="none">
+          <Circle
+            cx={centerX}
+            cy={centerY}
+            r={isMeasured ? 11 : 9}
+            fill={isMeasured ? 'rgba(232, 121, 249, 0.32)' : 'rgba(15, 23, 42, 0.72)'}
+            stroke={isMeasured ? 'none' : 'rgba(148, 163, 184, 0.75)'}
+            strokeWidth={isMeasured ? 0 : 1.2}
+          />
+          <Circle
+            cx={centerX}
+            cy={centerY}
+            r={isMeasured ? 5.5 : 3.8}
+            fill={isMeasured ? '#E879F9' : 'rgba(226, 232, 240, 0.88)'}
+            stroke={isMeasured ? '#FFFFFF' : 'rgba(15, 23, 42, 0.9)'}
+            strokeWidth={1.5}
+          />
+        </G>
       </G>
     );
   };
