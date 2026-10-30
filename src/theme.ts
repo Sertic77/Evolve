@@ -1,4 +1,4 @@
-import { ColorPalette, TypographySettings, getFontFamily } from './store';
+import { ColorPalette, TypographySettings } from './store';
 
 export const C = {
   // Fondos y Superficies Anime (Light Cream & Cloud Pastel)
@@ -73,18 +73,14 @@ export const fmt = (n: number) => {
 /* ==========================================================
    SINCRONIZADOR GLOBAL DE TEMA Y ESTILOS PARA TODA LA APP
 ========================================================== */
-const registeredSheets: any[] = [];
-
-export function registerThemeSheet(sheet: any) {
-  if (sheet && typeof sheet === 'object' && !registeredSheets.includes(sheet)) {
-    registeredSheets.push(sheet);
-  }
+export function registerThemeSheet(_sheet: any) {
+  // No-op seguro: StyleSheet.create congela los objetos en React Native/Hermes
 }
 
-export function applyGlobalTheme(palette: ColorPalette, typography?: TypographySettings) {
+export function applyGlobalTheme(palette: ColorPalette, _typography?: TypographySettings) {
   if (!palette) return;
 
-  // 1. Mutar colores globales de C
+  // 1. Mutar de forma segura las variables globales de C (son mutables)
   C.bg = palette.bg;
   C.bgDark = palette.isDark ? '#0F172A' : '#FFFFFF';
   C.bgCard = palette.isDark ? 'rgba(30, 41, 59, 0.96)' : 'rgba(255, 255, 255, 0.92)';
@@ -102,7 +98,7 @@ export function applyGlobalTheme(palette: ColorPalette, typography?: TypographyS
   C.pastelPink = palette.secondary;
   C.accent = palette.accent || palette.primary;
 
-  // 2. Mutar GRADIENTS para fondos y botones
+  // 2. Mutar de forma segura GRADIENTS
   (GRADIENTS.primary as any)[0] = palette.primary;
   (GRADIENTS.primary as any)[1] = palette.secondary;
   (GRADIENTS.cardGlass as any)[0] = palette.isDark ? '#1E293B' : 'rgba(255, 255, 255, 0.98)';
@@ -113,60 +109,4 @@ export function applyGlobalTheme(palette: ColorPalette, typography?: TypographyS
   (GRADIENTS.tabBar as any)[1] = palette.isDark ? '#0F172A' : 'rgba(248, 250, 255, 0.96)';
   (GRADIENTS.floatingHomeActive as any)[0] = palette.primary;
   (GRADIENTS.floatingHomeActive as any)[1] = palette.secondary;
-
-  // 3. Mutar tipografía en las hojas registradas
-  const titleFont = typography ? getFontFamily(typography.titles) : undefined;
-  const subtitleFont = typography ? getFontFamily(typography.subtitles) : undefined;
-  const bodyFont = typography ? getFontFamily(typography.body) : undefined;
-  const dataFont = typography ? getFontFamily(typography.data) : undefined;
-
-  registeredSheets.forEach((sheet) => {
-    Object.keys(sheet).forEach((key) => {
-      const style = sheet[key];
-      if (!style || typeof style !== 'object') return;
-
-      // Actualizar fondos
-      const k = key.toLowerCase();
-      if (k.includes('root') || k.includes('container') || k.includes('screen') || k.includes('scroll')) {
-        if (style.backgroundColor && style.backgroundColor !== 'transparent') {
-          style.backgroundColor = palette.bg;
-        }
-      } else if (k.includes('card') || k.includes('modal') || k.includes('sheet') || k.includes('box')) {
-        if (palette.isDark) {
-          if (style.backgroundColor === '#FFFFFF' || (typeof style.backgroundColor === 'string' && style.backgroundColor.startsWith('rgba(255, 255, 255'))) {
-            style.backgroundColor = palette.cardBg;
-          }
-        } else {
-          if (style.backgroundColor === '#1E293B' || style.backgroundColor === '#0F172A') {
-            style.backgroundColor = palette.cardBg;
-          }
-        }
-      }
-
-      // Actualizar bordes
-      if (style.borderColor && style.borderColor !== '#CBD5E1') {
-        style.borderColor = palette.border;
-      }
-
-      // Actualizar color de textos
-      if (style.color) {
-        if (k.includes('title') || k.includes('header') || k.includes('name')) {
-          style.color = palette.text;
-        } else if (k.includes('sub') || k.includes('label') || k.includes('desc') || k.includes('sec')) {
-          style.color = palette.textSub;
-        }
-      }
-
-      // Aplicar tipografía seleccionada
-      if (titleFont && (k.includes('title') || k.includes('header') || k.includes('name'))) {
-        style.fontFamily = titleFont;
-      } else if (subtitleFont && (k.includes('sub') || k.includes('label') || k.includes('tag') || k.includes('pill'))) {
-        style.fontFamily = subtitleFont;
-      } else if (dataFont && (k.includes('val') || k.includes('num') || k.includes('count') || k.includes('stat') || k.includes('pct') || k.includes('macro'))) {
-        style.fontFamily = dataFont;
-      } else if (bodyFont && (k.includes('text') || k.includes('desc') || k.includes('body') || k.includes('item') || k.includes('empty'))) {
-        style.fontFamily = bodyFont;
-      }
-    });
-  });
 }

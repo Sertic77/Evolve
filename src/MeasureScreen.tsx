@@ -316,7 +316,7 @@ export default function MeasureScreen() {
   };
 
   return (
-    <View style={measureStyles.rootContainer}>
+    <View style={[measureStyles.rootContainer, { backgroundColor: C.bg }]}>
       <ScrollView
         contentContainerStyle={measureStyles.scrollContent}
         showsVerticalScrollIndicator={false}

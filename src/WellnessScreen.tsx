@@ -375,7 +375,7 @@ export default function WellnessScreen() {
   };
 
   return (
-    <View style={wellnessStyles.rootContainer}>
+    <View style={[wellnessStyles.rootContainer, { backgroundColor: C.bg }]}>
       <ScrollView
         contentContainerStyle={wellnessStyles.scrollContent}
         showsVerticalScrollIndicator={false}
