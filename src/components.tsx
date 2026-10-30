@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { C, GRADIENTS, fmt } from './theme';
 import { Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTotal, uid } from './store';
 
-/* ---------------- Resumen de Macros (Animado Anime Pastel) ---------------- */
+/* ---------------- Resumen de Macros (Animado con Fondo Flotante Anime) ---------------- */
 export function MacroSummary({ m }: { m: Macros }) {
   const size = 152;
   const stroke = 12;
@@ -29,6 +29,10 @@ export function MacroSummary({ m }: { m: Macros }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const ringScaleAnim = useRef(new Animated.Value(0.92)).current;
   const barsAnim = useRef(new Animated.Value(0)).current;
+
+  // Animación del Fondo de Energía Flotante Anime
+  const floatAnim1 = useRef(new Animated.Value(0)).current;
+  const floatAnim2 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // 1. Animación de Ignición / Entrada del Anillo
@@ -48,18 +52,18 @@ export function MacroSummary({ m }: { m: Macros }) {
       useNativeDriver: false,
     }).start();
 
-    // 3. Pulso sutil continuo de la llama de Kcal (Respiración anime)
+    // 3. Pulso expresivo continuo de la llama de Kcal (Respiración de fuego anime)
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.15,
-          duration: 900,
+          toValue: 1.22,
+          duration: 800,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 900,
+          toValue: 0.94,
+          duration: 800,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -67,7 +71,49 @@ export function MacroSummary({ m }: { m: Macros }) {
     );
     loop.start();
 
-    return () => loop.stop();
+    // 4. Animación continua de fondo flotante anime (ondas de maná/energía)
+    const bgLoop1 = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim1, {
+          toValue: 1,
+          duration: 4500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim1, {
+          toValue: 0,
+          duration: 4500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    const bgLoop2 = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim2, {
+          toValue: 1,
+          duration: 6000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim2, {
+          toValue: 0,
+          duration: 6000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    bgLoop1.start();
+    bgLoop2.start();
+
+    return () => {
+      loop.stop();
+      bgLoop1.stop();
+      bgLoop2.stop();
+    };
   }, [m.kcal, m.protein, m.carbs, m.fat]);
 
   const kc = {
@@ -85,8 +131,44 @@ export function MacroSummary({ m }: { m: Macros }) {
     return s;
   });
 
+  // Interpolaciones para el fondo animado
+  const transX1 = floatAnim1.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-20, 25],
+  });
+  const transY1 = floatAnim1.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-10, 15],
+  });
+
+  const transX2 = floatAnim2.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, -25],
+  });
+  const transY2 = floatAnim2.interpolate({
+    inputRange: [0, 1],
+    outputRange: [15, -15],
+  });
+
   return (
     <View style={s.glassCard}>
+      {/* CAPA DE FONDO ANIMADO ANIME (Orbes de Energía Flotante) */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Animated.View
+          style={[
+            s.floatingOrb1,
+            { transform: [{ translateX: transX1 }, { translateY: transY1 }] },
+          ]}
+        />
+        <Animated.View
+          style={[
+            s.floatingOrb2,
+            { transform: [{ translateX: transX2 }, { translateY: transY2 }] },
+          ]}
+        />
+        <Animated.View style={s.floatingOrb3} />
+      </View>
+
       <LinearGradient
         colors={GRADIENTS.cardGlass}
         start={{ x: 0, y: 0 }}
@@ -140,11 +222,16 @@ export function MacroSummary({ m }: { m: Macros }) {
               )}
             </Svg>
 
-            {/* Centro del Anillo: FUEGO ANIMADO EN VEZ DE CORAZÓN */}
+            {/* Centro del Anillo: LLAMA DE FUEGO GRANDE Y ANIMADA */}
             <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
               <View style={s.ringCenterGlow}>
-                <Animated.View style={{ transform: [{ scale: pulseAnim }], marginBottom: 1 }}>
-                  <Ionicons name="flame" size={18} color={C.kcal} />
+                <Animated.View
+                  style={[
+                    s.flameContainer,
+                    { transform: [{ scale: pulseAnim }] },
+                  ]}
+                >
+                  <Ionicons name="flame" size={32} color={C.kcal} />
                 </Animated.View>
                 <Text style={s.kcalBigNumber}>{Math.round(m.kcal || 0)}</Text>
                 <Text style={s.kcalUnit}>KCAL</Text>
@@ -602,6 +689,7 @@ export function MealBlockCard({
   ingredients,
   onChange,
   onDelete,
+  onSaveAsRecipe,
   extra,
   onOpenPickerForItem,
 }: {
@@ -609,6 +697,7 @@ export function MealBlockCard({
   ingredients: Ingredient[];
   onChange: (b: MealBlock) => void;
   onDelete?: () => void;
+  onSaveAsRecipe?: () => void;
   extra?: React.ReactNode;
   onOpenPickerForItem: (itemId: string) => void;
 }) {
@@ -649,7 +738,21 @@ export function MealBlockCard({
               placeholderTextColor={C.subMuted}
             />
           </View>
+
+          {/* BOTÓN PARA GUARDAR DIRECTAMENTE COMO COMIDA GUARDADA / RECETA */}
+          {onSaveAsRecipe && (
+            <Pressable
+              onPress={onSaveAsRecipe}
+              hitSlop={8}
+              style={({ pressed }) => [s.saveRecipeBtn, pressed && s.btnPressed]}
+            >
+              <Ionicons name="bookmark-outline" size={15} color={C.pastelPurple} />
+              <Text style={s.saveRecipeBtnText}>Guardar</Text>
+            </Pressable>
+          )}
+
           {extra}
+
           {onDelete && (
             <Pressable
               onPress={onDelete}
@@ -761,7 +864,7 @@ export const s = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: C.bgCard,
     shadowColor: C.pastelPurple,
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
@@ -769,6 +872,36 @@ export const s = StyleSheet.create({
   cardGradient: {
     padding: 16,
   },
+
+  // ORBES DE FONDO ANIMADO ANIME
+  floatingOrb1: {
+    position: 'absolute',
+    top: -30,
+    left: -20,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(167, 139, 250, 0.22)',
+  },
+  floatingOrb2: {
+    position: 'absolute',
+    bottom: -40,
+    right: -20,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(244, 114, 182, 0.18)',
+  },
+  floatingOrb3: {
+    position: 'absolute',
+    top: 30,
+    right: 40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(20, 184, 166, 0.12)',
+  },
+
   hudHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -798,7 +931,7 @@ export const s = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // Anillo de Kcal
+  // Anillo de Kcal y Llama
   ringCenterGlow: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -807,12 +940,20 @@ export const s = StyleSheet.create({
     borderRadius: 51,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255, 94, 126, 0.25)',
+    borderColor: 'rgba(255, 94, 126, 0.3)',
     shadowColor: C.kcal,
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
+  },
+  flameContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 1,
+    shadowColor: C.kcal,
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
   },
   kcalBigNumber: {
     color: C.text,
@@ -1016,6 +1157,7 @@ export const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingLeft: 4,
+    gap: 8,
   },
   mealIconBadge: {
     width: 32,
@@ -1033,6 +1175,22 @@ export const s = StyleSheet.create({
     fontWeight: '800',
     flex: 1,
     paddingVertical: 4,
+  },
+  saveRecipeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.25)',
+  },
+  saveRecipeBtnText: {
+    color: C.pastelPurple,
+    fontSize: 12,
+    fontWeight: '700',
   },
   deleteBlockBtn: {
     padding: 6,

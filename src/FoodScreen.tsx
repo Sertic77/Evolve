@@ -239,13 +239,34 @@ function DayLog({
   dayKey: string;
   onOpenPicker: (blockId: string, itemId: string) => void;
 }) {
-  const { ingredients, savedMeals, setDayMeals } = useStore();
+  const { ingredients, savedMeals, setDayMeals, upsertSavedMeal } = useStore();
   const [pickModalOpen, setPickModalOpen] = useState(false);
 
   const setMeals = (m: MealBlock[]) => setDayMeals(dayKey, m);
 
   const defaultNames = ['Desayuno', 'Almuerzo', 'Cena', 'Snack', 'Post-Entreno'];
   const nextName = defaultNames[meals.length] ?? `Comida ${meals.length + 1}`;
+
+  // Guarda un bloque directamente en la biblioteca de comidas guardadas
+  const handleSaveBlockAsRecipe = (block: MealBlock) => {
+    const validItems = block.items.filter((it) => it.ingredientId && it.grams > 0);
+    if (validItems.length === 0) {
+      Alert.alert(
+        'Comida sin alimentos',
+        'Agrega al menos un ingrediente con su cantidad antes de guardarla como receta.',
+      );
+      return;
+    }
+    upsertSavedMeal({
+      id: uid(),
+      name: block.name.trim() || 'Comida guardada',
+      items: validItems.map((it) => ({ ...it, id: uid() })),
+    });
+    Alert.alert(
+      '¡Comida guardada!',
+      `"${block.name.trim() || 'Comida guardada'}" ya está en tus recetas guardadas para usarla en cualquier día.`,
+    );
+  };
 
   return (
     <View style={{ marginTop: 4 }}>
@@ -264,7 +285,7 @@ function DayLog({
             </View>
             <Text style={styles.emptyDayTitle}>Sin comidas registradas</Text>
             <Text style={styles.emptyDaySubtitle}>
-              Toca en "+ Bloque de comida" o carga una comida guardada para empezar el registro.
+              Toca en "Bloque de comida" o carga una comida guardada para empezar el registro.
             </Text>
           </LinearGradient>
         </View>
@@ -278,6 +299,7 @@ function DayLog({
           ingredients={ingredients}
           onChange={(updated) => setMeals(meals.map((x) => (x.id === updated.id ? updated : x)))}
           onDelete={() => setMeals(meals.filter((x) => x.id !== m.id))}
+          onSaveAsRecipe={() => handleSaveBlockAsRecipe(m)}
           onOpenPickerForItem={(itemId) => onOpenPicker(m.id, itemId)}
         />
       ))}
@@ -286,7 +308,7 @@ function DayLog({
       <View style={styles.actionButtonsRow}>
         <PrimaryButton
           icon="add-circle"
-          label="+ Bloque de comida"
+          label="Bloque de comida"
           onPress={() => {
             const newItemId = uid();
             const newBlockId = uid();
