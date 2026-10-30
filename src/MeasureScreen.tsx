@@ -11,6 +11,8 @@ import {
   Easing,
   Platform,
   Alert,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import Svg, {
   Path,
@@ -20,7 +22,6 @@ import Svg, {
   Defs,
   LinearGradient as SvgGradient,
   Stop,
-  Text as SvgText,
 } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,7 +30,6 @@ import { DateSelector, PrimaryButton, s } from './components';
 import {
   useStore,
   dateKey,
-  uid,
   BodyPartKey,
   DayMeasurements,
   ProgressPhoto,
@@ -38,6 +38,8 @@ import {
 /* ==========================================================
    CONFIGURACIÓN Y METADATOS DE PARTES DEL CUERPO
 ========================================================== */
+export type GenderModel = 'male' | 'female';
+
 export interface BodyPartInfo {
   key: BodyPartKey;
   label: string;
@@ -226,12 +228,29 @@ export default function MeasureScreen() {
   const [date, setDate] = useState<Date>(new Date());
   const key = dateKey(date);
 
-  const { measurementLogs, photoLogs, setPartMeasurement, deletePartMeasurement } = useStore();
+  const {
+    measurementLogs,
+    weightLogs,
+    photoLogs,
+    setPartMeasurement,
+    deletePartMeasurement,
+    setDayWeight,
+    deleteDayWeight,
+  } = useStore();
+
   const dayMeasurements = measurementLogs[key] || {};
+  const dayWeight = weightLogs[key];
   const dayPhotos = photoLogs[key] || [];
+
+  // Modelo del croquis: 'male' (Hombre musculoso/atlético) vs 'female' (Mujer esbelta/fit)
+  const [genderModel, setGenderModel] = useState<GenderModel>('male');
+  const [genderModalOpen, setGenderModalOpen] = useState(false);
 
   // Vista anatómica: 'front' (Frente) o 'back' (Espalda)
   const [bodyView, setBodyView] = useState<'front' | 'back'>('front');
+
+  // Modal de peso corporal
+  const [weightModalOpen, setWeightModalOpen] = useState(false);
 
   // Parte seleccionada para ingresar/editar medida
   const [selectedPart, setSelectedPart] = useState<BodyPartKey | null>(null);
@@ -307,14 +326,23 @@ export default function MeasureScreen() {
         >
           {tab === 0 ? (
             /* ==========================================================
-               PESTAÑA 1: MEDIDAS (Calendario + Croquis + Lista)
+               PESTAÑA 1: MEDIDAS (Calendario + Peso + Croquis + Lista)
             ========================================================== */
             <View style={{ marginTop: 2 }}>
               {/* Botón de Calendario (por defecto hoy) */}
               <DateSelector date={date} onChange={setDate} />
 
+              {/* TARJETA DE PESO CORPORAL (Destacada y editable) */}
+              <BodyWeightCard
+                weight={dayWeight}
+                dateKeyStr={key}
+                onOpenEdit={() => setWeightModalOpen(true)}
+              />
+
               {/* CROQUIS DEL CUERPO HUMANO TIPO ANIME */}
               <AnimeBodyMapCard
+                genderModel={genderModel}
+                onOpenModelSelect={() => setGenderModalOpen(true)}
                 bodyView={bodyView}
                 onChangeView={setBodyView}
                 measurements={dayMeasurements}
@@ -340,6 +368,33 @@ export default function MeasureScreen() {
         </Animated.View>
       </ScrollView>
 
+      {/* SELECTOR MODAL DE MODELO DE CROQUIS (Hombre / Mujer) */}
+      <GenderModelSelectModal
+        visible={genderModalOpen}
+        currentModel={genderModel}
+        onSelect={(m) => {
+          setGenderModel(m);
+          setGenderModalOpen(false);
+        }}
+        onClose={() => setGenderModalOpen(false)}
+      />
+
+      {/* MODAL PARA AGREGAR / EDITAR PESO CORPORAL */}
+      <WeightEditModal
+        visible={weightModalOpen}
+        currentWeight={dayWeight}
+        dateKeyStr={key}
+        onClose={() => setWeightModalOpen(false)}
+        onSave={(w) => {
+          setDayWeight(key, w);
+          setWeightModalOpen(false);
+        }}
+        onDelete={() => {
+          deleteDayWeight(key);
+          setWeightModalOpen(false);
+        }}
+      />
+
       {/* MODAL PARA AGREGAR / EDITAR MEDIDA CORPORAL */}
       {selectedPart && (
         <MeasurementEditModal
@@ -359,6 +414,66 @@ export default function MeasureScreen() {
         />
       )}
     </View>
+  );
+}
+
+/* ==========================================================
+   TARJETA DE PESO CORPORAL DEL DÍA
+========================================================== */
+function BodyWeightCard({
+  weight,
+  dateKeyStr,
+  onOpenEdit,
+}: {
+  weight?: number;
+  dateKeyStr: string;
+  onOpenEdit: () => void;
+}) {
+  const hasWeight = weight !== undefined && weight > 0;
+
+  return (
+    <Pressable
+      onPress={onOpenEdit}
+      style={({ pressed }) => [
+        measureStyles.weightGlassCard,
+        pressed && s.btnPressed,
+      ]}
+    >
+      <LinearGradient
+        colors={['rgba(255, 255, 255, 0.98)', 'rgba(245, 248, 255, 0.94)']}
+        style={measureStyles.weightCardGradient}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={measureStyles.weightIconOrb}>
+            <Ionicons name="scale-outline" size={24} color={C.pastelPurple} />
+          </View>
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Text style={measureStyles.weightTagLabel}>PESO CORPORAL</Text>
+              <View style={measureStyles.weightStatusDot} />
+            </View>
+            <Text style={measureStyles.weightSubLabel}>
+              {hasWeight ? 'Registro completado' : 'Toca para registrar peso del día'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {hasWeight ? (
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+              <Text style={measureStyles.weightValueNumber}>{weight}</Text>
+              <Text style={measureStyles.weightValueUnit}>KG</Text>
+            </View>
+          ) : (
+            <View style={measureStyles.weightAddBadge}>
+              <Ionicons name="add" size={14} color="#FFFFFF" />
+              <Text style={measureStyles.weightAddBadgeText}>Añadir</Text>
+            </View>
+          )}
+          <Ionicons name="chevron-forward" size={16} color={C.subMuted} />
+        </View>
+      </LinearGradient>
+    </Pressable>
   );
 }
 
@@ -444,17 +559,20 @@ function MeasureModeSegmented({
    TARJETA DEL CROQUIS DEL CUERPO HUMANO ANIME
 ========================================================== */
 function AnimeBodyMapCard({
+  genderModel,
+  onOpenModelSelect,
   bodyView,
   onChangeView,
   measurements,
   onSelectPart,
 }: {
+  genderModel: GenderModel;
+  onOpenModelSelect: () => void;
   bodyView: 'front' | 'back';
   onChangeView: (v: 'front' | 'back') => void;
   measurements: DayMeasurements;
   onSelectPart: (p: BodyPartKey) => void;
 }) {
-  // Conteo de medidas registradas hoy
   const registeredCount = Object.keys(measurements).length;
 
   return (
@@ -469,16 +587,39 @@ function AnimeBodyMapCard({
         colors={GRADIENTS.cardGlass}
         style={measureStyles.croquisCardGradient}
       >
-        {/* Encabezado del Mapa Anatómico */}
+        {/* Encabezado: BOTÓN DE SELECT OPTION PARA ESCOGER MODELO DE CROQUIS */}
         <View style={measureStyles.croquisHeaderRow}>
-          <View>
-            <View style={s.hudBadge}>
-              <Ionicons name="sparkles" size={11} color={C.pastelPurple} />
-              <Text style={s.hudBadgeText}>✦ CROQUIS ANATÓMICO ANIME ✦</Text>
-            </View>
-            <Text style={measureStyles.croquisSubTitle}>
-              Toca una parte del cuerpo para ingresar tu medida
-            </Text>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            {/* BOTÓN SELECTOR DE CROQUIS */}
+            <Pressable
+              onPress={onOpenModelSelect}
+              style={({ pressed }) => [
+                measureStyles.croquisSelectorBtn,
+                pressed && s.btnPressed,
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                <LinearGradient
+                  colors={genderModel === 'male' ? ['#8B5CF6', '#60A5FA'] : ['#EC4899', '#F472B6']}
+                  style={measureStyles.modelIconBadge}
+                >
+                  <Ionicons
+                    name={genderModel === 'male' ? 'barbell' : 'sparkles'}
+                    size={11}
+                    color="#FFFFFF"
+                  />
+                </LinearGradient>
+                <View style={{ flex: 1 }}>
+                  <Text style={measureStyles.croquisSelectorTitle}>
+                    {genderModel === 'male' ? 'Hombre (Musculoso)' : 'Mujer (Esbelta / Fit)'}
+                  </Text>
+                  <Text style={measureStyles.croquisSelectorHint}>
+                    Cambiar silueta anime ▾
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="swap-horizontal" size={16} color={C.pastelPurple} />
+            </Pressable>
           </View>
 
           {/* Badge de progreso de medidas */}
@@ -540,6 +681,7 @@ function AnimeBodyMapCard({
         {/* LIENZO SVG: SILUETA ANIME DEL CUERPO HUMANO */}
         <View style={measureStyles.bodySvgCanvasWrapper}>
           <AnimeBodyVector
+            genderModel={genderModel}
             view={bodyView}
             measurements={measurements}
             onSelectPart={onSelectPart}
@@ -554,11 +696,11 @@ function AnimeBodyMapCard({
           </View>
           <View style={measureStyles.legendItem}>
             <View style={[measureStyles.legendDot, { backgroundColor: 'rgba(167, 139, 250, 0.25)', borderColor: '#A78BFA', borderWidth: 1 }]} />
-            <Text style={measureStyles.legendLabel}>Sin medir (Interactivo)</Text>
+            <Text style={measureStyles.legendLabel}>Por medir (Toca aquí)</Text>
           </View>
           <View style={measureStyles.legendItem}>
             <View style={[measureStyles.legendDot, { backgroundColor: 'rgba(203, 213, 225, 0.4)' }]} />
-            <Text style={measureStyles.legendLabel}>No interactúa</Text>
+            <Text style={measureStyles.legendLabel}>Fijo</Text>
           </View>
         </View>
       </LinearGradient>
@@ -567,43 +709,138 @@ function AnimeBodyMapCard({
 }
 
 /* ==========================================================
-   VECTOR SVG: SILUETA ANIME CON PARTES CLICKEABLES
+   MODAL DE SELECCIÓN DE MODELO DE CROQUIS
+========================================================== */
+function GenderModelSelectModal({
+  visible,
+  currentModel,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  currentModel: GenderModel;
+  onSelect: (m: GenderModel) => void;
+  onClose: () => void;
+}) {
+  const models: {
+    key: GenderModel;
+    title: string;
+    subtitle: string;
+    badge: string;
+    icon: any;
+    colors: readonly [string, string];
+  }[] = [
+    {
+      key: 'male',
+      title: 'Hombre (Musculoso / V-Taper)',
+      subtitle: 'Proporciones atléticas masculinas: hombros amplios, espalda V, pecho firme y piernas definidas.',
+      badge: 'ESTILO SHONEN',
+      icon: 'barbell-outline',
+      colors: ['#8B5CF6', '#60A5FA'] as const,
+    },
+    {
+      key: 'female',
+      title: 'Mujer (Esbelta / Fit Hourglass)',
+      subtitle: 'Proporciones atléticas femeninas: cintura esbelta, glúteos torneados y silueta tonificada.',
+      badge: 'ESTILO FITNESS FIT',
+      icon: 'sparkles-outline',
+      colors: ['#EC4899', '#F472B6'] as const,
+    },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.modalBackdrop} onPress={onClose}>
+        <Pressable style={measureStyles.selectModelCard} onPress={(e) => e.stopPropagation()}>
+          <View style={measureStyles.selectModelHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="body" size={18} color={C.pastelPurple} />
+              <Text style={measureStyles.selectModelTitle}>Escoge tu Croquis Anime</Text>
+            </View>
+            <Pressable onPress={onClose} style={{ padding: 4 }}>
+              <Ionicons name="close" size={20} color={C.sub} />
+            </Pressable>
+          </View>
+
+          <Text style={measureStyles.selectModelDescription}>
+            Selecciona el modelo anatómico estilizado que mejor represente tus objetivos físicos:
+          </Text>
+
+          <View style={{ gap: 10, marginTop: 14 }}>
+            {models.map((m) => {
+              const active = currentModel === m.key;
+              return (
+                <Pressable
+                  key={m.key}
+                  onPress={() => onSelect(m.key)}
+                  style={({ pressed }) => [
+                    measureStyles.modelOptionBtn,
+                    active && measureStyles.modelOptionBtnActive,
+                    pressed && s.btnPressed,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={m.colors}
+                    style={measureStyles.modelOptionIconGradient}
+                  >
+                    <Ionicons name={m.icon} size={22} color="#FFFFFF" />
+                  </LinearGradient>
+
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <Text style={measureStyles.modelOptionTitle}>{m.title}</Text>
+                      {active && (
+                        <View style={measureStyles.activeModelTag}>
+                          <Text style={measureStyles.activeModelTagText}>ACTIVO</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={measureStyles.modelOptionSubtitle}>{m.subtitle}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/* ==========================================================
+   VECTOR SVG: SILUETAS ANIME MUSCULOSAS Y ESBELTAS
 ========================================================== */
 function AnimeBodyVector({
+  genderModel,
   view,
   measurements,
   onSelectPart,
 }: {
+  genderModel: GenderModel;
   view: 'front' | 'back';
   measurements: DayMeasurements;
   onSelectPart: (p: BodyPartKey) => void;
 }) {
-  const width = 290;
-  const height = 410;
+  const width = 300;
+  const height = 416;
 
-  // Renderizador de parte interactiva con estilo anime
   const renderMuscleSection = (
     partKey: BodyPartKey,
     d: string,
     centerLabelX: number,
-    centerLabelY: number,
-    tagAlign: 'left' | 'right' | 'center' = 'center',
-    displayUnit: string = 'cm'
+    centerLabelY: number
   ) => {
     const val = measurements[partKey];
     const isMeasured = val !== undefined && val > 0;
-    const info = BODY_PARTS_INFO[partKey];
 
-    // Colores dinámicos Anime
     const fillColor = isMeasured
-      ? 'rgba(139, 92, 246, 0.35)'
-      : 'rgba(238, 242, 255, 0.85)';
-    const strokeColor = isMeasured ? '#8B5CF6' : 'rgba(167, 139, 250, 0.6)';
-    const strokeWidth = isMeasured ? 2.2 : 1.4;
+      ? 'rgba(139, 92, 246, 0.38)'
+      : 'rgba(238, 242, 255, 0.88)';
+    const strokeColor = isMeasured ? '#8B5CF6' : 'rgba(167, 139, 250, 0.65)';
+    const strokeWidth = isMeasured ? 2.4 : 1.5;
 
     return (
       <G key={partKey} onPress={() => onSelectPart(partKey)}>
-        {/* Contorno anatómico con halo de brillo si está medido */}
         <Path
           d={d}
           fill={fillColor}
@@ -612,25 +849,23 @@ function AnimeBodyVector({
           strokeLinejoin="round"
           strokeLinecap="round"
         />
-
-        {/* Chip visual de medida con valor flotante */}
         {isMeasured && (
-          <G>
-            <Circle
-              cx={centerLabelX}
-              cy={centerLabelY}
-              r={3.5}
-              fill="#8B5CF6"
-            />
-          </G>
+          <Circle
+            cx={centerLabelX}
+            cy={centerLabelY}
+            r={3.8}
+            fill="#8B5CF6"
+          />
         )}
       </G>
     );
   };
 
+  const isMale = genderModel === 'male';
+
   return (
     <View style={measureStyles.svgContainer}>
-      <Svg width={width} height={height} viewBox="0 0 290 410">
+      <Svg width={width} height={height} viewBox="0 0 300 416">
         <Defs>
           <SvgGradient id="animeGlowActive" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0%" stopColor="#A78BFA" stopOpacity="0.45" />
@@ -643,30 +878,29 @@ function AnimeBodyVector({
           </SvgGradient>
         </Defs>
 
-        {/* ========================================================
-            PARTES COMUNES NO INTERACTIVAS: CABEZA, MANOS, PIES
-        ======================================================== */}
-        {/* 1. CABEZA (No interactúa) */}
+        {/* 1. CABEZA ANIME (No interactúa) */}
         <G>
-          {/* Sombra suave */}
-          <Circle cx="145" cy="44" r="24" fill="rgba(203, 213, 225, 0.2)" />
-          {/* Cabeza anatómica estilo Anime con peinado estilizado */}
-          <Path
-            d="M 145 16 C 130 16, 122 26, 122 42 C 122 55, 131 66, 140 70 L 142 77 L 148 77 L 150 70 C 159 66, 168 55, 168 42 C 168 26, 160 16, 145 16 Z"
-            fill="url(#animeHeadGrad)"
-            stroke="rgba(148, 163, 184, 0.6)"
-            strokeWidth="1.4"
-          />
-          {/* Mechón sutil anime decorativo */}
-          <Path
-            d="M 134 26 C 142 30, 148 24, 156 28"
-            stroke="rgba(167, 139, 250, 0.45)"
-            strokeWidth="1.2"
-            fill="none"
-          />
+          <Circle cx="150" cy="40" r="23" fill="rgba(203, 213, 225, 0.18)" />
+          {isMale ? (
+            /* Cabeza masculina con peinado anime puntiagudo */
+            <Path
+              d="M 150 14 C 134 14, 126 25, 126 40 C 126 53, 135 64, 144 68 L 143 76 L 157 76 L 156 68 C 165 64, 174 53, 174 40 C 174 25, 166 14, 150 14 Z"
+              fill="url(#animeHeadGrad)"
+              stroke="rgba(148, 163, 184, 0.65)"
+              strokeWidth="1.4"
+            />
+          ) : (
+            /* Cabeza femenina con peinado estilizado y cuello esbelto */
+            <Path
+              d="M 150 15 C 136 15, 128 26, 128 40 C 128 52, 136 63, 145 67 L 146 76 L 154 76 L 155 67 C 164 63, 172 52, 172 40 C 172 26, 164 15, 150 15 Z"
+              fill="url(#animeHeadGrad)"
+              stroke="rgba(148, 163, 184, 0.65)"
+              strokeWidth="1.4"
+            />
+          )}
           {/* Cuello */}
           <Path
-            d="M 139 72 L 138 84 L 152 84 L 151 72 Z"
+            d={isMale ? 'M 143 72 L 142 82 L 158 82 L 157 72 Z' : 'M 146 72 L 145 82 L 155 82 L 154 72 Z'}
             fill="rgba(226, 232, 240, 0.85)"
             stroke="rgba(148, 163, 184, 0.5)"
             strokeWidth="1.2"
@@ -675,16 +909,14 @@ function AnimeBodyVector({
 
         {/* 2. MANOS (No interactúan) */}
         <G>
-          {/* Mano derecha */}
           <Path
-            d="M 46 220 C 44 225, 42 232, 45 237 C 47 241, 51 241, 53 236 L 55 220 Z"
+            d="M 44 218 C 42 224, 40 231, 43 236 C 45 240, 49 240, 51 235 L 53 218 Z"
             fill="rgba(226, 232, 240, 0.8)"
             stroke="rgba(148, 163, 184, 0.5)"
             strokeWidth="1.2"
           />
-          {/* Mano izquierda */}
           <Path
-            d="M 244 220 C 246 225, 248 232, 245 237 C 243 241, 239 241, 237 236 L 235 220 Z"
+            d="M 256 218 C 258 224, 260 231, 257 236 C 255 240, 251 240, 249 235 L 247 218 Z"
             fill="rgba(226, 232, 240, 0.8)"
             stroke="rgba(148, 163, 184, 0.5)"
             strokeWidth="1.2"
@@ -693,16 +925,14 @@ function AnimeBodyVector({
 
         {/* 3. PIES (No interactúan) */}
         <G>
-          {/* Pie derecho */}
           <Path
-            d="M 112 376 C 110 384, 106 392, 102 396 C 99 399, 105 401, 114 400 C 122 399, 124 394, 123 376 Z"
+            d="M 114 380 C 112 388, 108 396, 104 400 C 101 403, 107 405, 116 404 C 124 403, 126 398, 125 380 Z"
             fill="rgba(226, 232, 240, 0.8)"
             stroke="rgba(148, 163, 184, 0.5)"
             strokeWidth="1.2"
           />
-          {/* Pie izquierdo */}
           <Path
-            d="M 178 376 C 180 384, 184 392, 188 396 C 191 399, 185 401, 176 400 C 168 399, 166 394, 167 376 Z"
+            d="M 186 380 C 188 388, 192 396, 196 400 C 199 403, 193 405, 184 404 C 176 403, 174 398, 175 380 Z"
             fill="rgba(226, 232, 240, 0.8)"
             stroke="rgba(148, 163, 184, 0.5)"
             strokeWidth="1.2"
@@ -714,84 +944,172 @@ function AnimeBodyVector({
         ======================================================== */}
         {view === 'front' && (
           <G>
-            {/* PECHO (Interactivo) */}
-            {renderMuscleSection(
-              'chest',
-              'M 136 84 C 114 84, 100 92, 92 104 C 88 116, 94 130, 116 132 C 132 134, 142 128, 145 116 C 148 128, 158 134, 174 132 C 196 130, 202 116, 198 104 C 190 92, 176 84, 154 84 Z',
-              145,
-              108
-            )}
+            {isMale ? (
+              /* --- HOMBRE FRONTAL (Musculoso / V-Taper) --- */
+              <>
+                {/* PECHO - Pectorales Marcados */}
+                {renderMuscleSection(
+                  'chest',
+                  'M 139 82 C 114 82, 98 90, 88 102 C 82 116, 90 132, 115 135 C 133 137, 146 130, 150 118 C 154 130, 167 137, 185 135 C 210 132, 218 116, 212 102 C 202 90, 186 82, 161 82 Z',
+                  150,
+                  108
+                )}
 
-            {/* CINTURA (Interactivo) */}
-            {renderMuscleSection(
-              'waist',
-              'M 116 133 C 132 134, 143 128, 145 118 C 147 128, 158 134, 174 133 L 170 174 C 158 178, 132 178, 120 174 Z',
-              145,
-              153
-            )}
+                {/* CINTURA - Oblicuos & Core atlético */}
+                {renderMuscleSection(
+                  'waist',
+                  'M 115 135 C 133 137, 147 130, 150 119 C 153 130, 167 137, 185 135 L 178 178 C 164 182, 136 182, 122 178 Z',
+                  150,
+                  155
+                )}
 
-            {/* BRAZO DERECHO - Bíceps (Interactivo) */}
-            {renderMuscleSection(
-              'right_arm',
-              'M 90 98 C 82 98, 72 108, 68 124 C 64 138, 62 152, 65 158 L 81 158 C 86 148, 91 132, 92 116 Z',
-              77,
-              128
-            )}
+                {/* BRAZO D - Bíceps esculpido */}
+                {renderMuscleSection(
+                  'right_arm',
+                  'M 86 96 C 76 96, 64 107, 60 124 C 55 139, 54 153, 58 159 L 77 159 C 83 148, 88 132, 90 114 Z',
+                  72,
+                  128
+                )}
 
-            {/* BRAZO IZQUIERDO - Bíceps (Interactivo) */}
-            {renderMuscleSection(
-              'left_arm',
-              'M 200 98 C 208 98, 218 108, 222 124 C 226 138, 228 152, 225 158 L 209 158 C 204 148, 199 132, 198 116 Z',
-              213,
-              128
-            )}
+                {/* BRAZO I - Bíceps esculpido */}
+                {renderMuscleSection(
+                  'left_arm',
+                  'M 214 96 C 224 96, 236 107, 240 124 C 245 139, 246 153, 242 159 L 223 159 C 217 148, 212 132, 210 114 Z',
+                  228,
+                  128
+                )}
 
-            {/* ANTEBRAZO DERECHO (Interactivo) */}
-            {renderMuscleSection(
-              'right_forearm',
-              'M 65 160 L 80 160 C 78 178, 73 198, 56 220 L 46 220 C 49 198, 57 176, 65 160 Z',
-              64,
-              188
-            )}
+                {/* ANTEBRAZO D */}
+                {renderMuscleSection(
+                  'right_forearm',
+                  'M 58 161 L 76 161 C 74 180, 68 200, 52 218 L 43 218 C 45 198, 52 176, 58 161 Z',
+                  60,
+                  188
+                )}
 
-            {/* ANTEBRAZO IZQUIERDO (Interactivo) */}
-            {renderMuscleSection(
-              'left_forearm',
-              'M 225 160 L 210 160 C 212 178, 217 198, 234 220 L 244 220 C 241 198, 233 176, 225 160 Z',
-              226,
-              188
-            )}
+                {/* ANTEBRAZO I */}
+                {renderMuscleSection(
+                  'left_forearm',
+                  'M 242 161 L 224 161 C 226 180, 232 200, 248 218 L 257 218 C 255 198, 248 176, 242 161 Z',
+                  240,
+                  188
+                )}
 
-            {/* MUSLO DERECHO - Cuádriceps (Interactivo) */}
-            {renderMuscleSection(
-              'right_thigh',
-              'M 120 175 L 143 176 L 140 240 C 138 262, 134 278, 126 284 L 110 284 C 104 274, 102 248, 105 218 C 108 194, 114 182, 120 175 Z',
-              123,
-              230
-            )}
+                {/* MUSLO D - Cuádriceps con corte lateral */}
+                {renderMuscleSection(
+                  'right_thigh',
+                  'M 122 179 L 148 180 L 144 246 C 141 268, 137 284, 128 290 L 108 290 C 101 278, 98 250, 102 220 C 106 195, 114 184, 122 179 Z',
+                  124,
+                  234
+                )}
 
-            {/* MUSLO IZQUIERDO - Cuádriceps (Interactivo) */}
-            {renderMuscleSection(
-              'left_thigh',
-              'M 170 175 L 147 176 L 150 240 C 152 262, 156 278, 164 284 L 180 284 C 186 274, 188 248, 185 218 C 182 194, 176 182, 170 175 Z',
-              167,
-              230
-            )}
+                {/* MUSLO I - Cuádriceps con corte lateral */}
+                {renderMuscleSection(
+                  'left_thigh',
+                  'M 178 179 L 152 180 L 156 246 C 159 268, 163 284, 172 290 L 192 290 C 199 278, 202 250, 198 220 C 194 195, 186 184, 178 179 Z',
+                  176,
+                  234
+                )}
 
-            {/* PANTORRILLA DERECHA (Interactivo) */}
-            {renderMuscleSection(
-              'right_calf',
-              'M 110 286 L 126 286 C 128 304, 130 334, 123 374 L 112 374 C 105 344, 104 314, 110 286 Z',
-              117,
-              330
-            )}
+                {/* PANTORRILLA D - Diamante gastrocnemio */}
+                {renderMuscleSection(
+                  'right_calf',
+                  'M 108 292 L 128 292 C 131 312, 133 342, 125 378 L 113 378 C 104 346, 102 318, 108 292 Z',
+                  118,
+                  334
+                )}
 
-            {/* PANTORRILLA IZQUIERDA (Interactivo) */}
-            {renderMuscleSection(
-              'left_calf',
-              'M 180 286 L 164 286 C 162 304, 160 334, 167 374 L 178 374 C 185 344, 186 314, 180 286 Z',
-              173,
-              330
+                {/* PANTORRILLA I - Diamante gastrocnemio */}
+                {renderMuscleSection(
+                  'left_calf',
+                  'M 192 292 L 172 292 C 169 312, 167 342, 175 378 L 187 378 C 196 346, 198 318, 192 292 Z',
+                  182,
+                  334
+                )}
+              </>
+            ) : (
+              /* --- MUJER FRONTAL (Esbelta / Fit Hourglass) --- */
+              <>
+                {/* PECHO - Tonificado y Femenino */}
+                {renderMuscleSection(
+                  'chest',
+                  'M 142 82 C 122 82, 108 90, 100 102 C 94 114, 102 128, 122 131 C 136 133, 146 126, 150 118 C 154 126, 164 133, 178 131 C 198 128, 206 114, 200 102 C 192 90, 178 82, 158 82 Z',
+                  150,
+                  106
+                )}
+
+                {/* CINTURA - Estrecha Reloj de Arena Fit */}
+                {renderMuscleSection(
+                  'waist',
+                  'M 122 131 C 136 133, 146 126, 150 118 C 154 126, 164 133, 178 131 L 186 176 C 168 180, 132 180, 114 176 Z',
+                  150,
+                  152
+                )}
+
+                {/* BRAZO D - Esbelto y Tonificado */}
+                {renderMuscleSection(
+                  'right_arm',
+                  'M 98 96 C 88 96, 76 106, 73 122 C 70 136, 70 152, 74 158 L 89 158 C 94 148, 98 130, 100 114 Z',
+                  82,
+                  128
+                )}
+
+                {/* BRAZO I - Esbelto y Tonificado */}
+                {renderMuscleSection(
+                  'left_arm',
+                  'M 202 96 C 212 96, 224 106, 227 122 C 230 136, 230 152, 226 158 L 211 158 C 206 148, 202 130, 200 114 Z',
+                  218,
+                  128
+                )}
+
+                {/* ANTEBRAZO D */}
+                {renderMuscleSection(
+                  'right_forearm',
+                  'M 74 160 L 89 160 C 86 178, 80 198, 54 218 L 45 218 C 50 198, 66 176, 74 160 Z',
+                  68,
+                  188
+                )}
+
+                {/* ANTEBRAZO I */}
+                {renderMuscleSection(
+                  'left_forearm',
+                  'M 226 160 L 211 160 C 214 178, 220 198, 246 218 L 255 218 C 250 198, 234 176, 226 160 Z',
+                  232,
+                  188
+                )}
+
+                {/* MUSLO D - Curva de cadera y pierna esbelta */}
+                {renderMuscleSection(
+                  'right_thigh',
+                  'M 114 177 L 148 178 L 144 246 C 141 268, 136 284, 126 290 L 110 290 C 100 278, 96 250, 100 220 C 104 195, 108 184, 114 177 Z',
+                  122,
+                  234
+                )}
+
+                {/* MUSLO I - Curva de cadera y pierna esbelta */}
+                {renderMuscleSection(
+                  'left_thigh',
+                  'M 186 177 L 152 178 L 156 246 C 159 268, 164 284, 174 290 L 190 290 C 200 278, 204 250, 200 220 C 196 195, 192 184, 186 177 Z',
+                  178,
+                  234
+                )}
+
+                {/* PANTORRILLA D */}
+                {renderMuscleSection(
+                  'right_calf',
+                  'M 110 292 L 126 292 C 128 312, 130 342, 124 378 L 114 378 C 106 346, 104 318, 110 292 Z',
+                  118,
+                  334
+                )}
+
+                {/* PANTORRILLA I */}
+                {renderMuscleSection(
+                  'left_calf',
+                  'M 190 292 L 174 292 C 172 312, 170 342, 176 378 L 186 378 C 194 346, 196 318, 190 292 Z',
+                  182,
+                  334
+                )}
+              </>
             )}
           </G>
         )}
@@ -801,84 +1119,172 @@ function AnimeBodyVector({
         ======================================================== */}
         {view === 'back' && (
           <G>
-            {/* ESPALDA - Dorsales y Trapecios (Interactivo) */}
-            {renderMuscleSection(
-              'back',
-              'M 138 84 L 152 84 C 172 86, 188 94, 196 106 C 202 118, 194 136, 178 144 C 168 148, 145 150, 145 150 C 145 150, 122 148, 112 144 C 96 136, 88 118, 94 106 C 102 94, 118 86, 138 84 Z',
-              145,
-              116
-            )}
+            {isMale ? (
+              /* --- HOMBRE POSTERIOR (Espalda V-Taper, Glúteos) --- */
+              <>
+                {/* ESPALDA - Gran Dorsal y Trapecios */}
+                {renderMuscleSection(
+                  'back',
+                  'M 141 82 L 159 82 C 184 84, 204 92, 214 104 C 220 118, 210 138, 188 146 C 174 150, 150 152, 150 152 C 150 152, 126 150, 112 146 C 90 138, 80 118, 86 104 C 96 92, 116 84, 141 82 Z',
+                  150,
+                  116
+                )}
 
-            {/* NALGAS / GLÚTEOS (Interactivo) */}
-            {renderMuscleSection(
-              'glutes',
-              'M 118 152 C 132 154, 145 155, 145 160 C 145 155, 158 154, 172 152 C 186 160, 188 184, 174 198 C 162 208, 149 204, 145 198 C 141 204, 128 208, 116 198 C 102 184, 104 160, 118 152 Z',
-              145,
-              178
-            )}
+                {/* NALGAS / GLÚTEOS - Redondeados y firmes */}
+                {renderMuscleSection(
+                  'glutes',
+                  'M 120 152 C 134 154, 150 155, 150 162 C 150 155, 166 154, 180 152 C 198 162, 200 188, 182 202 C 168 212, 154 206, 150 200 C 146 206, 132 212, 118 202 C 100 188, 102 162, 120 152 Z',
+                  150,
+                  180
+                )}
 
-            {/* BRAZO DERECHO - Tríceps (Interactivo) */}
-            {renderMuscleSection(
-              'right_arm',
-              'M 90 98 C 82 98, 72 108, 68 124 C 64 138, 62 152, 65 158 L 81 158 C 86 148, 91 132, 92 116 Z',
-              77,
-              128
-            )}
+                {/* BRAZO D - Tríceps */}
+                {renderMuscleSection(
+                  'right_arm',
+                  'M 86 96 C 76 96, 64 107, 60 124 C 55 139, 54 153, 58 159 L 77 159 C 83 148, 88 132, 90 114 Z',
+                  72,
+                  128
+                )}
 
-            {/* BRAZO IZQUIERDO - Tríceps (Interactivo) */}
-            {renderMuscleSection(
-              'left_arm',
-              'M 200 98 C 208 98, 218 108, 222 124 C 226 138, 228 152, 225 158 L 209 158 C 204 148, 199 132, 198 116 Z',
-              213,
-              128
-            )}
+                {/* BRAZO I - Tríceps */}
+                {renderMuscleSection(
+                  'left_arm',
+                  'M 214 96 C 224 96, 236 107, 240 124 C 245 139, 246 153, 242 159 L 223 159 C 217 148, 212 132, 210 114 Z',
+                  228,
+                  128
+                )}
 
-            {/* ANTEBRAZO DERECHO (Interactivo) */}
-            {renderMuscleSection(
-              'right_forearm',
-              'M 65 160 L 80 160 C 78 178, 73 198, 56 220 L 46 220 C 49 198, 57 176, 65 160 Z',
-              64,
-              188
-            )}
+                {/* ANTEBRAZO D */}
+                {renderMuscleSection(
+                  'right_forearm',
+                  'M 58 161 L 76 161 C 74 180, 68 200, 52 218 L 43 218 C 45 198, 52 176, 58 161 Z',
+                  60,
+                  188
+                )}
 
-            {/* ANTEBRAZO IZQUIERDO (Interactivo) */}
-            {renderMuscleSection(
-              'left_forearm',
-              'M 225 160 L 210 160 C 212 178, 217 198, 234 220 L 244 220 C 241 198, 233 176, 225 160 Z',
-              226,
-              188
-            )}
+                {/* ANTEBRAZO I */}
+                {renderMuscleSection(
+                  'left_forearm',
+                  'M 242 161 L 224 161 C 226 180, 232 200, 248 218 L 257 218 C 255 198, 248 176, 242 161 Z',
+                  240,
+                  188
+                )}
 
-            {/* MUSLO DERECHO - Isquiotibiales (Interactivo) */}
-            {renderMuscleSection(
-              'right_thigh',
-              'M 116 198 C 128 208, 141 204, 145 198 L 140 248 C 138 266, 134 278, 126 284 L 110 284 C 104 274, 102 248, 106 218 Z',
-              123,
-              244
-            )}
+                {/* MUSLO D - Isquiotibiales */}
+                {renderMuscleSection(
+                  'right_thigh',
+                  'M 118 202 C 132 212, 146 206, 150 200 L 144 252 C 141 270, 137 284, 128 290 L 108 290 C 101 278, 98 250, 104 220 Z',
+                  124,
+                  248
+                )}
 
-            {/* MUSLO IZQUIERDO - Isquiotibiales (Interactivo) */}
-            {renderMuscleSection(
-              'left_thigh',
-              'M 174 198 C 162 208, 149 204, 145 198 L 150 248 C 152 266, 156 278, 164 284 L 180 284 C 186 274, 188 248, 184 218 Z',
-              167,
-              244
-            )}
+                {/* MUSLO I - Isquiotibiales */}
+                {renderMuscleSection(
+                  'left_thigh',
+                  'M 182 202 C 168 212, 154 206, 150 200 L 156 252 C 159 270, 163 284, 172 290 L 192 290 C 199 278, 202 250, 196 220 Z',
+                  176,
+                  248
+                )}
 
-            {/* PANTORRILLA DERECHA - Gemelos (Interactivo) */}
-            {renderMuscleSection(
-              'right_calf',
-              'M 110 286 L 126 286 C 130 306, 132 334, 123 374 L 112 374 C 103 344, 102 314, 110 286 Z',
-              117,
-              330
-            )}
+                {/* PANTORRILLA D - Gemelos */}
+                {renderMuscleSection(
+                  'right_calf',
+                  'M 108 292 L 128 292 C 132 314, 134 342, 125 378 L 113 378 C 103 346, 102 318, 108 292 Z',
+                  118,
+                  334
+                )}
 
-            {/* PANTORRILLA IZQUIERDA - Gemelos (Interactivo) */}
-            {renderMuscleSection(
-              'left_calf',
-              'M 180 286 L 164 286 C 160 306, 158 334, 167 374 L 178 374 C 187 344, 188 314, 180 286 Z',
-              173,
-              330
+                {/* PANTORRILLA I - Gemelos */}
+                {renderMuscleSection(
+                  'left_calf',
+                  'M 192 292 L 172 292 C 168 314, 166 342, 175 378 L 187 378 C 197 346, 198 318, 192 292 Z',
+                  182,
+                  334
+                )}
+              </>
+            ) : (
+              /* --- MUJER POSTERIOR (Espalda Esbelta, Glúteos Pronunciados) --- */
+              <>
+                {/* ESPALDA - Tónica y Femenina */}
+                {renderMuscleSection(
+                  'back',
+                  'M 144 82 L 156 82 C 176 84, 194 92, 202 104 C 208 116, 200 134, 182 142 C 170 146, 150 148, 150 148 C 150 148, 130 146, 118 142 C 100 134, 92 116, 98 104 C 106 92, 124 84, 144 82 Z',
+                  150,
+                  114
+                )}
+
+                {/* NALGAS / GLÚTEOS - Curvatura pronunciada y estética */}
+                {renderMuscleSection(
+                  'glutes',
+                  'M 116 148 C 132 150, 150 152, 150 160 C 150 152, 168 150, 184 148 C 204 160, 208 188, 190 204 C 172 216, 156 210, 150 202 C 144 210, 128 216, 110 204 C 92 188, 96 160, 116 148 Z',
+                  150,
+                  182
+                )}
+
+                {/* BRAZO D - Tríceps */}
+                {renderMuscleSection(
+                  'right_arm',
+                  'M 98 96 C 88 96, 76 106, 73 122 C 70 136, 70 152, 74 158 L 89 158 C 94 148, 98 130, 100 114 Z',
+                  82,
+                  128
+                )}
+
+                {/* BRAZO I - Tríceps */}
+                {renderMuscleSection(
+                  'left_arm',
+                  'M 202 96 C 212 96, 224 106, 227 122 C 230 136, 230 152, 226 158 L 211 158 C 206 148, 202 130, 200 114 Z',
+                  218,
+                  128
+                )}
+
+                {/* ANTEBRAZO D */}
+                {renderMuscleSection(
+                  'right_forearm',
+                  'M 74 160 L 89 160 C 86 178, 80 198, 54 218 L 45 218 C 50 198, 66 176, 74 160 Z',
+                  68,
+                  188
+                )}
+
+                {/* ANTEBRAZO I */}
+                {renderMuscleSection(
+                  'left_forearm',
+                  'M 226 160 L 211 160 C 214 178, 220 198, 246 218 L 255 218 C 250 198, 234 176, 226 160 Z',
+                  232,
+                  188
+                )}
+
+                {/* MUSLO D - Isquiotibiales */}
+                {renderMuscleSection(
+                  'right_thigh',
+                  'M 110 204 C 128 216, 144 210, 150 202 L 144 252 C 141 270, 136 284, 126 290 L 110 290 C 100 278, 96 250, 100 220 Z',
+                  122,
+                  248
+                )}
+
+                {/* MUSLO I - Isquiotibiales */}
+                {renderMuscleSection(
+                  'left_thigh',
+                  'M 190 204 C 172 216, 156 210, 150 202 L 156 252 C 159 270, 164 284, 174 290 L 190 290 C 200 278, 204 250, 200 220 Z',
+                  178,
+                  248
+                )}
+
+                {/* PANTORRILLA D - Gemelos */}
+                {renderMuscleSection(
+                  'right_calf',
+                  'M 110 292 L 126 292 C 130 314, 132 342, 124 378 L 114 378 C 106 346, 104 318, 110 292 Z',
+                  118,
+                  334
+                )}
+
+                {/* PANTORRILLA I - Gemelos */}
+                {renderMuscleSection(
+                  'left_calf',
+                  'M 190 292 L 174 292 C 170 314, 168 342, 176 378 L 186 378 C 194 346, 196 318, 190 292 Z',
+                  182,
+                  334
+                )}
+              </>
             )}
           </G>
         )}
@@ -893,7 +1299,7 @@ function AnimeBodyVector({
               label="Pecho"
               value={measurements.chest}
               top={92}
-              left={170}
+              left={175}
               onPress={() => onSelectPart('chest')}
             />
           )}
@@ -904,7 +1310,7 @@ function AnimeBodyVector({
               label="Cintura"
               value={measurements.waist}
               top={145}
-              left={175}
+              left={180}
               onPress={() => onSelectPart('waist')}
             />
           )}
@@ -914,8 +1320,8 @@ function AnimeBodyVector({
             <FloatingMeasureChip
               label="Bíceps D"
               value={measurements.right_arm}
-              top={120}
-              left={6}
+              top={118}
+              left={8}
               onPress={() => onSelectPart('right_arm')}
             />
           )}
@@ -925,8 +1331,8 @@ function AnimeBodyVector({
             <FloatingMeasureChip
               label="Bíceps I"
               value={measurements.left_arm}
-              top={120}
-              left={215}
+              top={118}
+              left={220}
               onPress={() => onSelectPart('left_arm')}
             />
           )}
@@ -936,7 +1342,7 @@ function AnimeBodyVector({
             <FloatingMeasureChip
               label="Muslo D"
               value={measurements.right_thigh}
-              top={222}
+              top={224}
               left={38}
               onPress={() => onSelectPart('right_thigh')}
             />
@@ -947,8 +1353,8 @@ function AnimeBodyVector({
             <FloatingMeasureChip
               label="Muslo I"
               value={measurements.left_thigh}
-              top={222}
-              left={188}
+              top={224}
+              left={192}
               onPress={() => onSelectPart('left_thigh')}
             />
           )}
@@ -961,7 +1367,7 @@ function AnimeBodyVector({
               label="Espalda"
               value={measurements.back}
               top={105}
-              left={175}
+              left={180}
               onPress={() => onSelectPart('back')}
             />
           )}
@@ -971,8 +1377,8 @@ function AnimeBodyVector({
             <FloatingMeasureChip
               label="Nalgas"
               value={measurements.glutes}
-              top={170}
-              left={175}
+              top={172}
+              left={180}
               onPress={() => onSelectPart('glutes')}
             />
           )}
@@ -982,8 +1388,8 @@ function AnimeBodyVector({
             <FloatingMeasureChip
               label="Gemelo D"
               value={measurements.right_calf}
-              top={320}
-              left={35}
+              top={324}
+              left={36}
               onPress={() => onSelectPart('right_calf')}
             />
           )}
@@ -993,8 +1399,8 @@ function AnimeBodyVector({
             <FloatingMeasureChip
               label="Gemelo I"
               value={measurements.left_calf}
-              top={320}
-              left={188}
+              top={324}
+              left={192}
               onPress={() => onSelectPart('left_calf')}
             />
           )}
@@ -1134,7 +1540,7 @@ function MeasurementsSummaryGrid({
 }
 
 /* ==========================================================
-   MODAL PARA AGREGAR O EDITAR LA MEDIDA
+   MODAL PARA AGREGAR O EDITAR LA MEDIDA (Anti-Keyboard Overlay)
 ========================================================== */
 function MeasurementEditModal({
   visible,
@@ -1158,14 +1564,16 @@ function MeasurementEditModal({
     currentValue !== undefined ? String(currentValue) : String(info.defaultAvg || 30)
   );
 
-  const numVal = parseFloat(valStr) || 0;
+  const numVal = parseFloat(valStr) || (info.defaultAvg || 30);
 
   const adjustVal = (delta: number) => {
-    const updated = Math.max(0, Math.round((numVal + delta) * 10) / 10);
+    const base = parseFloat(valStr) || (info.defaultAvg || 30);
+    const updated = Math.max(0, Math.round((base + delta) * 10) / 10);
     setValStr(String(updated));
   };
 
   const handleSave = () => {
+    Keyboard.dismiss();
     const parsed = parseFloat(valStr.replace(',', '.'));
     if (isNaN(parsed) || parsed <= 0) {
       Alert.alert('Valor inválido', 'Por favor ingresa un número de medida válido mayor a 0 cm.');
@@ -1177,88 +1585,254 @@ function MeasurementEditModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={s.modalBackdrop} onPress={onClose}>
-        <Pressable style={measureStyles.modalDialogCard} onPress={(e) => e.stopPropagation()}>
-          {/* Cabecera del Modal */}
-          <View style={measureStyles.modalHeaderRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={measureStyles.modalIconCircle}>
-                <Ionicons name={info.icon} size={20} color={C.pastelPurple} />
-              </View>
-              <View>
-                <Text style={measureStyles.modalTitle}>{info.label}</Text>
-                <Text style={measureStyles.modalSubtitle}>Fecha: {dateKeyStr}</Text>
-              </View>
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+          style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <ScrollView
+            contentContainerStyle={measureStyles.modalScrollWrapper}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <Pressable style={measureStyles.modalDialogCard} onPress={(e) => e.stopPropagation()}>
+              {/* Cabecera del Modal */}
+              <View style={measureStyles.modalHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={measureStyles.modalIconCircle}>
+                    <Ionicons name={info.icon} size={20} color={C.pastelPurple} />
+                  </View>
+                  <View>
+                    <Text style={measureStyles.modalTitle}>{info.label}</Text>
+                    <Text style={measureStyles.modalSubtitle}>Fecha: {dateKeyStr}</Text>
+                  </View>
+                </View>
 
-            <Pressable onPress={onClose} style={measureStyles.modalCloseBtn}>
-              <Ionicons name="close" size={20} color={C.sub} />
-            </Pressable>
-          </View>
-
-          {/* Campo Central Grande con Teclado Numérico y Ajustes */}
-          <View style={measureStyles.numberInputBigContainer}>
-            <Text style={measureStyles.numberInputHint}>Perímetro corporal</Text>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
-              <TextInput
-                value={valStr}
-                onChangeText={setValStr}
-                keyboardType="decimal-pad"
-                autoFocus
-                selectTextOnFocus
-                style={measureStyles.numberInputBig}
-              />
-              <Text style={measureStyles.numberUnitBig}>cm</Text>
-            </View>
-
-            {/* Steppers rápidos de ajuste (+/- 0.5, +/- 1.0) */}
-            <View style={measureStyles.stepperRow}>
-              {[-1.0, -0.5, +0.5, +1.0].map((step) => (
-                <Pressable
-                  key={step}
-                  onPress={() => adjustVal(step)}
-                  style={({ pressed }) => [
-                    measureStyles.stepperBtn,
-                    pressed && s.btnPressed,
-                  ]}
-                >
-                  <Text style={measureStyles.stepperBtnText}>
-                    {step > 0 ? `+${step}` : `${step}`}
-                  </Text>
+                <Pressable onPress={onClose} style={measureStyles.modalCloseBtn}>
+                  <Ionicons name="close" size={20} color={C.sub} />
                 </Pressable>
-              ))}
-            </View>
-          </View>
+              </View>
 
-          {/* Botones de Acción */}
-          <View style={measureStyles.modalActionsRow}>
-            {currentValue !== undefined && (
-              <Pressable
-                onPress={() => {
-                  Alert.alert(
-                    'Eliminar medida',
-                    `¿Deseas eliminar la medida de ${info.label}?`,
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      { text: 'Eliminar', style: 'destructive', onPress: onDelete },
-                    ]
-                  );
-                }}
-                style={measureStyles.deleteActionBtn}
-              >
-                <Ionicons name="trash-outline" size={18} color={C.danger} />
-              </Pressable>
-            )}
+              {/* Campo Central Grande con Teclado Numérico y Ajustes */}
+              <View style={measureStyles.numberInputBigContainer}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                  <Text style={measureStyles.numberInputHint}>Perímetro corporal</Text>
+                  <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
+                    <Text style={measureStyles.hideKeyboardHint}>Ocultar teclado ▾</Text>
+                  </Pressable>
+                </View>
 
-            <View style={{ flex: 1 }}>
-              <PrimaryButton
-                icon="checkmark-circle"
-                label="Guardar medida"
-                onPress={handleSave}
-              />
-            </View>
-          </View>
-        </Pressable>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
+                  <TextInput
+                    value={valStr}
+                    onChangeText={setValStr}
+                    keyboardType="decimal-pad"
+                    selectTextOnFocus
+                    placeholder={String(info.defaultAvg || 30)}
+                    placeholderTextColor={C.subMuted}
+                    style={measureStyles.numberInputBig}
+                  />
+                  <Text style={measureStyles.numberUnitBig}>cm</Text>
+                </View>
+
+                {/* Steppers rápidos de ajuste (+/- 0.5, +/- 1.0) */}
+                <View style={measureStyles.stepperRow}>
+                  {[-1.0, -0.5, +0.5, +1.0].map((step) => (
+                    <Pressable
+                      key={step}
+                      onPress={() => adjustVal(step)}
+                      style={({ pressed }) => [
+                        measureStyles.stepperBtn,
+                        pressed && s.btnPressed,
+                      ]}
+                    >
+                      <Text style={measureStyles.stepperBtnText}>
+                        {step > 0 ? `+${step}` : `${step}`}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* Botones de Acción (Siempre Visibles) */}
+              <View style={measureStyles.modalActionsRow}>
+                {currentValue !== undefined && (
+                  <Pressable
+                    onPress={() => {
+                      Alert.alert(
+                        'Eliminar medida',
+                        `¿Deseas eliminar la medida de ${info.label}?`,
+                        [
+                          { text: 'Cancelar', style: 'cancel' },
+                          { text: 'Eliminar', style: 'destructive', onPress: onDelete },
+                        ]
+                      );
+                    }}
+                    style={measureStyles.deleteActionBtn}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={C.danger} />
+                  </Pressable>
+                )}
+
+                <View style={{ flex: 1 }}>
+                  <PrimaryButton
+                    icon="checkmark-circle"
+                    label="Guardar medida"
+                    onPress={handleSave}
+                  />
+                </View>
+              </View>
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/* ==========================================================
+   MODAL PARA AGREGAR / EDITAR PESO CORPORAL
+========================================================== */
+function WeightEditModal({
+  visible,
+  currentWeight,
+  dateKeyStr,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  visible: boolean;
+  currentWeight?: number;
+  dateKeyStr: string;
+  onClose: () => void;
+  onSave: (w: number) => void;
+  onDelete: () => void;
+}) {
+  const [valStr, setValStr] = useState<string>(
+    currentWeight !== undefined ? String(currentWeight) : '75.0'
+  );
+
+  const numVal = parseFloat(valStr) || 75.0;
+
+  const adjustVal = (delta: number) => {
+    const base = parseFloat(valStr) || 75.0;
+    const updated = Math.max(20, Math.round((base + delta) * 10) / 10);
+    setValStr(String(updated));
+  };
+
+  const handleSave = () => {
+    Keyboard.dismiss();
+    const parsed = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(parsed) || parsed < 20 || parsed > 350) {
+      Alert.alert('Peso inválido', 'Por favor ingresa un peso corporal válido en kg (ej: 75.5).');
+      return;
+    }
+    onSave(parsed);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.modalBackdrop} onPress={onClose}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+          style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <ScrollView
+            contentContainerStyle={measureStyles.modalScrollWrapper}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <Pressable style={measureStyles.modalDialogCard} onPress={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <View style={measureStyles.modalHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={[measureStyles.modalIconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+                    <Ionicons name="scale-outline" size={20} color="#10B981" />
+                  </View>
+                  <View>
+                    <Text style={measureStyles.modalTitle}>Peso Corporal</Text>
+                    <Text style={measureStyles.modalSubtitle}>Fecha: {dateKeyStr}</Text>
+                  </View>
+                </View>
+
+                <Pressable onPress={onClose} style={measureStyles.modalCloseBtn}>
+                  <Ionicons name="close" size={20} color={C.sub} />
+                </Pressable>
+              </View>
+
+              {/* Input */}
+              <View style={measureStyles.numberInputBigContainer}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                  <Text style={measureStyles.numberInputHint}>Masa corporal total</Text>
+                  <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
+                    <Text style={measureStyles.hideKeyboardHint}>Ocultar teclado ▾</Text>
+                  </Pressable>
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
+                  <TextInput
+                    value={valStr}
+                    onChangeText={setValStr}
+                    keyboardType="decimal-pad"
+                    selectTextOnFocus
+                    placeholder="75.0"
+                    placeholderTextColor={C.subMuted}
+                    style={measureStyles.numberInputBig}
+                  />
+                  <Text style={[measureStyles.numberUnitBig, { color: '#10B981' }]}>kg</Text>
+                </View>
+
+                {/* Steppers */}
+                <View style={measureStyles.stepperRow}>
+                  {[-1.0, -0.5, -0.1, +0.1, +0.5, +1.0].map((step) => (
+                    <Pressable
+                      key={step}
+                      onPress={() => adjustVal(step)}
+                      style={({ pressed }) => [
+                        measureStyles.stepperBtn,
+                        pressed && s.btnPressed,
+                      ]}
+                    >
+                      <Text style={measureStyles.stepperBtnText}>
+                        {step > 0 ? `+${step}` : `${step}`}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* Actions */}
+              <View style={measureStyles.modalActionsRow}>
+                {currentWeight !== undefined && (
+                  <Pressable
+                    onPress={() => {
+                      Alert.alert(
+                        'Eliminar peso',
+                        `¿Deseas eliminar el registro de peso de este día?`,
+                        [
+                          { text: 'Cancelar', style: 'cancel' },
+                          { text: 'Eliminar', style: 'destructive', onPress: onDelete },
+                        ]
+                      );
+                    }}
+                    style={measureStyles.deleteActionBtn}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={C.danger} />
+                  </Pressable>
+                )}
+
+                <View style={{ flex: 1 }}>
+                  <PrimaryButton
+                    icon="checkmark-circle"
+                    label="Guardar peso"
+                    onPress={handleSave}
+                  />
+                </View>
+              </View>
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );
@@ -1395,6 +1969,78 @@ const measureStyles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
+  // Tarjeta de Peso Corporal
+  weightGlassCard: {
+    borderRadius: 18,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    overflow: 'hidden',
+    backgroundColor: C.bgCard,
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  weightCardGradient: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  weightIconOrb: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(167, 139, 250, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weightTagLabel: {
+    color: C.pastelPurple,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  weightStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  weightSubLabel: {
+    color: C.sub,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  weightValueNumber: {
+    color: C.text,
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  weightValueUnit: {
+    color: C.pastelPurple,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  weightAddBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: C.pastelPurple,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  weightAddBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
   // Tarjeta de Croquis
   croquisGlassCard: {
     borderRadius: 22,
@@ -1435,6 +2081,40 @@ const measureStyles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+
+  // Botón Selector de Modelo de Croquis
+  croquisSelectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.4)',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  modelIconBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  croquisSelectorTitle: {
+    color: C.text,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  croquisSelectorHint: {
+    color: C.pastelPurple,
+    fontSize: 9.5,
+    fontWeight: '700',
   },
   croquisSubTitle: {
     color: C.sub,
@@ -1502,11 +2182,11 @@ const measureStyles = StyleSheet.create({
   bodySvgCanvasWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   svgContainer: {
-    width: 290,
-    height: 410,
+    width: 300,
+    height: 416,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1662,8 +2342,15 @@ const measureStyles = StyleSheet.create({
   },
 
   // Modal de Edición
+  modalScrollWrapper: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
   modalDialogCard: {
-    width: '90%',
+    width: '100%',
     maxWidth: 360,
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -1718,6 +2405,11 @@ const measureStyles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
+  hideKeyboardHint: {
+    color: C.pastelPurple,
+    fontSize: 10,
+    fontWeight: '700',
+  },
   numberInputBig: {
     color: C.text,
     fontSize: 40,
@@ -1734,12 +2426,14 @@ const measureStyles = StyleSheet.create({
   },
   stepperRow: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
     marginTop: 12,
   },
   stepperBtn: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
@@ -1768,6 +2462,82 @@ const measureStyles = StyleSheet.create({
     borderColor: C.danger,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // Modal Selector de Modelo
+  selectModelCard: {
+    width: '90%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  selectModelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  selectModelTitle: {
+    color: C.text,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  selectModelDescription: {
+    color: C.sub,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  modelOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: C.borderLight,
+  },
+  modelOptionBtnActive: {
+    borderColor: C.pastelPurple,
+    backgroundColor: '#FAF5FF',
+    shadowColor: C.pastelPurple,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  modelOptionIconGradient: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modelOptionTitle: {
+    color: C.text,
+    fontSize: 13.5,
+    fontWeight: '900',
+  },
+  modelOptionSubtitle: {
+    color: C.sub,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  activeModelTag: {
+    backgroundColor: C.pastelPurple,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  activeModelTagText: {
+    color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: '900',
   },
 
   // Fotos de Progreso

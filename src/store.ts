@@ -138,6 +138,11 @@ type State = {
   setPartMeasurement: (date: string, part: BodyPartKey, value: number) => void;
   deletePartMeasurement: (date: string, part: BodyPartKey) => void;
 
+  // Peso Corporal
+  weightLogs: Record<string, number>;
+  setDayWeight: (date: string, weight: number) => void;
+  deleteDayWeight: (date: string) => void;
+
   // Fotos de Progreso
   photoLogs: Record<string, ProgressPhoto[]>;
   addProgressPhoto: (date: string, photo: ProgressPhoto) => void;
@@ -219,6 +224,24 @@ export const useStore = create<State>()(
               [date]: current,
             },
           };
+        }),
+
+      // Peso Corporal
+      weightLogs: {
+        '2026-10-30': 76.4,
+      },
+      setDayWeight: (date, weight) =>
+        set((s) => ({
+          weightLogs: {
+            ...s.weightLogs,
+            [date]: weight,
+          },
+        })),
+      deleteDayWeight: (date) =>
+        set((s) => {
+          const current = { ...s.weightLogs };
+          delete current[date];
+          return { weightLogs: current };
         }),
 
       // Fotos de Progreso
