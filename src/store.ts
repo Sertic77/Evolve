@@ -293,13 +293,19 @@ export function getFontFamily(fontOption: FontStyleOption): string | undefined {
   }
 }
 
-export function getActivePalette(state?: { activePaletteId?: string; customPalettes?: ColorPalette[] }): ColorPalette {
+export function getActivePalette(state?: { activePaletteId?: string; customPalettes?: ColorPalette[]; deletedPaletteIds?: string[] }): ColorPalette {
   if (!state) return PRESET_PALETTES[0];
   const activeId = state.activePaletteId || 'default';
   const custom = state.customPalettes?.find((p) => p.id === activeId);
   if (custom) return custom;
   const preset = PRESET_PALETTES.find((p) => p.id === activeId);
-  return preset || PRESET_PALETTES[0];
+  if (preset) return preset;
+  const deleted = state.deletedPaletteIds || [];
+  const fallback =
+    state.customPalettes?.find((p) => !deleted.includes(p.id)) ||
+    PRESET_PALETTES.find((p) => !deleted.includes(p.id)) ||
+    PRESET_PALETTES[0];
+  return fallback;
 }
 
 
@@ -663,12 +669,15 @@ type State = {
   // Personalización
   activePaletteId: string;
   customPalettes: ColorPalette[];
+  deletedPaletteIds: string[];
   typography: TypographySettings;
   homeWidgets: HomeVisibleWidgets;
 
   setActivePalette: (id: string) => void;
   addCustomPalette: (palette: Omit<ColorPalette, 'id' | 'custom'>) => void;
+  updatePalette: (id: string, updates: Partial<ColorPalette>) => void;
   deleteCustomPalette: (id: string) => void;
+  deletePalette: (id: string) => void;
   setTypography: (settings: Partial<TypographySettings>) => void;
   toggleHomeWidget: (widgetKey: keyof HomeVisibleWidgets) => void;
 };
@@ -1135,6 +1144,7 @@ export const useStore = create<State>()(
       // Personalización
       activePaletteId: 'default',
       customPalettes: [],
+      deletedPaletteIds: [],
       typography: DEFAULT_TYPOGRAPHY,
       homeWidgets: DEFAULT_HOME_WIDGETS,
 
@@ -1163,11 +1173,82 @@ export const useStore = create<State>()(
           };
         }),
 
+      updatePalette: (id, updates) =>
+        set((s) => {
+          const customExists = (s.customPalettes || []).some((p) => p.id === id);
+          let updatedCustoms: ColorPalette[];
+
+          if (customExists) {
+            updatedCustoms = (s.customPalettes || []).map((p) => {
+              if (p.id !== id) return p;
+              const newColors = updates.colors || p.colors;
+              const primary = newColors[0] || updates.primary || p.primary;
+              const secondary = newColors[1] || updates.secondary || p.secondary;
+              return {
+                ...p,
+                ...updates,
+                colors: newColors,
+                primary,
+                secondary,
+                accent: primary,
+              };
+            });
+          } else {
+            const preset = PRESET_PALETTES.find((p) => p.id === id);
+            if (!preset) return s;
+            const newColors = updates.colors || preset.colors;
+            const primary = newColors[0] || updates.primary || preset.primary;
+            const secondary = newColors[1] || updates.secondary || preset.secondary;
+            const overriddenPreset: ColorPalette = {
+              ...preset,
+              ...updates,
+              colors: newColors,
+              primary,
+              secondary,
+              accent: primary,
+              custom: true,
+            };
+            updatedCustoms = [...(s.customPalettes || []), overriddenPreset];
+          }
+
+          return {
+            customPalettes: updatedCustoms,
+          };
+        }),
+
       deleteCustomPalette: (id) =>
-        set((s) => ({
-          customPalettes: (s.customPalettes || []).filter((p) => p.id !== id),
-          activePaletteId: s.activePaletteId === id ? 'default' : s.activePaletteId,
-        })),
+        set((s) => {
+          const newDeleted = Array.from(new Set([...(s.deletedPaletteIds || []), id]));
+          const newCustoms = (s.customPalettes || []).filter((p) => p.id !== id);
+          let nextActiveId = s.activePaletteId;
+          if (s.activePaletteId === id) {
+            const availableCustom = newCustoms.find((p) => !newDeleted.includes(p.id));
+            const availablePreset = PRESET_PALETTES.find((p) => !newDeleted.includes(p.id));
+            nextActiveId = availableCustom?.id || availablePreset?.id || 'default';
+          }
+          return {
+            deletedPaletteIds: newDeleted,
+            customPalettes: newCustoms,
+            activePaletteId: nextActiveId,
+          };
+        }),
+
+      deletePalette: (id) =>
+        set((s) => {
+          const newDeleted = Array.from(new Set([...(s.deletedPaletteIds || []), id]));
+          const newCustoms = (s.customPalettes || []).filter((p) => p.id !== id);
+          let nextActiveId = s.activePaletteId;
+          if (s.activePaletteId === id) {
+            const availableCustom = newCustoms.find((p) => !newDeleted.includes(p.id));
+            const availablePreset = PRESET_PALETTES.find((p) => !newDeleted.includes(p.id));
+            nextActiveId = availableCustom?.id || availablePreset?.id || 'default';
+          }
+          return {
+            deletedPaletteIds: newDeleted,
+            customPalettes: newCustoms,
+            activePaletteId: nextActiveId,
+          };
+        }),
 
       setTypography: (settings) =>
         set((s) => ({
@@ -1206,6 +1287,7 @@ export const useStore = create<State>()(
         userProfile: { ...DEFAULT_USER_PROFILE, ...(persistedState?.userProfile || {}) },
         activePaletteId: persistedState?.activePaletteId || 'default',
         customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
+        deletedPaletteIds: Array.isArray(persistedState?.deletedPaletteIds) ? persistedState.deletedPaletteIds : [],
         typography: { ...DEFAULT_TYPOGRAPHY, ...(persistedState?.typography || {}) },
         homeWidgets: { ...DEFAULT_HOME_WIDGETS, ...(persistedState?.homeWidgets || {}) },
       }),

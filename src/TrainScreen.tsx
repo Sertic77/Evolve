@@ -19,7 +19,7 @@ import {
 import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Line } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { C, GRADIENTS, fmt, registerThemeSheet } from './theme';
+import { C, GRADIENTS, fmt, registerThemeSheet, getPaletteColorWithAlpha } from './theme';
 import {
   useStore,
   dateKey,
@@ -27,6 +27,7 @@ import {
   Exercise,
   WorkoutExercise,
   WorkoutSet,
+  getActivePalette,
 } from './store';
 import { DateSelector, PrimaryButton, s } from './components';
 
@@ -158,7 +159,8 @@ export default function TrainScreen() {
   const [date, setDate] = useState(new Date());
   const key = dateKey(date);
 
-  const { exercises, workoutLogs, setDayWorkout, upsertExercise } = useStore();
+  const { exercises, workoutLogs, setDayWorkout, upsertExercise, activePaletteId, customPalettes } = useStore();
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const dayExercises = workoutLogs[key] ?? [];
 
   // Ejercicio seleccionado para ver estadísticas detalladas (null = rotación automática)
@@ -240,15 +242,15 @@ export default function TrainScreen() {
         <View style={styles.topHeader}>
           <View>
             <View style={styles.cyberTagRow}>
-              <Ionicons name="flash" size={11} color={C.pastelPurple} />
-              <Text style={styles.cyberTagText}>✦ EVOLVE // ENTRENAMIENTO ✦</Text>
+              <Ionicons name="flash" size={11} color={palette.primary} />
+              <Text style={[styles.cyberTagText, { color: palette.primary }]}>✦ EVOLVE // ENTRENAMIENTO ✦</Text>
             </View>
             <Text style={styles.screenTitle}>Entreno</Text>
           </View>
 
-          <View style={styles.dateChipMini}>
-            <Ionicons name="barbell-outline" size={14} color={C.pastelPurple} />
-            <Text style={styles.dateChipMiniText}>
+          <View style={[styles.dateChipMini, { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25), backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08) }]}>
+            <Ionicons name="barbell-outline" size={14} color={palette.primary} />
+            <Text style={[styles.dateChipMiniText, { color: palette.primary }]}>
               {tab === 0
                 ? date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()
                 : 'MÉTRICAS'}
@@ -380,6 +382,10 @@ function WorkoutDynamicChart({
   timeRangeDays: number | null;
   onOpenRangePicker: () => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const WORKOUT_RING_SIZE = 152;
   const WORKOUT_RING_STROKE = 12;
   const WORKOUT_RING_R = (WORKOUT_RING_SIZE - WORKOUT_RING_STROKE) / 2;
@@ -828,22 +834,29 @@ function WorkoutDynamicChart({
   });
 
   const rangeLabel = timeRangeDays === 7 ? '7 días' : timeRangeDays === 30 ? '30 días' : timeRangeDays === 90 ? '3 meses' : 'Todo';
+  const pColors = palette.colors && palette.colors.length >= 2 ? palette.colors : [palette.primary, palette.secondary];
+  const colorVol = pColors[1] || palette.secondary;
+  const colorSets = pColors[2] || pColors[0] || palette.primary;
+  const colorReps = pColors[3] || pColors[1] || palette.secondary;
 
   return (
-    <Animated.View style={[s.glassCard, { height: heightAnim, marginBottom: 8 }]}>
-      {/* CAPA DE FONDO ANIMADO ANIME */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Animated.View style={[s.floatingOrb1, { transform: [{ translateX: transX1 }, { translateY: transY1 }] }]} />
-        <Animated.View style={[s.floatingOrb2, { transform: [{ translateX: transX2 }, { translateY: transY2 }] }]} />
-        <Animated.View style={s.floatingOrb3} />
-      </View>
+    <Animated.View style={[s.glassCard, { height: heightAnim, marginBottom: 8, backgroundColor: 'transparent', borderWidth: 0, borderColor: 'transparent', shadowOpacity: 0, elevation: 0 }]}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none" />
 
-      <LinearGradient colors={GRADIENTS.cardGlass} style={[s.cardGradient, { flex: 1 }]}>
+      <LinearGradient colors={['transparent', 'transparent']} style={[s.cardGradient, { flex: 1, borderWidth: 0 }]}>
         {/* CABECERA DE LA GRÁFICA */}
         <View style={styles.chartHeaderRow}>
-          <View style={s.hudBadge}>
-            <Ionicons name="sparkles" size={11} color={C.pastelPurple} />
-            <Text style={s.hudBadgeText}>
+          <View
+            style={[
+              s.hudBadge,
+              {
+                backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12),
+                borderColor: getPaletteColorWithAlpha(palette.primary, 0.28),
+              },
+            ]}
+          >
+            <Ionicons name="sparkles" size={11} color={palette.primary} />
+            <Text style={[s.hudBadgeText, { color: palette.primary }]}>
               {tab === 0
                 ? '✦ SESIÓN DEL DÍA ✦'
                 : selectedExercise
@@ -858,7 +871,7 @@ function WorkoutDynamicChart({
               onPress={onOpenRangePicker}
               style={({ pressed }) => [styles.rangePickerBtn, pressed && s.btnPressed]}
             >
-              <Ionicons name="calendar-outline" size={13} color={C.pastelPurple} />
+              <Ionicons name="calendar-outline" size={13} color={palette.primary} />
               <Text style={styles.rangePickerBtnText}>{rangeLabel}</Text>
               <Ionicons name="chevron-down" size={11} color={C.sub} />
             </Pressable>
@@ -883,7 +896,7 @@ function WorkoutDynamicChart({
                   cx={WORKOUT_RING_SIZE / 2}
                   cy={WORKOUT_RING_SIZE / 2}
                   r={WORKOUT_RING_R}
-                  stroke="#F43F5E"
+                  stroke={palette.primary}
                   strokeWidth={WORKOUT_RING_STROKE}
                   fill="none"
                   strokeDasharray={`${Math.min((dayStats.totalKcal / 500) * WORKOUT_RING_CIRC, WORKOUT_RING_CIRC)} ${WORKOUT_RING_CIRC}`}
@@ -891,13 +904,14 @@ function WorkoutDynamicChart({
                 />
               </Svg>
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-                <View style={styles.workoutRingCenterGlow}>
+                <View style={[styles.workoutRingCenterGlow, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08), borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) }]}>
                   {/* Contenedor de la llamita viva en movimiento constante */}
                   <View style={{ width: 44, height: 38, alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
                     {/* Halo resplandeciente animado */}
                     <Animated.View
                       style={[
                         styles.flameHaloGlow,
+                        { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.25) },
                         {
                           transform: [{ scale: flameScale }],
                           opacity: flameAura,
@@ -915,7 +929,7 @@ function WorkoutDynamicChart({
                         ],
                       }}
                     >
-                      <Ionicons name="flame" size={32} color="#F43F5E" />
+                      <Ionicons name="flame" size={32} color={palette.primary} />
                     </Animated.View>
                   </View>
 
@@ -929,32 +943,32 @@ function WorkoutDynamicChart({
 
             {/* Métricas laterales en tarjetas pastel (Divididas en 2 líneas de texto para óptima legibilidad y UX) */}
             <View style={{ flex: 1, marginLeft: 14, gap: 7, justifyContent: 'center' }}>
-              <View style={styles.metricBlockCard}>
+              <View style={[styles.metricBlockCard, { backgroundColor: getPaletteColorWithAlpha(colorVol, 0.08), borderColor: getPaletteColorWithAlpha(colorVol, 0.22) }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Ionicons name="barbell-outline" size={13} color={C.pastelPurple} />
+                  <Ionicons name="barbell-outline" size={13} color={colorVol} />
                   <Text style={styles.metricBlockLabel} numberOfLines={1}>Volumen levantado</Text>
                 </View>
-                <Text style={styles.metricBlockValue}>
+                <Text style={[styles.metricBlockValue, { color: colorVol }]}>
                   {dayStats.totalVolume > 9999
                     ? `${(dayStats.totalVolume / 1000).toFixed(1)}k kg`
                     : `${Math.round(dayStats.totalVolume).toLocaleString()} kg`}
                 </Text>
               </View>
 
-              <View style={styles.metricBlockCard}>
+              <View style={[styles.metricBlockCard, { backgroundColor: getPaletteColorWithAlpha(colorSets, 0.08), borderColor: getPaletteColorWithAlpha(colorSets, 0.22) }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Ionicons name="layers-outline" size={13} color={C.pastelMint} />
+                  <Ionicons name="layers-outline" size={13} color={colorSets} />
                   <Text style={styles.metricBlockLabel} numberOfLines={1}>Series realizadas</Text>
                 </View>
-                <Text style={[styles.metricBlockValue, { color: C.pastelMint }]}>{dayStats.totalSets} sets</Text>
+                <Text style={[styles.metricBlockValue, { color: colorSets }]}>{dayStats.totalSets} sets</Text>
               </View>
 
-              <View style={styles.metricBlockCard}>
+              <View style={[styles.metricBlockCard, { backgroundColor: getPaletteColorWithAlpha(colorReps, 0.08), borderColor: getPaletteColorWithAlpha(colorReps, 0.22) }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Ionicons name="repeat-outline" size={13} color={C.pastelPink} />
+                  <Ionicons name="repeat-outline" size={13} color={colorReps} />
                   <Text style={styles.metricBlockLabel} numberOfLines={1}>Repeticiones totales</Text>
                 </View>
-                <Text style={[styles.metricBlockValue, { color: C.pastelPink }]}>{dayStats.totalReps} reps</Text>
+                <Text style={[styles.metricBlockValue, { color: colorReps }]}>{dayStats.totalReps} reps</Text>
               </View>
             </View>
           </View>
@@ -1241,7 +1255,8 @@ function WorkoutDayLog({
   dayKey: string;
   onOpenExercisePicker: () => void;
 }) {
-  const { setDayWorkout } = useStore();
+  const { setDayWorkout, activePaletteId, customPalettes, deletedPaletteIds } = useStore();
+  const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
   const [exerciseModes, setExerciseModes] = useState<Record<string, 'reps' | 'time'>>({});
 
   const updateExercises = (newList: WorkoutExercise[]) => {
@@ -1255,10 +1270,10 @@ function WorkoutDayLog({
 
       {/* Empty State si no hay ejercicios */}
       {dayExercises.length === 0 && (
-        <View style={styles.emptyWorkoutCard}>
-          <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={styles.emptyWorkoutGradient}>
-            <View style={styles.emptyIconCircle}>
-              <Ionicons name="barbell-outline" size={32} color={C.pastelPurple} />
+        <View style={[styles.emptyWorkoutCard, { backgroundColor: 'transparent', borderColor: getPaletteColorWithAlpha(palette.primary, 0.22) }]}>
+          <LinearGradient colors={[getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]} style={styles.emptyWorkoutGradient}>
+            <View style={[styles.emptyIconCircle, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12), borderColor: getPaletteColorWithAlpha(palette.primary, 0.28) }]}>
+              <Ionicons name="barbell-outline" size={32} color={palette.primary} />
             </View>
             <Text style={styles.emptyWorkoutTitle}>Sin ejercicios en este día</Text>
             <Text style={styles.emptyWorkoutSubtitle}>
@@ -1314,8 +1329,17 @@ function WorkoutDayLog({
                 <View style={{ flex: 1, paddingLeft: 6 }}>
                   <Text style={styles.exerciseTitleText}>{exName}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                    <View style={styles.muscleBadge}>
-                      <Text style={styles.muscleBadgeText}>{exGroup}</Text>
+                    <View
+                      style={[
+                        styles.muscleBadge,
+                        {
+                          backgroundColor: `${palette.primary}18`,
+                          borderColor: `${palette.primary}35`,
+                          borderWidth: 1,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.muscleBadgeText, { color: palette.primary }]}>{exGroup}</Text>
                     </View>
 
                     {/* Toggle entre modo Peso y modo Tiempo */}
@@ -1378,8 +1402,17 @@ function WorkoutDayLog({
 
                 return (
                   <View key={set.id} style={styles.setRowContainer}>
-                    <View style={styles.setNumberBadge}>
-                      <Text style={styles.setNumberText}>{setIdx + 1}</Text>
+                    <View
+                      style={[
+                        styles.setNumberBadge,
+                        {
+                          backgroundColor: `${palette.primary}15`,
+                          borderColor: `${palette.primary}30`,
+                          borderWidth: 1,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.setNumberText, { color: palette.primary }]}>{setIdx + 1}</Text>
                     </View>
 
                     {isTimeMode ? (
@@ -1533,10 +1566,17 @@ function WorkoutDayLog({
                       };
                   updateSets([...we.sets, newSet]);
                 }}
-                style={({ pressed }) => [styles.addSetDashedBtn, pressed && s.btnPressed]}
+                style={({ pressed }) => [
+                  styles.addSetDashedBtn,
+                  {
+                    borderColor: `${palette.primary}50`,
+                    backgroundColor: `${palette.primary}08`,
+                  },
+                  pressed && s.btnPressed,
+                ]}
               >
-                <Ionicons name="add" size={16} color={C.pastelPurple} />
-                <Text style={styles.addSetDashedText}>Agregar serie</Text>
+                <Ionicons name="add" size={16} color={palette.primary} />
+                <Text style={[styles.addSetDashedText, { color: palette.primary }]}>Agregar serie</Text>
               </Pressable>
             </LinearGradient>
           </View>
@@ -1762,6 +1802,9 @@ function WorkoutStatsLibrary({
    SELECTOR MAESTRO DE NAVEGACIÓN EN ENTRENAMIENTO
 ========================================================== */
 function TrainNavigationSegmented({ value, onChange }: { value: number; onChange: (i: number) => void }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const options = [
     { label: 'Registrar entrenamiento', icon: 'barbell-outline' },
     { label: 'Estadísticas', icon: 'stats-chart-outline' },
@@ -1778,10 +1821,20 @@ function TrainNavigationSegmented({ value, onChange }: { value: number; onChange
   const translateX = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [4, pillWidth + 4] });
 
   return (
-    <View style={s.mainSegmentedContainer} onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
+    <View
+      style={[
+        s.mainSegmentedContainer,
+        {
+          borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+          shadowColor: palette.primary,
+          backgroundColor: 'transparent',
+        },
+      ]}
+      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+    >
       {containerWidth > 0 && (
-        <Animated.View style={[s.slidingPill, { width: pillWidth, transform: [{ translateX }] }]}>
-          <LinearGradient colors={['#8B5CF6', '#EC4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.slidingPillGradient} />
+        <Animated.View style={[s.slidingPill, { width: pillWidth, transform: [{ translateX }], shadowColor: palette.primary }]}>
+          <LinearGradient colors={[palette.primary, palette.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.slidingPillGradient} />
         </Animated.View>
       )}
 
@@ -1789,8 +1842,8 @@ function TrainNavigationSegmented({ value, onChange }: { value: number; onChange
         const active = value === i;
         return (
           <Pressable key={opt.label} onPress={() => onChange(i)} style={s.mainSegmentedBtn}>
-            <Ionicons name={opt.icon as any} size={16} color={active ? '#FFFFFF' : C.sub} style={{ marginRight: 6 }} />
-            <Text style={[s.mainSegmentedText, active ? s.mainSegmentedTextActive : s.mainSegmentedTextInactive]}>
+            <Ionicons name={opt.icon as any} size={16} color={active ? '#FFFFFF' : palette.textSub} style={{ marginRight: 6 }} />
+            <Text style={[s.mainSegmentedText, active ? s.mainSegmentedTextActive : [s.mainSegmentedTextInactive, { color: palette.textSub }]]}>
               {opt.label}
             </Text>
           </Pressable>
@@ -1816,6 +1869,11 @@ function ExercisePickerModal({
   onClose: () => void;
   onCreateNew: (name: string) => void;
 }) {
+  const activePaletteId = useStore((st) => st.activePaletteId);
+  const customPalettes = useStore((st) => st.customPalettes);
+  const deletedPaletteIds = useStore((st) => st.deletedPaletteIds);
+  const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
+
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -1895,8 +1953,17 @@ function ExercisePickerModal({
                   >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text style={s.ingredientItemName}>{item.name}</Text>
-                      <View style={styles.muscleBadge}>
-                        <Text style={styles.muscleBadgeText}>{item.muscleGroup}</Text>
+                      <View
+                        style={[
+                          styles.muscleBadge,
+                          {
+                            backgroundColor: `${palette.primary}18`,
+                            borderColor: `${palette.primary}35`,
+                            borderWidth: 1,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.muscleBadgeText, { color: palette.primary }]}>{item.muscleGroup}</Text>
                       </View>
                     </View>
                   </Pressable>
@@ -2172,7 +2239,7 @@ const styles = StyleSheet.create({
     paddingBottom: 130,
   },
   stickyTabsContainer: {
-    backgroundColor: C.bg,
+    backgroundColor: 'transparent',
     paddingTop: 2,
     paddingBottom: 8,
     zIndex: 25,
@@ -3019,3 +3086,9 @@ const styles = StyleSheet.create({
 });
 
 registerThemeSheet(styles);
+
+
+
+
+
+

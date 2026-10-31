@@ -17,7 +17,7 @@ import {
 import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Line, Text as SvgText, Rect, G } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { C, GRADIENTS, registerThemeSheet } from './theme';
+import { C, GRADIENTS, registerThemeSheet, getPaletteColorWithAlpha } from './theme';
 import { DateSelector, PrimaryButton, s } from './components';
 import {
   useStore,
@@ -1116,9 +1116,7 @@ export default function WellnessScreen() {
               <View style={wellnessStyles.progressCard}>
                 <LinearGradient
                   colors={
-                    allCompletedToday
-                      ? ['rgba(236, 253, 245, 0.96)', 'rgba(209, 250, 229, 0.9)']
-                      : GRADIENTS.cardGlass
+                    allCompletedToday ? [getPaletteColorWithAlpha(palette.secondary, 0.12), getPaletteColorWithAlpha(palette.secondary, 0.04)] : [getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]
                   }
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -1127,11 +1125,7 @@ export default function WellnessScreen() {
                   <View style={wellnessStyles.progressHeaderRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                       <LinearGradient
-                        colors={
-                          allCompletedToday
-                            ? ['#10B981', '#059669']
-                            : ['#8B5CF6', '#EC4899']
-                        }
+                        colors={[palette.primary, palette.secondary]}
                         style={wellnessStyles.progressIconBadge}
                       >
                         <Ionicons
@@ -1155,13 +1149,16 @@ export default function WellnessScreen() {
                     <View
                       style={[
                         wellnessStyles.progressPctPill,
-                        allCompletedToday && wellnessStyles.progressPctPillDone,
+                        {
+                          backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.14),
+                          borderColor: getPaletteColorWithAlpha(palette.primary, 0.35),
+                        },
                       ]}
                     >
                       <Text
                         style={[
                           wellnessStyles.progressPctText,
-                          allCompletedToday && wellnessStyles.progressPctTextDone,
+                          { color: palette.primary },
                         ]}
                       >
                         {progressPct}%
@@ -1171,11 +1168,7 @@ export default function WellnessScreen() {
 
                   <View style={wellnessStyles.progressBarTrack}>
                     <LinearGradient
-                      colors={
-                        allCompletedToday
-                          ? ['#10B981', '#34D399']
-                          : ['#8B5CF6', '#EC4899']
-                      }
+                      colors={[palette.primary, palette.secondary]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={[
@@ -1190,7 +1183,7 @@ export default function WellnessScreen() {
               {/* 3. Cabecera del Listado + Botón para Modificar */}
               <View style={wellnessStyles.listSectionHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="list-outline" size={16} color={C.pastelPurple} />
+                  <Ionicons name="list-outline" size={16} color={palette.primary} />
                   <Text style={wellnessStyles.listSectionTitle}>MIS SUPLEMENTOS DIARIOS</Text>
                 </View>
 
@@ -1198,19 +1191,26 @@ export default function WellnessScreen() {
                   onPress={() => setIsEditingList((prev) => !prev)}
                   style={({ pressed }) => [
                     wellnessStyles.modifyModeBtn,
-                    isEditingList && wellnessStyles.modifyModeBtnActive,
+                    {
+                      borderColor: isEditingList
+                        ? palette.primary
+                        : getPaletteColorWithAlpha(palette.primary, 0.35),
+                      backgroundColor: isEditingList
+                        ? palette.primary
+                        : getPaletteColorWithAlpha(palette.primary, 0.08),
+                    },
                     pressed && s.btnPressed,
                   ]}
                 >
                   <Ionicons
                     name={isEditingList ? 'checkmark-circle' : 'options-outline'}
                     size={14}
-                    color={isEditingList ? '#FFFFFF' : '#8B5CF6'}
+                    color={isEditingList ? '#FFFFFF' : palette.primary}
                   />
                   <Text
                     style={[
                       wellnessStyles.modifyModeBtnText,
-                      isEditingList && wellnessStyles.modifyModeBtnTextActive,
+                      { color: isEditingList ? '#FFFFFF' : palette.primary },
                     ]}
                   >
                     {isEditingList ? 'Listo' : 'Modificar'}
@@ -1220,7 +1220,7 @@ export default function WellnessScreen() {
 
               {isEditingList && (
                 <View style={wellnessStyles.editHintBanner}>
-                  <Ionicons name="information-circle-outline" size={16} color="#8B5CF6" />
+                  <Ionicons name="information-circle-outline" size={16} color={palette.primary} />
                   <Text style={wellnessStyles.editHintBannerText}>
                     Usa los botones <Text style={{ fontWeight: '900' }}>-</Text> y{' '}
                     <Text style={{ fontWeight: '900' }}>+</Text> para disminuir o aumentar las veces
@@ -1232,7 +1232,7 @@ export default function WellnessScreen() {
               {/* 4. Lista de Suplementos con Checkboxes por cada toma diaria */}
               {activeSupplements.length === 0 ? (
                 <View style={wellnessStyles.emptyListCard}>
-                  <Ionicons name="medkit-outline" size={32} color={C.pastelPurple} />
+                  <Ionicons name="medkit-outline" size={32} color={palette.primary} />
                   <Text style={wellnessStyles.emptyListTitle}>Sin suplementos en tu lista</Text>
                   <Text style={wellnessStyles.emptyListSub}>
                     Agrega suplementos como Creatina, Omega 3 o Citrato de Magnesio para llevar tu control diario.
@@ -1244,8 +1244,8 @@ export default function WellnessScreen() {
                       pressed && s.btnPressed,
                     ]}
                   >
-                    <Ionicons name="add-circle-outline" size={16} color="#8B5CF6" />
-                    <Text style={wellnessStyles.emptyAddBtnText}>Agregar suplemento</Text>
+                    <Ionicons name="add-circle-outline" size={16} color={palette.primary} />
+                    <Text style={[wellnessStyles.emptyAddBtnText, { color: palette.primary }]}>Agregar suplemento</Text>
                   </Pressable>
                 </View>
               ) : (
@@ -1262,8 +1262,7 @@ export default function WellnessScreen() {
                       <View
                         key={supp.id}
                         style={[
-                          wellnessStyles.supplementItemCard,
-                          isAllDone && wellnessStyles.supplementItemCardDone,
+                          wellnessStyles.supplementItemCard, { backgroundColor: isAllDone ? getPaletteColorWithAlpha(palette.secondary, 0.08) : getPaletteColorWithAlpha(palette.primary, 0.04), borderColor: isAllDone ? getPaletteColorWithAlpha(palette.secondary, 0.4) : getPaletteColorWithAlpha(palette.primary, 0.2) },
                         ]}
                       >
                         <View style={wellnessStyles.supplementMainRow}>
@@ -1278,7 +1277,7 @@ export default function WellnessScreen() {
                                   style={[
                                     wellnessStyles.supplementDotIndicator,
                                     {
-                                      backgroundColor: isAllDone ? '#10B981' : '#8B5CF6',
+                                      backgroundColor: isAllDone ? palette.secondary : palette.primary,
                                     },
                                   ]}
                                 />
@@ -1302,7 +1301,7 @@ export default function WellnessScreen() {
                                 ·{' '}
                                 <Text
                                   style={{
-                                    color: isAllDone ? '#059669' : '#8B5CF6',
+                                    color: isAllDone ? palette.secondary : palette.primary,
                                     fontWeight: '800',
                                   }}
                                 >
@@ -1325,7 +1324,7 @@ export default function WellnessScreen() {
                               <Ionicons
                                 name={supp.alarmTime ? 'alarm' : 'alarm-outline'}
                                 size={14}
-                                color={supp.alarmTime ? '#8B5CF6' : C.sub}
+                                color={supp.alarmTime ? palette.primary : C.sub}
                               />
                               {supp.alarmTime ? (
                                 <Text style={wellnessStyles.alarmClockBtnText}>
@@ -1356,6 +1355,10 @@ export default function WellnessScreen() {
                                   }
                                   style={({ pressed }) => [
                                     wellnessStyles.doseCheckboxBtn,
+                                    {
+                                      borderColor: getPaletteColorWithAlpha(palette.primary, 0.35),
+                                      backgroundColor: palette.isDark ? '#1E293B' : getPaletteColorWithAlpha(palette.primary, 0.05),
+                                    },
                                     checked && wellnessStyles.doseCheckboxBtnActive,
                                     pressed && { transform: [{ scale: 0.92 }] },
                                   ]}
@@ -1363,7 +1366,7 @@ export default function WellnessScreen() {
                                 >
                                   {checked ? (
                                     <LinearGradient
-                                      colors={['#10B981', '#059669']}
+                                      colors={[palette.primary, palette.secondary]}
                                       start={{ x: 0, y: 0 }}
                                       end={{ x: 1, y: 1 }}
                                       style={wellnessStyles.doseCheckboxGradient}
@@ -1373,7 +1376,7 @@ export default function WellnessScreen() {
                                   ) : (
                                     <View style={wellnessStyles.doseCheckboxEmptyInner}>
                                       {supp.dailyTarget > 1 && (
-                                        <Text style={wellnessStyles.doseCheckboxNumberHint}>
+                                        <Text style={[wellnessStyles.doseCheckboxNumberHint, { color: getPaletteColorWithAlpha(palette.primary, 0.7) }]}>
                                           {doseIdx + 1}
                                         </Text>
                                       )}
@@ -1411,7 +1414,7 @@ export default function WellnessScreen() {
                                     pressed && s.btnPressed,
                                   ]}
                                 >
-                                  <Ionicons name="remove" size={15} color="#8B5CF6" />
+                                  <Ionicons name="remove" size={15} color={palette.primary} />
                                 </Pressable>
 
                                 <Text style={wellnessStyles.stepperValueText}>
@@ -1435,7 +1438,7 @@ export default function WellnessScreen() {
                                     pressed && s.btnPressed,
                                   ]}
                                 >
-                                  <Ionicons name="add" size={15} color="#8B5CF6" />
+                                  <Ionicons name="add" size={15} color={palette.primary} />
                                 </Pressable>
                               </View>
                             </View>
@@ -1448,7 +1451,7 @@ export default function WellnessScreen() {
                                   pressed && s.btnPressed,
                                 ]}
                               >
-                                <Ionicons name="pencil" size={13} color="#8B5CF6" />
+                                <Ionicons name="pencil" size={13} color={palette.primary} />
                               </Pressable>
 
                               <Pressable
@@ -1475,11 +1478,15 @@ export default function WellnessScreen() {
                 onPress={openAddSupplementModal}
                 style={({ pressed }) => [
                   wellnessStyles.bottomAddSuppBtn,
+                  {
+                    borderColor: getPaletteColorWithAlpha(palette.primary, 0.45),
+                    backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.05),
+                  },
                   pressed && s.btnPressed,
                 ]}
               >
-                <Ionicons name="add-circle-outline" size={18} color="#8B5CF6" />
-                <Text style={wellnessStyles.bottomAddSuppBtnText}>
+                <Ionicons name="add-circle-outline" size={18} color={palette.primary} />
+                <Text style={[wellnessStyles.bottomAddSuppBtnText, { color: palette.primary }]}>
                   Agregar otro suplemento
                 </Text>
               </Pressable>
@@ -1691,7 +1698,7 @@ export default function WellnessScreen() {
               <View style={wellnessStyles.modalHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                   <View style={wellnessStyles.modalIconCircle}>
-                    <Ionicons name="medkit" size={19} color="#8B5CF6" />
+                    <Ionicons name="medkit" size={19} color={palette.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={wellnessStyles.modalTitle}>
@@ -1738,7 +1745,7 @@ export default function WellnessScreen() {
                       pressed && s.btnPressed,
                     ]}
                   >
-                    <Ionicons name="remove" size={20} color="#8B5CF6" />
+                    <Ionicons name="remove" size={20} color={palette.primary} />
                   </Pressable>
 
                   <View style={wellnessStyles.modalTargetCenterBox}>
@@ -1756,7 +1763,7 @@ export default function WellnessScreen() {
                       pressed && s.btnPressed,
                     ]}
                   >
-                    <Ionicons name="add" size={20} color="#8B5CF6" />
+                    <Ionicons name="add" size={20} color={palette.primary} />
                   </Pressable>
                 </View>
 
@@ -1764,8 +1771,8 @@ export default function WellnessScreen() {
                 <View style={wellnessStyles.previewCheckboxesRow}>
                   {Array.from({ length: formTarget }, (_, idx) => (
                     <View key={idx} style={wellnessStyles.previewCheckboxChip}>
-                      <Ionicons name="checkbox-outline" size={15} color="#8B5CF6" />
-                      <Text style={wellnessStyles.previewCheckboxChipText}>Toma #{idx + 1}</Text>
+                      <Ionicons name="checkbox-outline" size={15} color={palette.primary} />
+                      <Text style={[wellnessStyles.previewCheckboxChipText, { color: palette.primary }]}>Toma #{idx + 1}</Text>
                     </View>
                   ))}
                 </View>
@@ -1790,7 +1797,7 @@ export default function WellnessScreen() {
                   ]}
                 >
                   <LinearGradient
-                    colors={['#8B5CF6', '#EC4899']}
+                    colors={[palette.primary, palette.secondary]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={wellnessStyles.modalSaveBtnGradient}
@@ -1848,7 +1855,7 @@ export default function WellnessScreen() {
               <View style={wellnessStyles.modalHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                   <View style={wellnessStyles.modalIconCircle}>
-                    <Ionicons name="alarm" size={20} color="#8B5CF6" />
+                    <Ionicons name="alarm" size={20} color={palette.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={wellnessStyles.modalTitle}>Programar Alarma</Text>
@@ -1877,7 +1884,7 @@ export default function WellnessScreen() {
                       pressed && s.btnPressed,
                     ]}
                   >
-                    <Ionicons name="chevron-up" size={20} color="#8B5CF6" />
+                    <Ionicons name="chevron-up" size={20} color={palette.primary} />
                   </Pressable>
 
                   <TextInput
@@ -1912,7 +1919,7 @@ export default function WellnessScreen() {
                       pressed && s.btnPressed,
                     ]}
                   >
-                    <Ionicons name="chevron-down" size={20} color="#8B5CF6" />
+                    <Ionicons name="chevron-down" size={20} color={palette.primary} />
                   </Pressable>
                 </View>
 
@@ -1927,7 +1934,7 @@ export default function WellnessScreen() {
                       pressed && s.btnPressed,
                     ]}
                   >
-                    <Ionicons name="chevron-up" size={20} color="#8B5CF6" />
+                    <Ionicons name="chevron-up" size={20} color={palette.primary} />
                   </Pressable>
 
                   <TextInput
@@ -1962,7 +1969,7 @@ export default function WellnessScreen() {
                       pressed && s.btnPressed,
                     ]}
                   >
-                    <Ionicons name="chevron-down" size={20} color="#8B5CF6" />
+                    <Ionicons name="chevron-down" size={20} color={palette.primary} />
                   </Pressable>
                 </View>
 
@@ -1982,7 +1989,7 @@ export default function WellnessScreen() {
                       >
                         {active ? (
                           <LinearGradient
-                            colors={['#8B5CF6', '#EC4899']}
+                            colors={[palette.primary, palette.secondary]}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                             style={wellnessStyles.alarmPeriodGradient}
@@ -2100,13 +2107,13 @@ export default function WellnessScreen() {
                           <Ionicons
                             name={isPreviewing ? 'stop-circle' : 'volume-high-outline'}
                             size={16}
-                            color={isPreviewing ? '#EC4899' : isSelected ? '#8B5CF6' : C.sub}
+                            color={isPreviewing ? palette.secondary : isSelected ? palette.primary : C.sub}
                           />
                           <Text
                             style={[
                               wellnessStyles.soundPlayBtnText,
                               isPreviewing && wellnessStyles.soundPlayBtnTextActive,
-                              isSelected && !isPreviewing && { color: '#8B5CF6' },
+                              isSelected && !isPreviewing && { color: palette.primary },
                             ]}
                           >
                             {isPreviewing ? 'Parar' : 'Oír'}
@@ -2125,8 +2132,8 @@ export default function WellnessScreen() {
                     pressed && s.btnPressed,
                   ]}
                 >
-                  <Ionicons name="notifications" size={15} color="#8B5CF6" />
-                  <Text style={wellnessStyles.testAlarmBtnText}>
+                  <Ionicons name="notifications" size={15} color={palette.primary} />
+                  <Text style={[wellnessStyles.testAlarmBtnText, { color: palette.primary }]}>
                     Probar alarma con "{getAlarmSoundById(selectedSoundId).name}"
                   </Text>
                 </Pressable>
@@ -2153,7 +2160,7 @@ export default function WellnessScreen() {
                   ]}
                 >
                   <LinearGradient
-                    colors={['#8B5CF6', '#EC4899']}
+                    colors={[palette.primary, palette.secondary]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={wellnessStyles.modalSaveBtnGradient}
@@ -2211,7 +2218,7 @@ export default function WellnessScreen() {
 
             <View style={wellnessStyles.ringingBody}>
               <View style={wellnessStyles.ringingSoundTagRow}>
-                <Ionicons name="musical-notes" size={15} color="#8B5CF6" />
+                <Ionicons name="musical-notes" size={15} color={palette.primary} />
                 <Text style={wellnessStyles.ringingSoundTagText}>
                   Sonando: {getAlarmSoundById(ringingSoundId).name} {getAlarmSoundById(ringingSoundId).emoji}
                 </Text>
@@ -2305,14 +2312,15 @@ function WellnessModeSegmented({
       style={[
         s.mainSegmentedContainer,
         palette && {
-          backgroundColor: palette.isDark ? '#1E293B' : 'rgba(241, 245, 249, 0.9)',
-          borderColor: palette.border,
+          backgroundColor: 'transparent',
+          borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+          shadowColor: palette.primary,
         },
       ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
     >
       {containerWidth > 0 && (
-        <Animated.View style={[s.slidingPill, { width: pillWidth, transform: [{ translateX }] }]}>
+        <Animated.View style={[s.slidingPill, { width: pillWidth, transform: [{ translateX }], shadowColor: prim }]}>
           <LinearGradient
             colors={[prim, sec]}
             start={{ x: 0, y: 0 }}
@@ -4002,7 +4010,7 @@ function SleepAndCaloriesHistoricalChart({
   const barWidth = chartMode === 'both' ? 10 : 18;
 
   return (
-    <View style={[wellnessStyles.historyChartCard, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+    <View style={[wellnessStyles.historyChartCard, { backgroundColor: 'transparent', borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) }]}>
       <LinearGradient
         colors={
           palette.isDark
@@ -4538,6 +4546,7 @@ function AddHealthMetricModal({
   onClose: () => void;
   onSave: (m: Omit<HealthMetricDefinition, 'id'>) => void;
 }) {
+  const palette = getActivePalette(useStore.getState());
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('mg/dL');
   const [idealRange, setIdealRange] = useState('');
@@ -4556,7 +4565,7 @@ function AddHealthMetricModal({
           style={healthStyles.modalSheet}
         >
           <View style={healthStyles.modalSheetContent}>
-            <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ padding: 20 }}>
+            <LinearGradient colors={[getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]} style={{ padding: 20 }}>
               <View style={healthStyles.sheetHandleBar} />
 
               <View style={healthStyles.modalHeaderRow}>
@@ -4693,6 +4702,9 @@ function HealthSection({
       : SEED_HEALTH_METRICS;
   const healthLogs = rawHealthLogs || SEED_HEALTH_LOGS;
 
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const [selectedChartMetricId, setSelectedChartMetricId] = useState<string>('presion');
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -4721,17 +4733,17 @@ function HealthSection({
   return (
     <View style={{ marginTop: 2 }}>
       {/* 1. GRÁFICA DE DATOS ARRIBA */}
-      <View style={healthStyles.chartOuterCard}>
+      <View style={[healthStyles.chartOuterCard, { backgroundColor: 'transparent', borderColor: getPaletteColorWithAlpha(palette.primary, 0.25), shadowColor: palette.primary }]}>
         <LinearGradient
-          colors={['#FFFFFF', '#F8FAFF']}
+          colors={[getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]}
           style={healthStyles.chartGradientWrap}
         >
           {/* Header de la Gráfica */}
           <View style={healthStyles.chartHeaderRow}>
             <View style={{ flex: 1 }}>
               <View style={healthStyles.chartTagBadge}>
-                <Ionicons name="analytics-outline" size={12} color="#8B5CF6" />
-                <Text style={healthStyles.chartTagText}>EVOLUCIÓN CLÍNICA Y TENDENCIA</Text>
+                <Ionicons name="analytics-outline" size={12} color={palette.primary} />
+                <Text style={[healthStyles.chartTagText, { color: palette.primary }]}>EVOLUCIÓN CLÍNICA Y TENDENCIA</Text>
               </View>
               <Text style={healthStyles.chartTitleText}>{selectedMetric.name}</Text>
             </View>
@@ -4797,7 +4809,7 @@ function HealthSection({
       {/* 3. LISTADO DE MÉTRICAS */}
       <View style={{ marginTop: 4 }}>
         <View style={healthStyles.listHeaderRow}>
-          <Text style={healthStyles.listHeaderTitle}>
+          <Text style={[healthStyles.listHeaderTitle, { color: palette.primary }]}>
             ✦ REGISTRO DEL DÍA (
             {date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()}
             )
@@ -4814,7 +4826,7 @@ function HealthSection({
           return (
             <View key={m.id} style={healthStyles.metricCard}>
               <LinearGradient
-                colors={['#FFFFFF', '#F8FAFF']}
+                colors={[getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]}
                 style={healthStyles.metricCardGradient}
               >
                 {/* Cabecera de la Tarjeta */}
@@ -4929,10 +4941,17 @@ function HealthSection({
         {/* 4. BOTÓN PARA AGREGAR NUEVA MÉTRICA */}
         <Pressable
           onPress={() => setModalOpen(true)}
-          style={({ pressed }) => [healthStyles.addMetricDashedBtn, pressed && s.btnPressed]}
+          style={({ pressed }) => [
+            healthStyles.addMetricDashedBtn,
+            {
+              borderColor: getPaletteColorWithAlpha(palette.primary, 0.45),
+              backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.05),
+            },
+            pressed && s.btnPressed,
+          ]}
         >
-          <Ionicons name="add-circle-outline" size={18} color="#8B5CF6" />
-          <Text style={healthStyles.addMetricDashedText}>+ Agregar otra métrica de salud</Text>
+          <Ionicons name="add-circle-outline" size={18} color={palette.primary} />
+          <Text style={[healthStyles.addMetricDashedText, { color: palette.primary }]}>Agregar otra métrica de salud</Text>
         </Pressable>
       </View>
 
@@ -5334,3 +5353,9 @@ const healthStyles = StyleSheet.create({
 
 registerThemeSheet(wellnessStyles);
 registerThemeSheet(healthStyles);
+
+
+
+
+
+
