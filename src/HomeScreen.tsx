@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
     userProfile,
     activePaletteId,
     customPalettes,
+    deletedPaletteIds,
     typography,
     homeWidgets,
     logs,
@@ -64,7 +65,14 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   } = useStore();
 
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const palette = getActivePalette({ activePaletteId, customPalettes });
+  const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
+
+  const pColors = palette.colors && palette.colors.length >= 2 ? palette.colors : [palette.primary, palette.secondary];
+  const c1 = pColors[0] || palette.primary;
+  const c2 = pColors[1] || palette.secondary;
+  const c3 = pColors[2] || pColors[0] || palette.primary;
+  const c4 = pColors[3] || pColors[1] || palette.secondary;
+  const c5 = pColors[4] || pColors[2] || pColors[0] || palette.primary;
 
   // Fecha de hoy
   const today = new Date();
@@ -147,24 +155,26 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 
   return (
     <View style={[styles.root, { backgroundColor: palette.bg }]}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      {/* ==========================================================
+          ESTRUCTURA DE PERFIL SUPERIOR STICKY (PERMANECE FIJO AL SCROLL):
+          - Perfil al lado izquierdo (Avatar + Racha horizontal debajo)
+          - Nombre, Nickname, Rango, Barra XP
+          - Al lado derecho: Botón de Ajustes
+      ========================================================== */}
+      <View
+        style={[
+          styles.userHeroSticky,
+          {
+            backgroundColor: palette.bg,
+            borderBottomColor: palette.isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.6)',
+          },
+        ]}
       >
-        {/* ==========================================================
-            ESTRUCTURA DE PERFIL SUPERIOR (TRANSPARENTE, SIN CONTAINER):
-            - Perfil al lado izquierdo
-            - Nombre
-            - Nickname-fecha
-            - Rango
-            - Barra XP
-            - Al lado derecho la racha (llamita) y botón de ajustes
-        ========================================================== */}
-        <View style={styles.userHeroTransparent}>
-          <View style={styles.userHeroRow}>
-            {/* Perfil al lado izquierdo (Avatar) */}
+        <View style={styles.userHeroRow}>
+          {/* Perfil al lado izquierdo (Avatar + Racha horizontal justo debajo) */}
+          <View style={{ alignItems: 'center', marginRight: 12 }}>
             <LinearGradient
-              colors={[palette.primary, palette.secondary]}
+              colors={[c1, c2]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.heroAvatar}
@@ -172,95 +182,100 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <Text style={styles.heroAvatarText}>{initials}</Text>
             </LinearGradient>
 
-            {/* Bloque Central de Datos */}
-            <View style={styles.heroCenterCol}>
-              {/* Nombre */}
+            {/* Racha horizontal justo debajo de la foto de perfil */}
+            <View
+              style={[
+                styles.heroStreakHorizontal,
+                {
+                  borderColor: c2,
+                  backgroundColor: `${c2}18`,
+                },
+              ]}
+            >
+              <Ionicons name="flame" size={13} color={c2} />
               <Text
-                style={[styles.heroName, { color: palette.text, fontFamily: titleFont }]}
-                numberOfLines={1}
+                style={[styles.heroStreakNumHorizontal, { color: c2, fontFamily: dataFont }]}
               >
-                {userName}
+                {Math.max(1, totalDaysLogged)}
               </Text>
-
-              {/* Nickname - Fecha */}
               <Text
-                style={[styles.heroNickDate, { color: palette.textSub, fontFamily: bodyFont }]}
-                numberOfLines={1}
+                style={[styles.heroStreakLabelHorizontal, { color: c2, fontFamily: subtitleFont }]}
               >
-                <Text style={{ color: palette.primary, fontWeight: '700' }}>{userNick}</Text> - {dayStrClean}
+                días
               </Text>
-
-              {/* Rango */}
-              <View style={styles.heroRankRow}>
-                <Ionicons name="sparkles" size={12} color={palette.primary} />
-                <Text
-                  style={[styles.heroRankText, { color: palette.primary, fontFamily: subtitleFont }]}
-                >
-                  Nivel {userLevel} · Atleta Élite
-                </Text>
-              </View>
-
-              {/* Barra XP */}
-              <View
-                style={[
-                  styles.heroXpTrack,
-                  {
-                    backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.4)',
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={[palette.primary, palette.secondary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.heroXpFill, { width: `${xpCurrent}%` }]}
-                />
-              </View>
-            </View>
-
-            {/* Al lado derecho: Racha (la llamita) y Botón de Ajustes */}
-            <View style={styles.heroRightCol}>
-              {/* Botón de Ajustes */}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.heroSettingsBtn,
-                  {
-                    borderColor: palette.border,
-                    backgroundColor: palette.bg,
-                  },
-                  pressed && { transform: [{ scale: 0.92 }] },
-                ]}
-                onPress={() => setSettingsModalOpen(true)}
-                hitSlop={8}
-              >
-                <Ionicons name="options-outline" size={17} color={palette.primary} />
-              </Pressable>
-
-              {/* Racha con la llamita */}
-              <View
-                style={[
-                  styles.heroStreakBadge,
-                  {
-                    borderColor: palette.secondary,
-                    backgroundColor: `${palette.secondary}15`,
-                  },
-                ]}
-              >
-                <Ionicons name="flame" size={17} color={palette.secondary} />
-                <Text
-                  style={[styles.heroStreakNum, { color: palette.secondary, fontFamily: dataFont }]}
-                >
-                  {Math.max(1, totalDaysLogged)}
-                </Text>
-                <Text
-                  style={[styles.heroStreakLabel, { color: palette.secondary, fontFamily: subtitleFont }]}
-                >
-                  Días
-                </Text>
-              </View>
             </View>
           </View>
+
+          {/* Bloque Central de Datos */}
+          <View style={styles.heroCenterCol}>
+            {/* Nombre */}
+            <Text
+              style={[styles.heroName, { color: palette.text, fontFamily: titleFont }]}
+              numberOfLines={1}
+            >
+              {userName}
+            </Text>
+
+            {/* Nickname - Fecha */}
+            <Text
+              style={[styles.heroNickDate, { color: palette.textSub, fontFamily: bodyFont }]}
+              numberOfLines={1}
+            >
+              <Text style={{ color: c1, fontWeight: '700' }}>{userNick}</Text> - {dayStrClean}
+            </Text>
+
+            {/* Rango */}
+            <View style={styles.heroRankRow}>
+              <Ionicons name="sparkles" size={12} color={c1} />
+              <Text
+                style={[styles.heroRankText, { color: c1, fontFamily: subtitleFont }]}
+              >
+                Nivel {userLevel} · Atleta Élite
+              </Text>
+            </View>
+
+            {/* Barra XP */}
+            <View
+              style={[
+                styles.heroXpTrack,
+                {
+                  backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.4)',
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={[c1, c2]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.heroXpFill, { width: `${xpCurrent}%` }]}
+              />
+            </View>
+          </View>
+
+          {/* Al lado derecho: Botón de Ajustes */}
+          <View style={styles.heroRightCol}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.heroSettingsBtn,
+                {
+                  borderColor: palette.border,
+                  backgroundColor: palette.bg,
+                },
+                pressed && { transform: [{ scale: 0.92 }] },
+              ]}
+              onPress={() => setSettingsModalOpen(true)}
+              hitSlop={8}
+            >
+              <Ionicons name="options-outline" size={17} color={c1} />
+            </Pressable>
+          </View>
         </View>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* ==========================================================
             WIDGET 1: NUTRICIÓN Y MACROS (COLORES ESTRICTOS DE LA PALETA)
@@ -318,20 +333,20 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 
                 {/* Desglose de Macros usando colores de la paleta */}
                 <View style={styles.macroPillRow}>
-                  <View style={[styles.macroPill, { backgroundColor: `${palette.primary}12` }]}>
-                    <Text style={[styles.macroPillLabel, { color: palette.primary }]}>P</Text>
+                  <View style={[styles.macroPill, { backgroundColor: `${c3}15` }]}>
+                    <Text style={[styles.macroPillLabel, { color: c3 }]}>P</Text>
                     <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
                       {fmt(totalProtein)}g
                     </Text>
                   </View>
-                  <View style={[styles.macroPill, { backgroundColor: `${palette.secondary}12` }]}>
-                    <Text style={[styles.macroPillLabel, { color: palette.secondary }]}>C</Text>
+                  <View style={[styles.macroPill, { backgroundColor: `${c2}15` }]}>
+                    <Text style={[styles.macroPillLabel, { color: c2 }]}>C</Text>
                     <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
                       {fmt(totalCarbs)}g
                     </Text>
                   </View>
-                  <View style={[styles.macroPill, { backgroundColor: `${palette.primary}12` }]}>
-                    <Text style={[styles.macroPillLabel, { color: palette.primary }]}>G</Text>
+                  <View style={[styles.macroPill, { backgroundColor: `${c4}15` }]}>
+                    <Text style={[styles.macroPillLabel, { color: c4 }]}>G</Text>
                     <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
                       {fmt(totalFat)}g
                     </Text>
@@ -357,8 +372,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             >
               <View style={styles.cardHeaderRow}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.iconBoxMini, { backgroundColor: `${palette.secondary}18` }]}>
-                    <Ionicons name="barbell-outline" size={18} color={palette.secondary} />
+                  <View style={[styles.iconBoxMini, { backgroundColor: `${c2}18` }]}>
+                    <Ionicons name="barbell-outline" size={18} color={c2} />
                   </View>
                   <View>
                     <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
@@ -375,10 +390,10 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     onPress={() => onNavigate('train')}
                     style={styles.linkActionBtn}
                   >
-                    <Text style={[styles.linkActionText, { color: palette.primary, fontFamily: subtitleFont }]}>
+                    <Text style={[styles.linkActionText, { color: c2, fontFamily: subtitleFont }]}>
                       Entreno
                     </Text>
-                    <Ionicons name="chevron-forward" size={14} color={palette.primary} />
+                    <Ionicons name="chevron-forward" size={14} color={c2} />
                   </Pressable>
                 )}
               </View>
@@ -394,7 +409,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 </View>
 
                 <View style={[styles.statBox, { backgroundColor: palette.bg }]}>
-                  <Text style={[styles.statBoxVal, { color: palette.primary, fontFamily: dataFont }]}>
+                  <Text style={[styles.statBoxVal, { color: c2, fontFamily: dataFont }]}>
                     {setsCount}
                   </Text>
                   <Text style={[styles.statBoxLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
@@ -421,8 +436,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             >
               <View style={styles.cardHeaderRow}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.iconBoxMini, { backgroundColor: `${palette.primary}18` }]}>
-                    <Ionicons name="medkit-outline" size={18} color={palette.primary} />
+                  <View style={[styles.iconBoxMini, { backgroundColor: `${c3}18` }]}>
+                    <Ionicons name="medkit-outline" size={18} color={c3} />
                   </View>
                   <View>
                     <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
@@ -439,10 +454,10 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     onPress={() => onNavigate('sleep')}
                     style={styles.linkActionBtn}
                   >
-                    <Text style={[styles.linkActionText, { color: palette.primary, fontFamily: subtitleFont }]}>
+                    <Text style={[styles.linkActionText, { color: c3, fontFamily: subtitleFont }]}>
                       Bienestar
                     </Text>
-                    <Ionicons name="chevron-forward" size={14} color={palette.primary} />
+                    <Ionicons name="chevron-forward" size={14} color={c3} />
                   </Pressable>
                 )}
               </View>
@@ -457,7 +472,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                       <Ionicons
                         name={isDone ? 'checkmark-circle' : 'time-outline'}
                         size={16}
-                        color={isDone ? palette.primary : palette.textSub}
+                        color={isDone ? c3 : palette.textSub}
                       />
                       <Text
                         style={[
@@ -495,8 +510,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             >
               <View style={styles.cardHeaderRow}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.iconBoxMini, { backgroundColor: `${palette.secondary}18` }]}>
-                    <Ionicons name="pulse-outline" size={18} color={palette.secondary} />
+                  <View style={[styles.iconBoxMini, { backgroundColor: `${c4}18` }]}>
+                    <Ionicons name="pulse-outline" size={18} color={c4} />
                   </View>
                   <View>
                     <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
@@ -513,10 +528,10 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     onPress={() => onNavigate('sleep')}
                     style={styles.linkActionBtn}
                   >
-                    <Text style={[styles.linkActionText, { color: palette.primary, fontFamily: subtitleFont }]}>
+                    <Text style={[styles.linkActionText, { color: c4, fontFamily: subtitleFont }]}>
                       Salud
                     </Text>
-                    <Ionicons name="chevron-forward" size={14} color={palette.primary} />
+                    <Ionicons name="chevron-forward" size={14} color={c4} />
                   </Pressable>
                 )}
               </View>
@@ -530,8 +545,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     {pressureVal ? `${pressureVal}/${pressureSec || 80}` : '119/78'}{' '}
                     <Text style={{ fontSize: 11, color: palette.textSub }}>mmHg</Text>
                   </Text>
-                  <View style={[styles.healthPillMini, { backgroundColor: `${palette.primary}18` }]}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: palette.primary }}>Óptima</Text>
+                  <View style={[styles.healthPillMini, { backgroundColor: `${c4}18` }]}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: c4 }}>Óptima</Text>
                   </View>
                 </View>
 
@@ -543,8 +558,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     {glucoseVal || '94'}{' '}
                     <Text style={{ fontSize: 11, color: palette.textSub }}>mg/dL</Text>
                   </Text>
-                  <View style={[styles.healthPillMini, { backgroundColor: `${palette.primary}18` }]}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: palette.primary }}>Normal</Text>
+                  <View style={[styles.healthPillMini, { backgroundColor: `${c3}18` }]}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: c3 }}>Normal</Text>
                   </View>
                 </View>
               </View>
@@ -567,8 +582,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             >
               <View style={styles.cardHeaderRow}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.iconBoxMini, { backgroundColor: `${palette.primary}18` }]}>
-                    <Ionicons name="body-outline" size={18} color={palette.primary} />
+                  <View style={[styles.iconBoxMini, { backgroundColor: `${c5}18` }]}>
+                    <Ionicons name="body-outline" size={18} color={c5} />
                   </View>
                   <View>
                     <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
@@ -585,10 +600,10 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     onPress={() => onNavigate('measure')}
                     style={styles.linkActionBtn}
                   >
-                    <Text style={[styles.linkActionText, { color: palette.primary, fontFamily: subtitleFont }]}>
+                    <Text style={[styles.linkActionText, { color: c5, fontFamily: subtitleFont }]}>
                       Medidas
                     </Text>
-                    <Ionicons name="chevron-forward" size={14} color={palette.primary} />
+                    <Ionicons name="chevron-forward" size={14} color={c5} />
                   </Pressable>
                 )}
               </View>
@@ -604,13 +619,13 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   style={[
                     styles.bodyWeightBadge,
                     {
-                      borderColor: palette.secondary,
-                      backgroundColor: `${palette.secondary}15`,
+                      borderColor: c5,
+                      backgroundColor: `${c5}15`,
                     },
                   ]}
                 >
-                  <Ionicons name="trending-down-outline" size={14} color={palette.secondary} />
-                  <Text style={[styles.bodyWeightBadgeText, { color: palette.secondary, fontFamily: dataFont }]}>
+                  <Ionicons name="trending-down-outline" size={14} color={c5} />
+                  <Text style={[styles.bodyWeightBadgeText, { color: c5, fontFamily: dataFont }]}>
                     Estable
                   </Text>
                 </View>
@@ -647,6 +662,237 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 }
 
 /* ==========================================================
+   MODAL PARA SELECCIONAR COLOR PERSONALIZADO
+========================================================== */
+function ColorPickerModal({
+  visible,
+  initialColor,
+  title = 'Selector de Color',
+  onClose,
+  onSelectColor,
+  palette,
+}: {
+  visible: boolean;
+  initialColor: string;
+  title?: string;
+  onClose: () => void;
+  onSelectColor: (color: string) => void;
+  palette: ColorPalette;
+}) {
+  const [selectedColor, setSelectedColor] = useState(initialColor || '#8B5CF6');
+  const [hexInput, setHexInput] = useState(initialColor ? initialColor.replace('#', '') : '8B5CF6');
+
+  useEffect(() => {
+    if (initialColor) {
+      setSelectedColor(initialColor);
+      setHexInput(initialColor.replace('#', ''));
+    }
+  }, [initialColor]);
+
+  if (!visible) return null;
+
+  const handleHexChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
+    setHexInput(cleaned);
+    if (cleaned.length === 6) {
+      setSelectedColor(`#${cleaned}`);
+    }
+  };
+
+  const handlePickPreset = (col: string) => {
+    setSelectedColor(col);
+    setHexInput(col.replace('#', ''));
+  };
+
+  const handleApply = () => {
+    let finalCol = hexInput.trim();
+    if (finalCol.length === 6) {
+      finalCol = `#${finalCol}`;
+    } else if (selectedColor) {
+      finalCol = selectedColor.startsWith('#') ? selectedColor : `#${selectedColor}`;
+    } else {
+      finalCol = '#8B5CF6';
+    }
+    onSelectColor(finalCol);
+    onClose();
+  };
+
+  const PALETTE_TONES = [
+    ['#8B5CF6', '#EC4899', '#F43F5E', '#F97316', '#F59E0B', '#10B981', '#06B6D4', '#3B82F6'],
+    ['#C4B5FD', '#FBCFE8', '#FECDD3', '#FFEDD5', '#FEF08A', '#A7F3D0', '#BAE6FD', '#BFDBFE'],
+    ['#7C3AED', '#DB2777', '#DC2626', '#EA580C', '#D97706', '#059669', '#0891B2', '#2563EB'],
+    ['#4C1D95', '#831843', '#881337', '#7C2D12', '#78350F', '#064E3B', '#164E63', '#1E3A8A'],
+    ['#0F172A', '#1E293B', '#334155', '#475569', '#64748B', '#94A3B8', '#CBD5E1', '#FFFFFF'],
+  ];
+
+  return (
+    <View style={pickerStyles.overlayBackdrop}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <View style={[pickerStyles.container, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+        {/* Header */}
+        <View style={pickerStyles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={[pickerStyles.title, { color: palette.text }]}>{title.toUpperCase()}</Text>
+            <Text style={[pickerStyles.subtitle, { color: palette.textSub }]}>
+              Selecciona una muestra o introduce un código hexadecimal
+            </Text>
+          </View>
+          <Pressable onPress={onClose} hitSlop={10}>
+            <Ionicons name="close" size={22} color={palette.textSub} />
+          </Pressable>
+        </View>
+
+        {/* Visual Preview */}
+        <View style={[pickerStyles.previewCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+          <View style={[pickerStyles.previewCircle, { backgroundColor: selectedColor }]}>
+            <Ionicons name="color-filter" size={20} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[pickerStyles.previewLabel, { color: palette.textSub }]}>COLOR SELECCIONADO</Text>
+            <Text style={[pickerStyles.previewHex, { color: palette.text }]}>#{hexInput.toUpperCase()}</Text>
+          </View>
+          {/* Opacity preview chips */}
+          <View style={pickerStyles.opacityChips}>
+            <View style={[pickerStyles.opacityChip, { backgroundColor: selectedColor }]} />
+            <View style={[pickerStyles.opacityChip, { backgroundColor: getPaletteColorWithAlpha(selectedColor, 0.6) }]} />
+            <View style={[pickerStyles.opacityChip, { backgroundColor: getPaletteColorWithAlpha(selectedColor, 0.25) }]} />
+          </View>
+        </View>
+
+        {/* Hex Input Row */}
+        <View style={pickerStyles.hexRow}>
+          <View style={[pickerStyles.hexPrefix, { backgroundColor: `${palette.primary}18` }]}>
+            <Text style={[pickerStyles.hexPrefixText, { color: palette.primary }]}>#</Text>
+          </View>
+          <TextInput
+            style={[
+              pickerStyles.hexInput,
+              { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border },
+            ]}
+            value={hexInput}
+            onChangeText={handleHexChange}
+            placeholder="8B5CF6"
+            placeholderTextColor={palette.textSub}
+            maxLength={6}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+        </View>
+
+        {/* Swatches Grid */}
+        <Text style={[pickerStyles.sectionLabel, { color: palette.textSub }]}>PALETA DE TONOS RÁPIDOS</Text>
+        <ScrollView style={pickerStyles.tonesScroll} showsVerticalScrollIndicator={false}>
+          {PALETTE_TONES.map((row, rIdx) => (
+            <View key={rIdx} style={pickerStyles.tonesRow}>
+              {row.map((col) => {
+                const isActive = selectedColor.toLowerCase() === col.toLowerCase();
+                return (
+                  <Pressable
+                    key={col}
+                    style={[
+                      pickerStyles.toneCircle,
+                      { backgroundColor: col },
+                      isActive && [pickerStyles.toneCircleActive, { borderColor: palette.text }],
+                    ]}
+                    onPress={() => handlePickPreset(col)}
+                  />
+                );
+              })}
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Actions */}
+        <View style={pickerStyles.actionRow}>
+          <Pressable style={[pickerStyles.cancelBtn, { borderColor: palette.border }]} onPress={onClose}>
+            <Text style={[pickerStyles.cancelBtnText, { color: palette.textSub }]}>Cancelar</Text>
+          </Pressable>
+          <Pressable style={[pickerStyles.applyBtn, { backgroundColor: palette.primary }]} onPress={handleApply}>
+            <Text style={pickerStyles.applyBtnText}>Aplicar Color</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/* ==========================================================
+   MODAL PARA RENOMBRAR PALETA
+========================================================== */
+function RenamePaletteModal({
+  visible,
+  initialName,
+  onClose,
+  onSave,
+  palette,
+}: {
+  visible: boolean;
+  initialName: string;
+  onClose: () => void;
+  onSave: (newName: string) => void;
+  palette: ColorPalette;
+}) {
+  const [name, setName] = useState(initialName);
+
+  useEffect(() => {
+    setName(initialName);
+  }, [initialName]);
+
+  if (!visible) return null;
+
+  const handleSave = () => {
+    if (!name.trim()) return;
+    onSave(name.trim());
+    onClose();
+  };
+
+  return (
+    <View style={renameStyles.overlayBackdrop}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <View style={[renameStyles.container, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+        <View style={renameStyles.header}>
+          <Ionicons name="pencil" size={17} color={palette.primary} />
+          <Text style={[renameStyles.title, { color: palette.text }]}>CAMBIAR NOMBRE DE PALETA</Text>
+        </View>
+        <Text style={[renameStyles.subtitle, { color: palette.textSub }]}>
+          Escribe el nuevo nombre para identificar esta combinación de colores
+        </Text>
+
+        <TextInput
+          style={[
+            renameStyles.input,
+            { backgroundColor: palette.bg, color: palette.text, borderColor: palette.border },
+          ]}
+          value={name}
+          onChangeText={setName}
+          placeholder="Nombre de la paleta..."
+          placeholderTextColor={palette.textSub}
+          autoFocus
+          maxLength={35}
+        />
+
+        <View style={renameStyles.actionRow}>
+          <Pressable style={[renameStyles.cancelBtn, { borderColor: palette.border }]} onPress={onClose}>
+            <Text style={[renameStyles.cancelBtnText, { color: palette.textSub }]}>Cancelar</Text>
+          </Pressable>
+          <Pressable
+            style={[
+              renameStyles.saveBtn,
+              { backgroundColor: palette.primary },
+              !name.trim() && { opacity: 0.5 },
+            ]}
+            onPress={handleSave}
+            disabled={!name.trim()}
+          >
+            <Text style={renameStyles.saveBtnText}>Guardar</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/* ==========================================================
    COMPONENTE MODAL DE SETTINGS CON MENÚ DESPLEGABLE DIRECTO
 ========================================================== */
 function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
@@ -659,12 +905,15 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
     homeWidgets,
     setActivePalette,
     addCustomPalette,
+    updatePalette,
     deleteCustomPalette,
+    deletePalette,
+    deletedPaletteIds,
     setTypography,
     toggleHomeWidget,
   } = useStore();
 
-  const palette = getActivePalette({ activePaletteId, customPalettes });
+  const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
 
   // Control de secciones desplegadas (por defecto 'palette' está abierta)
   const [expandedSection, setExpandedSection] = useState<'palette' | 'typography' | 'widgets' | 'profile' | null>('palette');
@@ -678,6 +927,20 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const [newPaletteName, setNewPaletteName] = useState('');
   const [newColors, setNewColors] = useState<string[]>(['#8B5CF6', '#F472B6']); // 2 por defecto
   const [newIsDark, setNewIsDark] = useState(false);
+
+  // Estados interactivos para selector de color y renombre
+  const [editingPaletteColor, setEditingPaletteColor] = useState<{
+    paletteId: string;
+    colorIndex: number;
+    currentColor: string;
+  } | null>(null);
+
+  const [editingPaletteName, setEditingPaletteName] = useState<{
+    paletteId: string;
+    currentName: string;
+  } | null>(null);
+
+  const [pickingCustomColorSlot, setPickingCustomColorSlot] = useState<number | null>(null);
 
   const handleAddColorSlot = () => {
     if (newColors.length >= 5) return;
@@ -695,6 +958,31 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
     const updated = [...newColors];
     updated[index] = color;
     setNewColors(updated);
+  };
+
+  const handleColorSelectedForPalette = (newColor: string) => {
+    if (!editingPaletteColor) return;
+    const { paletteId, colorIndex } = editingPaletteColor;
+    const target = allPalettes.find((item) => item.id === paletteId);
+    if (!target) return;
+    const currentColors =
+      target.colors && target.colors.length >= 2
+        ? [...target.colors]
+        : [target.primary, target.secondary];
+    const updatedColors = [...currentColors];
+    updatedColors[colorIndex] = newColor;
+    updatePalette(paletteId, {
+      colors: updatedColors,
+      primary: updatedColors[0],
+      secondary: updatedColors[1],
+    });
+    setEditingPaletteColor(null);
+  };
+
+  const handleSavePaletteName = (newName: string) => {
+    if (!editingPaletteName || !newName.trim()) return;
+    updatePalette(editingPaletteName.paletteId, { name: newName.trim() });
+    setEditingPaletteName(null);
   };
 
   // Perfil
@@ -728,7 +1016,13 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
     setUserProfile({ name: editName.trim(), nickname: editNick.trim().replace('@', '') });
   };
 
-  const allPalettes: ColorPalette[] = [...PRESET_PALETTES, ...(customPalettes || [])];
+  const allPalettes: ColorPalette[] = [
+    ...PRESET_PALETTES.map((p) => {
+      const overridden = customPalettes?.find((cp) => cp.id === p.id);
+      return overridden || p;
+    }),
+    ...(customPalettes || []).filter((cp) => !PRESET_PALETTES.some((p) => p.id === cp.id)),
+  ].filter((p) => !(deletedPaletteIds || []).includes(p.id));
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -818,16 +1112,29 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                           onPress={() => setActivePalette(p.id)}
                         >
                           <View style={modalStyles.paletteCardTop}>
-                            <Text
-                              style={[
-                                modalStyles.paletteCardName,
-                                { color: p.text },
-                                isSelected && { fontWeight: '900' },
-                              ]}
-                              numberOfLines={1}
+                            <Pressable
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                setEditingPaletteName({
+                                  paletteId: p.id,
+                                  currentName: p.name,
+                                });
+                              }}
+                              hitSlop={6}
                             >
-                              {p.name}
-                            </Text>
+                              <Text
+                                style={[
+                                  modalStyles.paletteCardName,
+                                  { color: p.text },
+                                  isSelected && { fontWeight: '900' },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {p.name}
+                              </Text>
+                              <Ionicons name="pencil-sharp" size={11} color={palette.textSub} style={{ opacity: 0.6 }} />
+                            </Pressable>
                             {isSelected && (
                               <Ionicons name="checkmark-circle" size={18} color={palette.primary} />
                             )}
@@ -836,7 +1143,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                           {/* Muestras de colores */}
                           <View style={modalStyles.swatchesRow}>
                             {sampleColors.map((col, idx) => (
-                              <View
+                              <Pressable
                                 key={idx}
                                 style={[
                                   modalStyles.swatchCircle,
@@ -846,19 +1153,17 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                                     marginLeft: idx > 0 ? -6 : 0,
                                   },
                                 ]}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  setEditingPaletteColor({
+                                    paletteId: p.id,
+                                    colorIndex: idx,
+                                    currentColor: col,
+                                  });
+                                }}
+                                hitSlop={6}
                               />
                             ))}
-
-                            <View
-                              style={[
-                                modalStyles.swatchCircle,
-                                {
-                                  backgroundColor: p.bg,
-                                  borderColor: p.border,
-                                  marginLeft: 6,
-                                },
-                              ]}
-                            />
 
                             {/* Badge de cantidad de colores */}
                             <View
@@ -882,18 +1187,16 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                               </View>
                             )}
 
-                            {p.custom && (
-                              <Pressable
-                                style={modalStyles.deleteCustomBtn}
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  deleteCustomPalette(p.id);
-                                }}
-                                hitSlop={8}
-                              >
-                                <Ionicons name="trash-outline" size={15} color={palette.secondary} />
-                              </Pressable>
-                            )}
+                            <Pressable
+                              style={modalStyles.deleteCustomBtn}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                deletePalette(p.id);
+                              }}
+                              hitSlop={8}
+                            >
+                              <Ionicons name="trash-outline" size={15} color={palette.secondary} />
+                            </Pressable>
                           </View>
                         </Pressable>
                       );
@@ -908,11 +1211,11 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     >
                       <Ionicons name="add-circle-outline" size={18} color={palette.primary} />
                       <Text style={[modalStyles.createPaletteToggleText, { color: palette.primary }]}>
-                        + Crear Nueva Paleta Personalizada (hasta 5 colores)
+                        Crear Nueva Paleta Personalizada (hasta 5 colores)
                       </Text>
                     </Pressable>
                   ) : (
-                    <View style={[modalStyles.customPaletteForm, { borderColor: palette.border, backgroundColor: palette.cardBg }]}>
+                    <View style={[modalStyles.customPaletteForm, { backgroundColor: palette.cardBg, borderWidth: 0 }]}>
                       <View style={modalStyles.customFormHeader}>
                         <View style={{ flex: 1 }}>
                           <Text style={[modalStyles.customFormTitle, { color: palette.text }]}>
@@ -1014,6 +1317,30 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                                   onPress={() => handleUpdateColorSlot(index, swatchColor)}
                                 />
                               ))}
+
+                              {/* Opción al final para abrir el selector de color personalizado */}
+                              <Pressable
+                                style={[
+                                  modalStyles.pickCircle,
+                                  modalStyles.customPickerBtn,
+                                  {
+                                    borderColor: palette.primary,
+                                    backgroundColor: `${palette.primary}18`,
+                                  },
+                                  !COLOR_SWATCHES.includes(color) && [
+                                    modalStyles.pickCircleActive,
+                                    { borderColor: palette.text, backgroundColor: color },
+                                  ],
+                                ]}
+                                onPress={() => setPickingCustomColorSlot(index)}
+                                hitSlop={4}
+                              >
+                                <Ionicons
+                                  name="color-palette-outline"
+                                  size={16}
+                                  color={!COLOR_SWATCHES.includes(color) ? '#FFFFFF' : palette.primary}
+                                />
+                              </Pressable>
                             </View>
                           </View>
                         );
@@ -1385,6 +1712,40 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
             </Pressable>
           </View>
         </View>
+
+        {/* Modal para Editar Nombre de Paleta */}
+        <RenamePaletteModal
+          visible={editingPaletteName !== null}
+          initialName={editingPaletteName?.currentName || ''}
+          onClose={() => setEditingPaletteName(null)}
+          onSave={handleSavePaletteName}
+          palette={palette}
+        />
+
+        {/* Modal para Cambiar Color de una Paleta Existente */}
+        <ColorPickerModal
+          visible={editingPaletteColor !== null}
+          initialColor={editingPaletteColor?.currentColor || '#8B5CF6'}
+          title={editingPaletteColor ? `Cambiar Color ${editingPaletteColor.colorIndex + 1}` : 'Elegir Color'}
+          onClose={() => setEditingPaletteColor(null)}
+          onSelectColor={handleColorSelectedForPalette}
+          palette={palette}
+        />
+
+        {/* Modal para Seleccionar Color Personalizado en Nueva Paleta */}
+        <ColorPickerModal
+          visible={pickingCustomColorSlot !== null}
+          initialColor={pickingCustomColorSlot !== null ? newColors[pickingCustomColorSlot] : '#8B5CF6'}
+          title={pickingCustomColorSlot !== null ? `Color ${pickingCustomColorSlot + 1} Personalizado` : 'Color Personalizado'}
+          onClose={() => setPickingCustomColorSlot(null)}
+          onSelectColor={(selectedColor) => {
+            if (pickingCustomColorSlot !== null) {
+              handleUpdateColorSlot(pickingCustomColorSlot, selectedColor);
+              setPickingCustomColorSlot(null);
+            }
+          }}
+          palette={palette}
+        />
       </View>
     </Modal>
   );
@@ -1506,11 +1867,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? 14 : 10,
+    paddingTop: 12,
     paddingBottom: 110,
   },
 
-  // Perfil superior transparente (sin contenedor ni fondo)
+  // Perfil superior sticky fijo
+  userHeroSticky: {
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 14 : 10,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    zIndex: 20,
+    elevation: 3,
+  },
   userHeroTransparent: {
     paddingVertical: 4,
     paddingHorizontal: 2,
@@ -1596,6 +1965,25 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   heroStreakLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  heroStreakHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  heroStreakNumHorizontal: {
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 13,
+  },
+  heroStreakLabelHorizontal: {
     fontSize: 9,
     fontWeight: '800',
   },
@@ -1969,7 +2357,7 @@ const modalStyles = StyleSheet.create({
   customPaletteForm: {
     padding: 14,
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 0,
     marginTop: 4,
     marginBottom: 6,
   },
@@ -2082,6 +2470,12 @@ const modalStyles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#FFFFFF',
     transform: [{ scale: 1.15 }],
+  },
+  customPickerBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
   },
   themeSwitchRow: {
     flexDirection: 'row',
@@ -2220,6 +2614,253 @@ const modalStyles = StyleSheet.create({
   doneBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '800',
+  },
+});
+
+/* ==========================================================
+   ESTILOS PARA SELECTOR DE COLOR Y RENOMBRAR PALETA
+========================================================== */
+const pickerStyles = StyleSheet.create({
+  overlayBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    zIndex: 9999,
+    elevation: 20,
+  },
+  container: {
+    width: '100%',
+    maxWidth: 390,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  subtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  previewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  previewCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  previewHex: {
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 1,
+  },
+  opacityChips: {
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+  },
+  opacityChip: {
+    width: 12,
+    height: 22,
+    borderRadius: 4,
+  },
+  hexRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  hexPrefix: {
+    height: 40,
+    width: 40,
+    borderTopLeftRadius: 10,
+    borderBottomLeftRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hexPrefixText: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  hexInput: {
+    flex: 1,
+    height: 40,
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 13.5,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  tonesScroll: {
+    maxHeight: 160,
+    marginBottom: 14,
+  },
+  tonesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  toneCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  toneCircleActive: {
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    transform: [{ scale: 1.15 }],
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  applyBtn: {
+    flex: 1.4,
+    height: 40,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+});
+
+const renameStyles = StyleSheet.create({
+  overlayBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    zIndex: 9999,
+    elevation: 20,
+  },
+  container: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    fontSize: 11,
+    marginBottom: 12,
+    lineHeight: 15,
+  },
+  input: {
+    height: 42,
+    borderRadius: 11,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 14,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  saveBtn: {
+    flex: 1.2,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
     fontWeight: '800',
   },
 });

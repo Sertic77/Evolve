@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { C, GRADIENTS, registerThemeSheet } from './theme';
+import { C, GRADIENTS, registerThemeSheet, getPaletteColorWithAlpha } from './theme';
 import {
   useStore,
   dateKey,
@@ -28,6 +28,7 @@ import {
   MealBlock,
   SavedMeal,
   FoodUnit,
+  getActivePalette,
 } from './store';
 import {
   MacroSummary,
@@ -42,6 +43,9 @@ import {
 } from './components';
 
 export default function FoodScreen() {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const [tab, setTab] = useState(0);
   const [date, setDate] = useState(new Date());
   const [quickCreateName, setQuickCreateName] = useState<string | null>(null);
@@ -161,15 +165,15 @@ export default function FoodScreen() {
         <View style={styles.topHeader}>
           <View>
             <View style={styles.cyberTagRow}>
-              <Ionicons name="sparkles" size={11} color={C.pastelPurple} />
-              <Text style={styles.cyberTagText}>✦ EVOLVE // PROTOCOLO ✦</Text>
+              <Ionicons name="sparkles" size={11} color={palette.primary} />
+              <Text style={[styles.cyberTagText, { color: palette.primary }]}>✦ EVOLVE // PROTOCOLO ✦</Text>
             </View>
             <Text style={styles.screenTitle}>Comida</Text>
           </View>
 
-          <View style={styles.dateChipMini}>
-            <Ionicons name="time-outline" size={13} color={C.pastelPurple} />
-            <Text style={styles.dateChipMiniText}>
+          <View style={[styles.dateChipMini, { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25), backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08) }]}>
+            <Ionicons name="time-outline" size={13} color={palette.primary} />
+            <Text style={[styles.dateChipMiniText, { color: palette.primary }]}>
               {date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()}
             </Text>
           </View>
@@ -282,7 +286,8 @@ function DayLog({
   dayKey: string;
   onOpenPicker: (blockId: string, itemId: string) => void;
 }) {
-  const { ingredients, savedMeals, setDayMeals, upsertSavedMeal } = useStore();
+  const { ingredients, savedMeals, setDayMeals, upsertSavedMeal, activePaletteId, customPalettes } = useStore();
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const [pickModalOpen, setPickModalOpen] = useState(false);
 
   const setMeals = (m: MealBlock[]) => setDayMeals(dayKey, m);
@@ -318,13 +323,13 @@ function DayLog({
 
       {/* Empty State si no hay comidas */}
       {meals.length === 0 && (
-        <View style={styles.emptyDayCard}>
+        <View style={[styles.emptyDayCard, { backgroundColor: 'transparent', borderColor: getPaletteColorWithAlpha(palette.primary, 0.22) }]}>
           <LinearGradient
-            colors={['#FFFFFF', '#F8FAFF']}
+            colors={[getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]}
             style={styles.emptyDayGradient}
           >
-            <View style={styles.emptyIconCircle}>
-              <Ionicons name="restaurant-outline" size={30} color={C.pastelPurple} />
+            <View style={[styles.emptyIconCircle, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12), borderColor: getPaletteColorWithAlpha(palette.primary, 0.28) }]}>
+              <Ionicons name="restaurant-outline" size={30} color={palette.primary} />
             </View>
             <Text style={styles.emptyDayTitle}>Sin comidas registradas</Text>
             <Text style={styles.emptyDaySubtitle}>
@@ -385,14 +390,14 @@ function DayLog({
         <Pressable style={styles.modalBackdropDismiss} onPress={() => setPickModalOpen(false)}>
           <Pressable style={styles.savedMealsPickerSheet}>
             <LinearGradient
-              colors={['#FFFFFF', '#F8FAFF']}
+              colors={[getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]}
               style={{ padding: 18 }}
             >
               <View style={styles.sheetHandleBar} />
               <View style={styles.pickerHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={styles.hudIconOrb}>
-                    <Ionicons name="bookmark" size={16} color={C.pastelPurple} />
+                  <View style={[styles.hudIconOrb, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.14) }]}>
+                    <Ionicons name="bookmark" size={16} color={palette.primary} />
                   </View>
                   <Text style={styles.sheetHeaderTitle}>CARGAR COMIDA GUARDADA</Text>
                 </View>
@@ -430,12 +435,12 @@ function DayLog({
                           ]);
                           setPickModalOpen(false);
                         }}
-                        style={({ pressed }) => [styles.savedMealSelectCard, pressed && s.btnPressed]}
+                        style={({ pressed }) => [styles.savedMealSelectCard, { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) }, pressed && s.btnPressed]}
                       >
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Text style={styles.savedMealSelectName}>{sm.name}</Text>
-                          <View style={styles.itemCountBadge}>
-                            <Text style={styles.itemCountBadgeText}>{sm.items.length} items</Text>
+                          <View style={[styles.itemCountBadge, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.14) }]}>
+                            <Text style={[styles.itemCountBadgeText, { color: palette.primary }]}>{sm.items.length} items</Text>
                           </View>
                         </View>
                         <Text style={styles.savedMealSelectSub} numberOfLines={1}>
@@ -539,7 +544,8 @@ const confirmDelete = (msg: string, onConfirm: () => void) => {
 
 /* --- Lista de Ingredientes con Buscador Seguro --- */
 function IngredientsList() {
-  const { ingredients, upsertIngredient, deleteIngredient } = useStore();
+  const { ingredients, upsertIngredient, deleteIngredient, activePaletteId, customPalettes } = useStore();
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const [query, setQuery] = useState('');
   const [editingIng, setEditingIng] = useState<Ingredient | null>(null);
 
@@ -553,7 +559,7 @@ function IngredientsList() {
     <View style={{ marginTop: 6 }}>
       {/* Barra de búsqueda interactiva con botón de descartar teclado */}
       <View style={styles.searchAddRow}>
-        <View style={styles.searchBoxGlass}>
+        <View style={[styles.searchBoxGlass, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.06), borderColor: getPaletteColorWithAlpha(palette.primary, 0.22) }]}>
           <Ionicons name="search" size={17} color={C.pastelPurple} />
           <TextInput
             value={query}
@@ -617,10 +623,14 @@ function IngredientsList() {
             Keyboard.dismiss();
             setEditingIng(ing);
           }}
-          style={({ pressed }) => [styles.ingredientCardWrapper, pressed && s.btnPressed]}
+          style={({ pressed }) => [
+            styles.ingredientCardWrapper,
+            { backgroundColor: 'transparent', borderColor: getPaletteColorWithAlpha(palette.primary, 0.2) },
+            pressed && s.btnPressed,
+          ]}
         >
           <LinearGradient
-            colors={['#FFFFFF', '#F8FAFF']}
+            colors={[getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]}
             style={styles.ingredientCardGradient}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -674,6 +684,7 @@ function IngredientFormModal({
   onClose: () => void;
   onDelete?: () => void;
 }) {
+  const palette = getActivePalette(useStore.getState());
   const [unit, setUnit] = useState<FoodUnit>(ing.unit || 'g');
   const [form, setForm] = useState({
     name: ing.name,
@@ -720,7 +731,7 @@ function IngredientFormModal({
         >
           <View style={styles.formModalSheetContent}>
             <LinearGradient
-              colors={['#FFFFFF', '#F8FAFF']}
+              colors={[getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]}
               style={{ padding: 20 }}
             >
               <View style={styles.sheetHandleBar} />
@@ -846,14 +857,15 @@ function SavedMealsList({
   setDraft: (d: SavedMeal | null) => void;
   onOpenPickerForDraft: (itemId: string) => void;
 }) {
-  const { savedMeals, ingredients, upsertSavedMeal, deleteSavedMeal } = useStore();
+  const { savedMeals, ingredients, upsertSavedMeal, deleteSavedMeal, activePaletteId, customPalettes } = useStore();
+  const palette = getActivePalette({ activePaletteId, customPalettes });
 
   return (
     <View style={{ marginTop: 6 }}>
       {draft ? (
         <View>
           <View style={styles.editorBanner}>
-            <Ionicons name="create-outline" size={16} color={C.pastelPurple} />
+            <Ionicons name="create-outline" size={16} color={palette.primary} />
             <Text style={styles.editorBannerText}>EDITANDO RECETA / COMIDA GUARDADA</Text>
           </View>
 
@@ -904,9 +916,9 @@ function SavedMealsList({
 
           {/* MENSAJE VACÍO DE COMIDAS GUARDADAS: 100% ALINEADO Y CENTRADO */}
           {savedMeals.length === 0 && (
-            <View style={styles.emptySavedBoxWrapper}>
-              <View style={styles.emptyIconCircle}>
-                <Ionicons name="fast-food-outline" size={32} color={C.pastelPurple} />
+            <View style={[styles.emptySavedBoxWrapper, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.06), borderColor: getPaletteColorWithAlpha(palette.primary, 0.22) }]}>
+              <View style={[styles.emptyIconCircle, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12), borderColor: getPaletteColorWithAlpha(palette.primary, 0.28) }]}>
+                <Ionicons name="fast-food-outline" size={32} color={palette.primary} />
               </View>
               <Text style={styles.emptyDayTitle}>No tienes comidas guardadas</Text>
               <Text style={styles.emptyDaySubtitle}>
@@ -921,10 +933,14 @@ function SavedMealsList({
               <Pressable
                 key={sm.id}
                 onPress={() => setDraft(JSON.parse(JSON.stringify(sm)))}
-                style={({ pressed }) => [styles.savedMealCardWrapper, pressed && s.btnPressed]}
+                style={({ pressed }) => [
+                  styles.savedMealCardWrapper,
+                  { backgroundColor: 'transparent', borderColor: getPaletteColorWithAlpha(palette.primary, 0.2) },
+                  pressed && s.btnPressed,
+                ]}
               >
                 <LinearGradient
-                  colors={['#FFFFFF', '#F8FAFF']}
+                  colors={[getPaletteColorWithAlpha(palette.primary, 0.08), getPaletteColorWithAlpha(palette.primary, 0.02)]}
                   style={styles.savedMealCardGradient}
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -974,7 +990,7 @@ const styles = StyleSheet.create({
     paddingBottom: 130,
   },
   stickyTabsContainer: {
-    backgroundColor: C.bg,
+    backgroundColor: 'transparent',
     paddingTop: 2,
     paddingBottom: 8,
     zIndex: 25,
@@ -1450,3 +1466,5 @@ const styles = StyleSheet.create({
 });
 
 registerThemeSheet(styles);
+
+

@@ -15,11 +15,15 @@ import {
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { C, GRADIENTS, fmt, registerThemeSheet } from './theme';
-import { FoodUnit, Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTotal, uid } from './store';
+import { C, GRADIENTS, fmt, registerThemeSheet, getPaletteColorWithAlpha } from './theme';
+import { FoodUnit, Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTotal, uid, useStore, getActivePalette, ColorPalette } from './store';
 
 /* ---------------- Resumen de Macros (Animado con Fondo Flotante Anime) ---------------- */
 export function MacroSummary({ m }: { m: Macros }) {
+  const activePaletteId = useStore((st) => st.activePaletteId);
+  const customPalettes = useStore((st) => st.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const size = 152;
   const stroke = 12;
   const r = (size - stroke) / 2;
@@ -185,10 +189,24 @@ export function MacroSummary({ m }: { m: Macros }) {
   };
   const totalMacrosKcal = kc.carbs + kc.protein + kc.fat;
 
+  const paletteColors =
+    palette.colors && palette.colors.length >= 2
+      ? palette.colors
+      : [palette.primary, palette.secondary];
+  const colorProtein = paletteColors[2] || paletteColors[0] || palette.primary || C.protein;
+  const colorCarbs = paletteColors[1] || palette.secondary || C.carbs;
+  const colorFat = paletteColors[3] || paletteColors[1] || palette.secondary || C.fat;
+
+  const macroColors = {
+    protein: colorProtein,
+    carbs: colorCarbs,
+    fat: colorFat,
+  };
+
   let offset = 0;
   const segs = (['protein', 'carbs', 'fat'] as const).map((k) => {
     const len = totalMacrosKcal > 0 ? (kc[k] / totalMacrosKcal) * circ : 0;
-    const s = { k, len, offset };
+    const s = { k, len, offset, color: macroColors[k] };
     offset += len;
     return s;
   });
@@ -213,35 +231,40 @@ export function MacroSummary({ m }: { m: Macros }) {
   });
 
   return (
-    <View style={s.glassCard}>
+    <View
+      style={[
+        s.glassCard,
+        {
+          backgroundColor: 'transparent',
+          borderWidth: 0,
+          borderColor: 'transparent',
+          shadowOpacity: 0,
+          elevation: 0,
+        },
+      ]}
+    >
       {/* CAPA DE FONDO ANIMADO ANIME (Orbes de Energía Flotante) */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Animated.View
-          style={[
-            s.floatingOrb1,
-            { transform: [{ translateX: transX1 }, { translateY: transY1 }] },
-          ]}
-        />
-        <Animated.View
-          style={[
-            s.floatingOrb2,
-            { transform: [{ translateX: transX2 }, { translateY: transY2 }] },
-          ]}
-        />
-        <Animated.View style={s.floatingOrb3} />
-      </View>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none" />
 
       <LinearGradient
-        colors={GRADIENTS.cardGlass}
+        colors={['transparent', 'transparent']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={s.cardGradient}
+        style={[s.cardGradient, { borderWidth: 0 }]}
       >
         {/* Cabecera estilo Anime */}
         <View style={s.hudHeader}>
-          <View style={s.hudBadge}>
-            <Ionicons name="sparkles" size={11} color={C.pastelPurple} />
-            <Text style={s.hudBadgeText}>✦ BALANCE DEL DÍA ✦</Text>
+          <View
+            style={[
+              s.hudBadge,
+              {
+                backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12),
+                borderColor: getPaletteColorWithAlpha(palette.primary, 0.28),
+              },
+            ]}
+          >
+            <Ionicons name="sparkles" size={11} color={palette.primary} />
+            <Text style={[s.hudBadgeText, { color: palette.primary }]}>✦ BALANCE DEL DÍA ✦</Text>
           </View>
           <Text style={s.kanjiDecor}>栄養ログ</Text>
         </View>
@@ -273,7 +296,7 @@ export function MacroSummary({ m }: { m: Macros }) {
                     cx={size / 2}
                     cy={size / 2}
                     r={r}
-                    stroke={C[g.k]}
+                    stroke={g.color || C[g.k]}
                     strokeWidth={stroke}
                     fill="none"
                     strokeDasharray={`${g.len} ${circ}`}
@@ -286,7 +309,15 @@ export function MacroSummary({ m }: { m: Macros }) {
 
             {/* Centro del Anillo: LLAMA DE FUEGO VERDE (KCAL GANADAS) CON AURA Y ANIMACIÓN */}
             <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-              <View style={s.ringCenterGlow}>
+              <View
+                style={[
+                  s.ringCenterGlow,
+                  {
+                    backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08),
+                    borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+                  },
+                ]}
+              >
                 <View style={{ width: 44, height: 38, alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
                   <Animated.View
                     style={[
@@ -321,9 +352,9 @@ export function MacroSummary({ m }: { m: Macros }) {
           {/* Barras de Macros Anime Pastel Animadas */}
           <View style={{ flex: 1, marginLeft: 18, gap: 11 }}>
             {[
-              { label: 'Proteína', key: 'protein' as const, icon: 'flash' as const, color: C.protein },
-              { label: 'Carbos', key: 'carbs' as const, icon: 'leaf' as const, color: C.carbs },
-              { label: 'Grasas', key: 'fat' as const, icon: 'water' as const, color: C.fat },
+              { label: 'Proteína', key: 'protein' as const, icon: 'flash' as const, color: colorProtein },
+              { label: 'Carbos', key: 'carbs' as const, icon: 'leaf' as const, color: colorCarbs },
+              { label: 'Grasas', key: 'fat' as const, icon: 'water' as const, color: colorFat },
             ].map(({ label, key, icon, color }) => {
               const pct = totalMacrosKcal > 0 ? Math.round((kc[key] / totalMacrosKcal) * 100) : 0;
               return (
@@ -375,6 +406,10 @@ export function MainNavigationSegmented({
     { label: 'Ingredientes y comidas', icon: 'library-outline' },
   ];
 
+  const activePaletteId = useStore((st) => st.activePaletteId);
+  const customPalettes = useStore((st) => st.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const [containerWidth, setContainerWidth] = useState(0);
   const slideAnim = useRef(new Animated.Value(value)).current;
 
@@ -396,7 +431,14 @@ export function MainNavigationSegmented({
 
   return (
     <View
-      style={s.mainSegmentedContainer}
+      style={[
+        s.mainSegmentedContainer,
+        {
+          borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+          shadowColor: palette.primary,
+          backgroundColor: 'transparent',
+        },
+      ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
     >
       {/* Píldora Deslizante Animada Ultra Smooth */}
@@ -407,11 +449,12 @@ export function MainNavigationSegmented({
             {
               width: pillWidth,
               transform: [{ translateX }],
+              shadowColor: palette.primary,
             },
           ]}
         >
           <LinearGradient
-            colors={['#8B5CF6', '#EC4899']}
+            colors={[palette.primary, palette.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={s.slidingPillGradient}
@@ -430,13 +473,13 @@ export function MainNavigationSegmented({
             <Ionicons
               name={opt.icon as any}
               size={16}
-              color={active ? '#FFFFFF' : C.sub}
+              color={active ? '#FFFFFF' : palette.textSub}
               style={{ marginRight: 6 }}
             />
             <Text
               style={[
                 s.mainSegmentedText,
-                active ? s.mainSegmentedTextActive : s.mainSegmentedTextInactive,
+                active ? s.mainSegmentedTextActive : [s.mainSegmentedTextInactive, { color: palette.textSub }],
               ]}
             >
               {opt.label}
@@ -458,6 +501,10 @@ export function Segmented({
   value: number;
   onChange: (i: number) => void;
 }) {
+  const activePaletteId = useStore((st) => st.activePaletteId);
+  const customPalettes = useStore((st) => st.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const [containerWidth, setContainerWidth] = useState(0);
   const slideAnim = useRef(new Animated.Value(value)).current;
 
@@ -479,7 +526,14 @@ export function Segmented({
 
   return (
     <View
-      style={s.segmentedContainer}
+      style={[
+        s.segmentedContainer,
+        {
+          borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+          shadowColor: palette.primary,
+          backgroundColor: 'transparent',
+        },
+      ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
     >
       {/* Píldora Deslizante Animada Pastel */}
@@ -490,11 +544,12 @@ export function Segmented({
             {
               width: pillWidth,
               transform: [{ translateX }],
+              shadowColor: palette.primary,
             },
           ]}
         >
           <LinearGradient
-            colors={GRADIENTS.primary}
+            colors={[palette.primary, palette.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={s.segmentedSlidingPillGradient}
@@ -513,7 +568,7 @@ export function Segmented({
             <Text
               style={[
                 s.segmentedText,
-                active ? s.segmentedTextActive : s.segmentedTextInactive,
+                active ? s.segmentedTextActive : [s.segmentedTextInactive, { color: palette.textSub }],
               ]}
             >
               {opt}
@@ -536,6 +591,10 @@ if (Platform.OS !== 'web') {
 }
 
 export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Date) => void }) {
+  const activePaletteId = useStore((st) => st.activePaletteId);
+  const customPalettes = useStore((st) => st.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const [open, setOpen] = useState(false);
 
   // Valores de animación notoria para cambio de fecha (Slide, Fade, Scale y Glow Flash)
@@ -616,19 +675,36 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
       <Animated.View style={{ transform: [{ scale: leftBounce }] }}>
         <Pressable
           onPress={() => shift(-1)}
-          style={({ pressed }) => [s.dateNavBtn, pressed && s.btnPressed]}
+          style={({ pressed }) => [
+            s.dateNavBtn,
+            {
+              borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+              backgroundColor: palette.isDark ? '#1E293B' : '#FFFFFF',
+            },
+            pressed && s.btnPressed,
+          ]}
           hitSlop={4}
         >
-          <Ionicons name="chevron-back" size={20} color="#8B5CF6" />
+          <Ionicons name="chevron-back" size={20} color={palette.primary} />
         </Pressable>
       </Animated.View>
 
       <Pressable
         onPress={() => setOpen(true)}
-        style={({ pressed }) => [s.dateCenterBtn, pressed && s.btnPressed]}
+        style={({ pressed }) => [
+          s.dateCenterBtn,
+          {
+            borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+          },
+          pressed && s.btnPressed,
+        ]}
       >
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.98)', 'rgba(245, 248, 255, 0.96)']}
+          colors={
+            palette.isDark
+              ? ['#1E293B', '#0F172A']
+              : ['rgba(255, 255, 255, 0.98)', 'rgba(245, 248, 255, 0.96)']
+          }
           style={s.dateCenterGradient}
         >
           {/* Destello de color anime pastel que confirma claramente el cambio de día */}
@@ -637,7 +713,7 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
             style={[
               StyleSheet.absoluteFill,
               {
-                backgroundColor: 'rgba(139, 92, 246, 0.22)',
+                backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.22),
                 opacity: glowFlash,
               },
             ]}
@@ -652,13 +728,21 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
               },
             ]}
           >
-            <Ionicons name="calendar" size={17} color={isToday ? '#8B5CF6' : C.pastelPink} />
-            <Text style={[s.dateLabelText, isToday && { color: '#7C3AED', fontWeight: '900' }]}>
+            <Ionicons name="calendar" size={17} color={isToday ? palette.primary : palette.secondary} />
+            <Text style={[s.dateLabelText, { color: palette.text }, isToday && { color: palette.primary, fontWeight: '900' }]}>
               {label}
             </Text>
             {isToday && (
-              <View style={s.todayTag}>
-                <Text style={s.todayTagText}>HOY</Text>
+              <View
+                style={[
+                  s.todayTag,
+                  {
+                    backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12),
+                    borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+                  },
+                ]}
+              >
+                <Text style={[s.todayTagText, { color: palette.primary }]}>HOY</Text>
               </View>
             )}
           </Animated.View>
@@ -668,23 +752,38 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
       <Animated.View style={{ transform: [{ scale: rightBounce }] }}>
         <Pressable
           onPress={() => shift(1)}
-          style={({ pressed }) => [s.dateNavBtn, pressed && s.btnPressed]}
+          style={({ pressed }) => [
+            s.dateNavBtn,
+            {
+              borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+              backgroundColor: palette.isDark ? '#1E293B' : '#FFFFFF',
+            },
+            pressed && s.btnPressed,
+          ]}
           hitSlop={4}
         >
-          <Ionicons name="chevron-forward" size={20} color="#8B5CF6" />
+          <Ionicons name="chevron-forward" size={20} color={palette.primary} />
         </Pressable>
       </Animated.View>
 
       {open && DateTimePicker && (
         <Modal transparent animationType="fade" onRequestClose={() => setOpen(false)}>
           <Pressable style={s.modalBackdrop} onPress={() => setOpen(false)}>
-            <Pressable style={s.datePickerCard}>
+            <Pressable
+              style={[
+                s.datePickerCard,
+                {
+                  backgroundColor: palette.isDark ? '#1E293B' : '#FFFFFF',
+                  borderColor: getPaletteColorWithAlpha(palette.primary, 0.35),
+                },
+              ]}
+            >
               <DateTimePicker
                 value={date}
                 mode="date"
                 display="inline"
-                themeVariant="light"
-                accentColor={C.pastelPurple}
+                themeVariant={palette.isDark ? 'dark' : 'light'}
+                accentColor={palette.primary}
                 locale="es-ES"
                 onChange={(_: any, d?: Date) => {
                   if (d) {
@@ -702,14 +801,60 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
   );
 }
 
-/* ---------------- Chips de Macros Pastel ---------------- */
+/* ---------------- Chips de Macros Pastel con Alto Contraste ---------------- */
+function getAccessibleMacroColor(hex: string, isDark: boolean): string {
+  if (!hex) return isDark ? '#F8FAFC' : '#0F172A';
+  const clean = hex.startsWith('#') ? hex.slice(0, 7) : `#${hex.slice(0, 6)}`;
+  if (clean.length < 7) return hex;
+
+  const r = parseInt(clean.slice(1, 3), 16) || 0;
+  const g = parseInt(clean.slice(3, 5), 16) || 0;
+  const b = parseInt(clean.slice(5, 7), 16) || 0;
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+  if (!isDark) {
+    // En modo claro, si el color es muy claro (amarillo, menta pálida, cian claro, naranja claro)
+    // oscurecemos armónicamente para garantizar un contraste nítido y legible
+    if (brightness > 130) {
+      const factor = brightness > 180 ? 0.52 : 0.65;
+      const dr = Math.floor(r * factor);
+      const dg = Math.floor(g * factor);
+      const db = Math.floor(b * factor);
+      const toHex = (n: number) => n.toString(16).padStart(2, '0');
+      return `#${toHex(dr)}${toHex(dg)}${toHex(db)}`;
+    }
+  } else {
+    // En modo oscuro, si el color es muy oscuro lo aclaramos para que destaque
+    if (brightness < 100) {
+      const factor = 1.6;
+      const lr = Math.min(255, Math.floor(r * factor + 45));
+      const lg = Math.min(255, Math.floor(g * factor + 45));
+      const lb = Math.min(255, Math.floor(b * factor + 45));
+      const toHex = (n: number) => n.toString(16).padStart(2, '0');
+      return `#${toHex(lr)}${toHex(lg)}${toHex(lb)}`;
+    }
+  }
+  return clean;
+}
+
 export function MacroChips({ m, small }: { m: Macros; small?: boolean }) {
+  const activePaletteId = useStore((st) => st.activePaletteId);
+  const customPalettes = useStore((st) => st.customPalettes);
+  const deletedPaletteIds = useStore((st) => st.deletedPaletteIds);
+  const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
+
+  const pColors = palette.colors && palette.colors.length >= 2 ? palette.colors : [palette.primary, palette.secondary];
+  const colorKcal = pColors[0] || palette.primary;
+  const colorCarbs = pColors[1] || palette.secondary;
+  const colorProtein = pColors[2] || pColors[0] || palette.primary;
+  const colorFat = pColors[3] || pColors[1] || palette.secondary;
+
   return (
     <View style={s.chipsRow}>
-      <MacroBadge icon="flame" color={C.kcal} text={`${Math.round(m.kcal || 0)} kcal`} small={small} />
-      <MacroBadge icon="leaf" color={C.carbs} text={`C ${fmt(m.carbs)}g`} small={small} />
-      <MacroBadge icon="flash" color={C.protein} text={`P ${fmt(m.protein)}g`} small={small} />
-      <MacroBadge icon="water" color={C.fat} text={`G ${fmt(m.fat)}g`} small={small} />
+      <MacroBadge icon="flame" color={colorKcal} text={`${Math.round(m.kcal || 0)} kcal`} small={small} palette={palette} />
+      <MacroBadge icon="leaf" color={colorCarbs} text={`C ${fmt(m.carbs)}g`} small={small} palette={palette} />
+      <MacroBadge icon="flash" color={colorProtein} text={`P ${fmt(m.protein)}g`} small={small} palette={palette} />
+      <MacroBadge icon="water" color={colorFat} text={`G ${fmt(m.fat)}g`} small={small} palette={palette} />
     </View>
   );
 }
@@ -719,22 +864,37 @@ function MacroBadge({
   color,
   text,
   small,
+  palette,
 }: {
   icon: any;
   color: string;
   text: string;
   small?: boolean;
+  palette?: ColorPalette;
 }) {
+  const isDark = palette?.isDark ?? false;
+  const accessibleColor = getAccessibleMacroColor(color, isDark);
   return (
     <View
       style={[
         s.macroBadgeContainer,
-        { borderColor: color + '35', backgroundColor: color + '15' },
+        {
+          borderColor: `${accessibleColor}40`,
+          backgroundColor: isDark ? `${accessibleColor}22` : `${accessibleColor}12`,
+        },
         small && { paddingHorizontal: 7, paddingVertical: 3 },
       ]}
     >
-      <Ionicons name={icon} size={small ? 10 : 12} color={color} style={{ marginRight: 4 }} />
-      <Text style={[s.macroBadgeText, { color }, small && { fontSize: 11 }]}>{text}</Text>
+      <Ionicons name={icon} size={small ? 10 : 12} color={accessibleColor} style={{ marginRight: 4 }} />
+      <Text
+        style={[
+          s.macroBadgeText,
+          { color: accessibleColor, fontWeight: '800' },
+          small && { fontSize: 11 },
+        ]}
+      >
+        {text}
+      </Text>
     </View>
   );
 }
@@ -1013,6 +1173,11 @@ export function MealBlockCard({
   extra?: React.ReactNode;
   onOpenPickerForItem: (itemId: string) => void;
 }) {
+  const activePaletteId = useStore((st) => st.activePaletteId);
+  const customPalettes = useStore((st) => st.customPalettes);
+  const deletedPaletteIds = useStore((st) => st.deletedPaletteIds);
+  const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
+
   const total = itemsTotal(block.items, ingredients);
 
   const setItem = (it: MealItem) =>
@@ -1028,26 +1193,34 @@ export function MealBlockCard({
   };
 
   return (
-    <View style={s.mealBlockWrapper}>
+    <View style={[s.mealBlockWrapper, { borderColor: palette.border }]}>
       <LinearGradient
-        colors={['#FFFFFF', '#F8FAFF']}
+        colors={palette.isDark ? ['#1E293B', '#0F172A'] : ['#FFFFFF', '#F8FAFF']}
         style={s.mealBlockGradient}
       >
-        {/* Barra decorativa lateral suave */}
-        <View style={s.mealBlockAccentBar} />
+        {/* Barra decorativa lateral izquierda con color de paleta */}
+        <View style={[s.mealBlockAccentBar, { backgroundColor: palette.primary }]} />
 
         {/* Header del bloque */}
         <View style={s.mealBlockHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-            <View style={s.mealIconBadge}>
-              <Ionicons name={getMealIcon(block.name)} size={16} color={C.pastelPurple} />
+            <View
+              style={[
+                s.mealIconBadge,
+                {
+                  backgroundColor: `${palette.primary}18`,
+                  borderColor: `${palette.primary}35`,
+                },
+              ]}
+            >
+              <Ionicons name={getMealIcon(block.name)} size={16} color={palette.primary} />
             </View>
             <TextInput
               value={block.name}
               onChangeText={(name) => onChange({ ...block, name })}
-              style={s.mealNameInput}
+              style={[s.mealNameInput, { color: palette.text }]}
               placeholder="Nombre de la comida"
-              placeholderTextColor={C.subMuted}
+              placeholderTextColor={palette.textSub}
             />
           </View>
 
@@ -1056,10 +1229,17 @@ export function MealBlockCard({
             <Pressable
               onPress={onSaveAsRecipe}
               hitSlop={8}
-              style={({ pressed }) => [s.saveRecipeBtn, pressed && s.btnPressed]}
+              style={({ pressed }) => [
+                s.saveRecipeBtn,
+                {
+                  backgroundColor: `${palette.primary}18`,
+                  borderColor: `${palette.primary}35`,
+                },
+                pressed && s.btnPressed,
+              ]}
             >
-              <Ionicons name="bookmark-outline" size={15} color={C.pastelPurple} />
-              <Text style={s.saveRecipeBtnText}>Guardar</Text>
+              <Ionicons name="bookmark-outline" size={15} color={palette.primary} />
+              <Text style={[s.saveRecipeBtnText, { color: palette.primary }]}>Guardar</Text>
             </Pressable>
           )}
 
@@ -1099,7 +1279,14 @@ export function MealBlockCard({
 
         {/* Botón Agregar Ingrediente */}
         <Pressable
-          style={({ pressed }) => [s.addIngredientDashedBtn, pressed && s.btnPressed]}
+          style={({ pressed }) => [
+            s.addIngredientDashedBtn,
+            {
+              backgroundColor: `${palette.primary}10`,
+              borderColor: `${palette.primary}50`,
+            },
+            pressed && s.btnPressed,
+          ]}
           onPress={() => {
             const newItemId = uid();
             onChange({
@@ -1109,8 +1296,8 @@ export function MealBlockCard({
             onOpenPickerForItem(newItemId);
           }}
         >
-          <Ionicons name="add" size={17} color={C.pastelPurple} />
-          <Text style={s.addIngredientDashedText}>Agregar ingrediente</Text>
+          <Ionicons name="add" size={17} color={palette.primary} />
+          <Text style={[s.addIngredientDashedText, { color: palette.primary }]}>Agregar ingrediente</Text>
         </Pressable>
       </LinearGradient>
     </View>
@@ -1131,18 +1318,26 @@ export function PrimaryButton({
   ghost?: boolean;
   danger?: boolean;
 }) {
+  const activePaletteId = useStore((st) => st.activePaletteId);
+  const customPalettes = useStore((st) => st.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   if (ghost) {
     return (
       <Pressable
         onPress={onPress}
         style={({ pressed }) => [
           s.ghostButton,
-          danger && { borderColor: C.danger, backgroundColor: C.dangerBg },
+          {
+            borderColor: danger ? C.danger : getPaletteColorWithAlpha(palette.primary, 0.35),
+            shadowColor: danger ? C.danger : palette.primary,
+            backgroundColor: danger ? C.dangerBg : (palette.isDark ? '#1E293B' : '#FFFFFF'),
+          },
           pressed && s.btnPressed,
         ]}
       >
-        <Ionicons name={icon} size={18} color={danger ? C.danger : C.pastelPurple} />
-        <Text style={[s.ghostButtonText, danger && { color: C.danger }]}>{label}</Text>
+        <Ionicons name={icon} size={18} color={danger ? C.danger : palette.primary} />
+        <Text style={[s.ghostButtonText, { color: danger ? C.danger : palette.primary }]}>{label}</Text>
       </Pressable>
     );
   }
@@ -1150,10 +1345,14 @@ export function PrimaryButton({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [s.primaryButtonContainer, pressed && s.btnPressed]}
+      style={({ pressed }) => [
+        s.primaryButtonContainer,
+        { shadowColor: danger ? C.danger : palette.primary },
+        pressed && s.btnPressed,
+      ]}
     >
       <LinearGradient
-        colors={danger ? [C.danger, '#FF758F'] : GRADIENTS.primary}
+        colors={danger ? [C.danger, '#FF758F'] : [palette.primary, palette.secondary]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={s.primaryButtonGradient}
@@ -1250,7 +1449,7 @@ export const s = StyleSheet.create({
     width: 102,
     height: 102,
     borderRadius: 51,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.28)',
     shadowColor: C.kcal,
@@ -1322,7 +1521,7 @@ export const s = StyleSheet.create({
   // Selector Maestro Principal (Nivel 1 con Píldora Deslizante)
   mainSegmentedContainer: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderRadius: 13, // <--- Border radius más pequeño pedido por el usuario
     padding: 4,
     borderWidth: 1.5,
@@ -1379,7 +1578,7 @@ export const s = StyleSheet.create({
   // Segmented Tradicional con Píldora Deslizante Pastel
   segmentedContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'transparent',
     borderRadius: 16,
     padding: 4,
     borderWidth: 1,

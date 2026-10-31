@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { C, GRADIENTS, applyGlobalTheme } from './src/theme';
+import { C, GRADIENTS, applyGlobalTheme, getPaletteColorWithAlpha } from './src/theme';
 import FoodScreen from './src/FoodScreen';
 import TrainScreen from './src/TrainScreen';
 import MeasureScreen from './src/MeasureScreen';
@@ -139,7 +139,7 @@ export default function App() {
                   style={styles.tabItem}
                   onPress={() => setTab(t.key)}
                 >
-                  <View style={[styles.tabIconPill, active && styles.tabIconPillActive]}>
+                  <View style={[styles.tabIconPill, active && { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.14) }]}>
                     <Ionicons
                       name={(active ? t.icon : `${t.icon}-outline`) as any}
                       size={20}
@@ -150,7 +150,7 @@ export default function App() {
                     style={[
                       styles.tabLabel,
                       { color: active ? palette.primary : palette.textSub },
-                      active && styles.tabLabelActive,
+                      active && { fontWeight: '800', color: palette.primary },
                     ]}
                   >
                     {t.label}
@@ -171,7 +171,7 @@ export default function App() {
                   style={styles.tabItem}
                   onPress={() => setTab(t.key)}
                 >
-                  <View style={[styles.tabIconPill, active && styles.tabIconPillActive]}>
+                  <View style={[styles.tabIconPill, active && { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.14) }]}>
                     <Ionicons
                       name={(active ? t.icon : `${t.icon}-outline`) as any}
                       size={20}
@@ -182,7 +182,7 @@ export default function App() {
                     style={[
                       styles.tabLabel,
                       { color: active ? palette.primary : palette.textSub },
-                      active && styles.tabLabelActive,
+                      active && { fontWeight: '800', color: palette.primary },
                     ]}
                   >
                     {t.label}
@@ -198,6 +198,11 @@ export default function App() {
               onPress={() => setTab('home')}
               style={({ pressed }) => [
                 styles.floatingHomeBtn,
+                {
+                  borderColor: tab === 'home' ? getPaletteColorWithAlpha(palette.primary, 0.45) : (palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.7)'),
+                  shadowColor: palette.primary,
+                  backgroundColor: palette.isDark ? '#1E293B' : '#FFFFFF',
+                },
                 pressed && { transform: [{ scale: 0.93 }] },
               ]}
             >
@@ -282,7 +287,7 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     fontWeight: '800',
-    color: C.pastelPurple,
+
   },
   centerSpaceReserved: {
     width: 66,
@@ -355,7 +360,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   soonCyberBadgeText: {
-    color: C.pastelPurple,
+
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1.2,
@@ -408,7 +413,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   soonMeterPct: {
-    color: C.pastelPurple,
+
     fontSize: 10,
     fontWeight: '800',
   },

@@ -32,10 +32,11 @@ import { File, Paths } from 'expo-file-system';
 import { Asset, requestPermissionsAsync as requestMediaLibrarySavePerm } from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
-import { C, GRADIENTS, registerThemeSheet } from './theme';
+import { C, GRADIENTS, registerThemeSheet, getPaletteColorWithAlpha } from './theme';
 import { DateSelector, PrimaryButton, s } from './components';
 import {
   useStore,
+  getActivePalette,
   dateKey,
   uid,
   BodyPartKey,
@@ -239,6 +240,9 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
    PANTALLA PRINCIPAL: SECCIÓN MEDIDAS
 ========================================================== */
 export default function MeasureScreen() {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const [tab, setTab] = useState<number>(0); // 0: Medidas, 1: Fotos
   const [date, setDate] = useState<Date>(new Date());
   const key = dateKey(date);
@@ -327,15 +331,15 @@ export default function MeasureScreen() {
         <View style={measureStyles.topHeader}>
           <View>
             <View style={measureStyles.cyberTagRow}>
-              <Ionicons name="sparkles" size={11} color={C.pastelPurple} />
-              <Text style={measureStyles.cyberTagText}>✦ EVOLVE // ANTROPOMETRÍA ✦</Text>
+              <Ionicons name="sparkles" size={11} color={palette.primary} />
+              <Text style={[measureStyles.cyberTagText, { color: palette.primary }]}>✦ EVOLVE // ANTROPOMETRÍA ✦</Text>
             </View>
             <Text style={measureStyles.screenTitle}>Medidas</Text>
           </View>
 
-          <View style={measureStyles.headerBadgeMini}>
-            <Ionicons name="body-outline" size={14} color={C.pastelPurple} />
-            <Text style={measureStyles.headerBadgeMiniText}>
+          <View style={[measureStyles.headerBadgeMini, { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25), backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08) }]}>
+            <Ionicons name="body-outline" size={14} color={palette.primary} />
+            <Text style={[measureStyles.headerBadgeMiniText, { color: palette.primary }]}>
               {tab === 0
                 ? date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()
                 : 'GALERÍA'}
@@ -485,6 +489,10 @@ function MeasureModeSegmented({
   value: number;
   onChange: (v: number) => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const options = [
     { label: 'Medidas', icon: 'body-outline' },
     { label: 'Fotos', icon: 'camera-outline' },
@@ -510,13 +518,20 @@ function MeasureModeSegmented({
 
   return (
     <View
-      style={s.mainSegmentedContainer}
+      style={[
+        s.mainSegmentedContainer,
+        {
+          borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+          shadowColor: palette.primary,
+          backgroundColor: 'transparent',
+        },
+      ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
     >
       {containerWidth > 0 && (
         <Animated.View style={[s.slidingPill, { width: pillWidth, transform: [{ translateX }] }]}>
           <LinearGradient
-            colors={['#8B5CF6', '#EC4899']}
+            colors={[palette.primary, palette.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={s.slidingPillGradient}
@@ -535,13 +550,13 @@ function MeasureModeSegmented({
             <Ionicons
               name={opt.icon as any}
               size={16}
-              color={active ? '#FFFFFF' : C.sub}
+              color={active ? '#FFFFFF' : palette.textSub}
               style={{ marginRight: 6 }}
             />
             <Text
               style={[
                 s.mainSegmentedText,
-                active ? s.mainSegmentedTextActive : s.mainSegmentedTextInactive,
+                active ? s.mainSegmentedTextActive : [s.mainSegmentedTextInactive, { color: palette.textSub }],
               ]}
             >
               {opt.label}
@@ -1302,6 +1317,9 @@ function BodyPartGrowthChartCard({
   onSelectPart: (p: BodyPartKey) => void;
   onOpenEditModal: (p: BodyPartKey) => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const [timeFilter, setTimeFilter] = useState<TimeFilterRange>('ALL');
   const [timeDropdownOpen, setTimeDropdownOpen] = useState(false);
   const { width: screenWidth } = useWindowDimensions();
@@ -1398,8 +1416,8 @@ function BodyPartGrowthChartCard({
         <View style={[measureStyles.chartHeaderRow, { zIndex: 40 }]}>
           <View style={{ flex: 1, marginRight: 8 }}>
             <View style={measureStyles.chartTagBadge}>
-              <Ionicons name="trending-up-outline" size={12} color="#8B5CF6" />
-              <Text style={measureStyles.chartTagText}>✦ EVOLUCIÓN MUSCULAR ✦</Text>
+              <Ionicons name="trending-up-outline" size={12} color={palette.primary} />
+              <Text style={[measureStyles.chartTagText, { color: palette.primary }]}>✦ EVOLUCIÓN MUSCULAR ✦</Text>
             </View>
             <Text style={measureStyles.chartTitle}>Gráfica de Crecimiento</Text>
           </View>
@@ -1410,18 +1428,19 @@ function BodyPartGrowthChartCard({
               onPress={() => setTimeDropdownOpen((prev) => !prev)}
               style={({ pressed }) => [
                 measureStyles.timeDropdownBtn,
+                { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) },
                 timeDropdownOpen && measureStyles.timeDropdownBtnActive,
                 pressed && s.btnPressed,
               ]}
             >
-              <Ionicons name="calendar-outline" size={13} color="#8B5CF6" />
+              <Ionicons name="calendar-outline" size={13} color={palette.primary} />
               <Text style={measureStyles.timeDropdownBtnText} numberOfLines={1}>
                 {activeTimeOption.shortLabel}
               </Text>
               <Ionicons
                 name={timeDropdownOpen ? 'chevron-up' : 'chevron-down'}
                 size={14}
-                color="#8B5CF6"
+                color={palette.primary}
               />
             </Pressable>
 
@@ -1486,7 +1505,7 @@ function BodyPartGrowthChartCard({
                 >
                   {isSelected ? (
                     <LinearGradient
-                      colors={['#8B5CF6', '#EC4899']}
+                      colors={[palette.primary, palette.secondary]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={measureStyles.musclePillGradient}
@@ -1593,7 +1612,7 @@ function BodyPartGrowthChartCard({
             <View style={measureStyles.chartSinglePointState}>
               <View style={measureStyles.singlePointHero}>
                 <LinearGradient
-                  colors={['#8B5CF6', '#EC4899']}
+                  colors={[palette.primary, palette.secondary]}
                   style={measureStyles.singlePointCircle}
                 >
                   <Text style={measureStyles.singlePointHeroVal}>{points[0].val}</Text>
@@ -3253,6 +3272,10 @@ function ProgressPhotosSection({
   onDeletePhoto: (photoId: string) => void;
 }) {
   // Modal para escoger Cámara o Galería al pulsar cualquiera de los 3 botones
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const [activeAngleModal, setActiveAngleModal] = useState<'front' | 'side' | 'back' | null>(null);
 
   // Estado del Proyector de Avance (Filtro de ángulo, fotograma actual, reproducción GIF y velocidad)
@@ -4170,8 +4193,8 @@ function ProgressPhotosSection({
           <View style={measureStyles.projectorHeaderRow}>
             <View style={{ flex: 1 }}>
               <View style={measureStyles.chartTagBadge}>
-                <Ionicons name="film-outline" size={12} color="#8B5CF6" />
-                <Text style={measureStyles.chartTagText}>✦ PROYECCIÓN CRONOLÓGICA ✦</Text>
+                <Ionicons name="film-outline" size={12} color={palette.primary} />
+                <Text style={[measureStyles.chartTagText, { color: palette.primary }]}>✦ PROYECCIÓN CRONOLÓGICA ✦</Text>
               </View>
               <Text style={measureStyles.chartTitle}>Avance en Video</Text>
               <Text style={measureStyles.croquisSubTitle}>
@@ -4203,7 +4226,7 @@ function ProgressPhotosSection({
                   <Ionicons
                     name={opt.icon}
                     size={13}
-                    color={active ? '#FFFFFF' : C.sub}
+                    color={active ? '#FFFFFF' : palette.textSub}
                   />
                   <Text
                     style={[
@@ -4348,6 +4371,7 @@ function ProgressPhotosSection({
                       onPress={() => setSpeedDropdownOpen((prev) => !prev)}
                       style={({ pressed }) => [
                         measureStyles.timeDropdownBtn,
+                { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) },
                         speedDropdownOpen && measureStyles.timeDropdownBtnActive,
                         pressed && s.btnPressed,
                       ]}
@@ -4359,7 +4383,7 @@ function ProgressPhotosSection({
                       <Ionicons
                         name={speedDropdownOpen ? 'chevron-up' : 'chevron-down'}
                         size={14}
-                        color="#8B5CF6"
+                        color={palette.primary}
                       />
                     </Pressable>
 
@@ -4860,7 +4884,7 @@ function ProgressPhotosSection({
                     ]}
                   >
                     <LinearGradient
-                      colors={['#8B5CF6', '#EC4899']}
+                      colors={[palette.primary, palette.secondary]}
                       style={measureStyles.photoSourceIconBadge}
                     >
                       <Ionicons name="camera" size={20} color="#FFFFFF" />
@@ -5321,7 +5345,7 @@ const measureStyles = StyleSheet.create({
 
   // Contenedor Sticky de Pestañas
   stickyTabsContainer: {
-    backgroundColor: C.bg,
+    backgroundColor: 'transparent',
     paddingTop: 2,
     paddingBottom: 8,
     zIndex: 25,
@@ -6803,3 +6827,4 @@ const measureStyles = StyleSheet.create({
 });
 
 registerThemeSheet(measureStyles);
+
