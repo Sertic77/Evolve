@@ -15,6 +15,7 @@ export const USER_DATA_SYNC_KEYS = [
   'workoutLogs',
   'measurementLogs',
   'weightLogs',
+  'bodyFatLogs',
   'photoLogs',
   'supplements',
   'supplementLogs',
