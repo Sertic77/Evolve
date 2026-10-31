@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   TextInput,
   Switch,
   Platform,
+  Alert,
+  Animated,
+  Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +26,9 @@ import {
   PRESET_PALETTES,
   ColorPalette,
   FontStyleOption,
+  GenderOption,
 } from './store';
+import { pushUserDataToDatabase, pullUserDataFromDatabase } from './syncService';
 
 const COLOR_SWATCHES = [
   '#8B5CF6', // Lavanda
@@ -40,11 +45,20 @@ const COLOR_SWATCHES = [
   '#64748B', // Pizarra
 ];
 
-const FONT_OPTIONS: Array<{ key: FontStyleOption; label: string }> = [
-  { key: 'system', label: 'Moderno' },
-  { key: 'serif', label: 'Elegante' },
-  { key: 'monospace', label: 'Tech / Mono' },
-  { key: 'rounded', label: 'Redondeada' },
+export const FONT_OPTIONS: Array<{
+  key: FontStyleOption;
+  label: string;
+  preview: string;
+  description: string;
+}> = [
+  { key: 'system', label: 'Moderno (System)', preview: 'EVOLVE 2,450 kcal', description: 'Limpio, legible y nativo' },
+  { key: 'condensed', label: 'Deportivo Condensado', preview: 'FITNESS PERFORMANCE', description: 'Compacto y enérgico' },
+  { key: 'athletic', label: 'Atleta Bold (Impact)', preview: 'SERIES & FUERZA 120 KG', description: 'Pesado, contundente y llamativo' },
+  { key: 'rounded', label: 'Suave & Rounded', preview: 'Recuperación 8h 15m', description: 'Bordes suaves y redondeados' },
+  { key: 'futuristic', label: 'Futurista Tech', preview: 'BIO-METRICS ACTIVE', description: 'Moderno y cibernético' },
+  { key: 'elegant', label: 'Editorial Elegante', preview: 'Salud, Bienestar y Vida', description: 'Serif clásico y sofisticado' },
+  { key: 'serif', label: 'Serif Literario', preview: 'Diario de Progreso Diario', description: 'Estilo editorial y tradicional' },
+  { key: 'monospace', label: 'Código Monoespaciado', preview: '119/78 mmHg · 77.2 kg', description: 'Precisión técnica y datos puros' },
 ];
 
 export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) => void }) {
@@ -62,7 +76,90 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
     supplementLogs,
     healthLogs,
     weightLogs,
+    logout,
+    syncStatus,
+    lastSyncedAt,
+    syncError,
   } = useStore();
+
+  const [syncingManual, setSyncingManual] = useState(false);
+
+  const handleManualSync = async () => {
+    setSyncingManual(true);
+    const res = await pushUserDataToDatabase();
+    setSyncingManual(false);
+    if (res.success) {
+      Alert.alert('Base de Datos Sincronizada', 'Toda tu información ha sido guardada en la base de datos con éxito.');
+    } else {
+      Alert.alert('Error al guardar', res.error || 'No se pudo conectar con el servidor.');
+    }
+  };
+
+  const handleManualPull = async () => {
+    setSyncingManual(true);
+    const res = await pullUserDataFromDatabase();
+    setSyncingManual(false);
+    if (res.success) {
+      Alert.alert('Datos Restaurados', 'Se cargaron los datos guardados en la base de datos.');
+    } else {
+      Alert.alert('Error al restaurar', res.error || 'No se pudo conectar con el servidor.');
+    }
+  };
+
+  const handleCloudIconPress = () => {
+    let statusText = 'Toda tu información está guardada y sincronizada en la base de datos.';
+    if (syncStatus === 'syncing') statusText = 'Guardando tus datos en la base de datos en este momento...';
+    if (syncStatus === 'error') statusText = `Error de sincronización: ${syncError || 'Servidor no alcanzable'}. Tus datos siguen seguros localmente.`;
+
+    const lastTime = lastSyncedAt ? `\nÚltimo guardado: ${lastSyncedAt}` : '';
+
+    Alert.alert(
+      'Base de Datos Evolve',
+      `${statusText}${lastTime}`,
+      [
+        { text: 'Cerrar', style: 'cancel' },
+        { text: 'Sincronizar Ahora', onPress: handleManualSync },
+      ],
+    );
+  };
+
+  // Control y animación del menú hamburguesa en la cabecera
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuAnim = useRef(new Animated.Value(0)).current;
+
+  const toggleMenu = () => {
+    const nextState = !menuOpen;
+    setMenuOpen(nextState);
+    Animated.spring(menuAnim, {
+      toValue: nextState ? 1 : 0,
+      friction: 7,
+      tension: 65,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeMenu = () => {
+    if (!menuOpen) return;
+    setMenuOpen(false);
+    Animated.spring(menuAnim, {
+      toValue: 0,
+      friction: 8,
+      tension: 70,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleLogout = () => {
+    closeMenu();
+    Alert.alert('Cerrar Sesión', '¿Estás seguro de que deseas cerrar tu sesión en este dispositivo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Cerrar Sesión',
+        style: 'destructive',
+        onPress: () => logout(),
+      },
+    ]);
+  };
 
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
@@ -109,6 +206,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   let totalProtein = 0;
   let totalCarbs = 0;
   let totalFat = 0;
+  let totalSugar = 0;
 
   todayMeals.forEach((block) => {
     block.items.forEach((item) => {
@@ -118,6 +216,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
       totalProtein += m.protein;
       totalCarbs += m.carbs;
       totalFat += m.fat;
+      totalSugar += (m.sugar || 0);
     });
   });
 
@@ -152,6 +251,30 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   const totalDaysLogged = Object.keys(logs).length + Object.keys(workoutLogs).length;
   const userLevel = Math.max(1, Math.floor(totalDaysLogged / 3) + 1);
   const xpCurrent = (totalDaysLogged % 3) * 33 + 20;
+
+  // Animación de crecimiento suave para todos los datos métricos de Home
+  const growthAnim = useRef(new Animated.Value(0)).current;
+  const [growthProgress, setGrowthProgress] = useState(0);
+
+  useEffect(() => {
+    growthAnim.setValue(0);
+    setGrowthProgress(0);
+
+    const listenerId = growthAnim.addListener(({ value }) => {
+      setGrowthProgress(value);
+    });
+
+    Animated.timing(growthAnim, {
+      toValue: 1,
+      duration: 850,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+
+    return () => {
+      growthAnim.removeListener(listenerId);
+    };
+  }, []);
 
   return (
     <View style={[styles.root, { backgroundColor: palette.bg }]}>
@@ -196,7 +319,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <Text
                 style={[styles.heroStreakNumHorizontal, { color: c2, fontFamily: dataFont }]}
               >
-                {Math.max(1, totalDaysLogged)}
+                {Math.max(1, Math.round(totalDaysLogged * growthProgress))}
               </Text>
               <Text
                 style={[styles.heroStreakLabelHorizontal, { color: c2, fontFamily: subtitleFont }]}
@@ -252,21 +375,138 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             </View>
           </View>
 
-          {/* Al lado derecho: Botón de Ajustes */}
+          {/* Al lado derecho: Menú Hamburguesa que despliega horizontalmente Sincronizar, Settings y Sign out */}
           <View style={styles.heroRightCol}>
+            {/* Opciones desplegadas horizontalmente a la izquierda del hamburguesa */}
+            <Animated.View
+              style={[
+                styles.heroActionsRow,
+                {
+                  opacity: menuAnim.interpolate({
+                    inputRange: [0, 0.25, 1],
+                    outputRange: [0, 0.5, 1],
+                  }),
+                  transform: [
+                    {
+                      translateX: menuAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                    {
+                      scale: menuAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.75, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+              pointerEvents={menuOpen ? 'auto' : 'none'}
+            >
+              {/* 1. Sincronizar */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.heroActionBtn,
+                  {
+                    borderColor:
+                      syncStatus === 'error'
+                        ? '#EF4444'
+                        : syncStatus === 'syncing'
+                        ? palette.primary
+                        : `${c1}60`,
+                    backgroundColor: palette.bg,
+                  },
+                  pressed && { transform: [{ scale: 0.92 }] },
+                ]}
+                onPress={() => {
+                  closeMenu();
+                  handleCloudIconPress();
+                }}
+                hitSlop={6}
+              >
+                <Ionicons
+                  name={
+                    syncStatus === 'error'
+                      ? 'cloud-offline-outline'
+                      : syncStatus === 'syncing'
+                      ? 'cloud-upload-outline'
+                      : 'cloud-done-outline'
+                  }
+                  size={15}
+                  color={syncStatus === 'error' ? '#EF4444' : c1}
+                />
+              </Pressable>
+
+              {/* 2. Settings */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.heroActionBtn,
+                  {
+                    borderColor: palette.border,
+                    backgroundColor: palette.bg,
+                  },
+                  pressed && { transform: [{ scale: 0.92 }] },
+                ]}
+                onPress={() => {
+                  closeMenu();
+                  setSettingsModalOpen(true);
+                }}
+                hitSlop={6}
+              >
+                <Ionicons name="options-outline" size={16} color={c1} />
+              </Pressable>
+
+              {/* 3. Sign out */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.heroActionBtn,
+                  {
+                    borderColor: 'rgba(239, 68, 68, 0.4)',
+                    backgroundColor: palette.isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.08)',
+                  },
+                  pressed && { transform: [{ scale: 0.92 }] },
+                ]}
+                onPress={handleLogout}
+                hitSlop={6}
+              >
+                <Ionicons name="log-out-outline" size={15} color="#EF4444" />
+              </Pressable>
+            </Animated.View>
+
+            {/* Botón tipo hamburguesa en la posición del antiguo botón de logout */}
             <Pressable
               style={({ pressed }) => [
-                styles.heroSettingsBtn,
+                styles.heroHamburgerBtn,
                 {
-                  borderColor: palette.border,
-                  backgroundColor: palette.bg,
+                  borderColor: menuOpen ? palette.primary : palette.border,
+                  backgroundColor: menuOpen
+                    ? (palette.isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)')
+                    : palette.bg,
                 },
                 pressed && { transform: [{ scale: 0.92 }] },
               ]}
-              onPress={() => setSettingsModalOpen(true)}
+              onPress={toggleMenu}
               hitSlop={8}
             >
-              <Ionicons name="options-outline" size={17} color={c1} />
+              <Animated.View
+                style={{
+                  transform: [
+                    {
+                      rotate: menuAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '90deg'],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <Ionicons
+                  name={menuOpen ? 'close-outline' : 'menu-outline'}
+                  size={18}
+                  color={menuOpen ? palette.primary : palette.text}
+                />
+              </Animated.View>
             </Pressable>
           </View>
         </View>
@@ -321,13 +561,13 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <View style={styles.macroHeroRow}>
                 <View>
                   <Text style={[styles.macroHeroVal, { color: palette.text, fontFamily: dataFont }]}>
-                    {fmt(totalKcal)}{' '}
+                    {fmt(totalKcal * growthProgress)}{' '}
                     <Text style={[styles.macroHeroUnit, { color: palette.textSub, fontFamily: bodyFont }]}>
                       kcal
                     </Text>
                   </Text>
                   <Text style={[styles.macroHeroSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    {kcalPct}% completado hoy
+                    {Math.round(kcalPct * growthProgress)}% completado hoy
                   </Text>
                 </View>
 
@@ -336,21 +576,29 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   <View style={[styles.macroPill, { backgroundColor: `${c3}15` }]}>
                     <Text style={[styles.macroPillLabel, { color: c3 }]}>P</Text>
                     <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
-                      {fmt(totalProtein)}g
+                      {fmt(totalProtein * growthProgress)}g
                     </Text>
                   </View>
                   <View style={[styles.macroPill, { backgroundColor: `${c2}15` }]}>
                     <Text style={[styles.macroPillLabel, { color: c2 }]}>C</Text>
                     <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
-                      {fmt(totalCarbs)}g
+                      {fmt(totalCarbs * growthProgress)}g
                     </Text>
                   </View>
                   <View style={[styles.macroPill, { backgroundColor: `${c4}15` }]}>
                     <Text style={[styles.macroPillLabel, { color: c4 }]}>G</Text>
                     <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
-                      {fmt(totalFat)}g
+                      {fmt(totalFat * growthProgress)}g
                     </Text>
                   </View>
+                  {homeWidgets?.sugar && (
+                    <View style={[styles.macroPill, { backgroundColor: `${c5 || c1}15` }]}>
+                      <Text style={[styles.macroPillLabel, { color: c5 || c1 }]}>Az</Text>
+                      <Text style={[styles.macroPillVal, { color: palette.text, fontFamily: dataFont }]}>
+                        {fmt(totalSugar * growthProgress)}g
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
             </LinearGradient>
@@ -401,7 +649,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <View style={styles.statsTwoCol}>
                 <View style={[styles.statBox, { backgroundColor: palette.bg }]}>
                   <Text style={[styles.statBoxVal, { color: palette.text, fontFamily: dataFont }]}>
-                    {exercisesCount}
+                    {Math.round(exercisesCount * growthProgress)}
                   </Text>
                   <Text style={[styles.statBoxLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
                     Ejercicios registrados
@@ -410,7 +658,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 
                 <View style={[styles.statBox, { backgroundColor: palette.bg }]}>
                   <Text style={[styles.statBoxVal, { color: c2, fontFamily: dataFont }]}>
-                    {setsCount}
+                    {Math.round(setsCount * growthProgress)}
                   </Text>
                   <Text style={[styles.statBoxLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
                     Series totales
@@ -444,7 +692,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                       Suplementos
                     </Text>
                     <Text style={[styles.cardSubtitle, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                      {totalDosesTaken} de {totalDosesTarget} dosis completadas
+                      {Math.round(totalDosesTaken * growthProgress)} de {totalDosesTarget} dosis completadas
                     </Text>
                   </View>
                 </View>
@@ -485,7 +733,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                         {supp.name}
                       </Text>
                       <Text style={[styles.suppMiniCount, { color: palette.textSub, fontFamily: dataFont }]}>
-                        {taken}/{supp.dailyTarget}
+                        {Math.round(taken * growthProgress)}/{supp.dailyTarget}
                       </Text>
                     </View>
                   );
@@ -542,7 +790,9 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     Presión Arterial
                   </Text>
                   <Text style={[styles.healthVal, { color: palette.text, fontFamily: dataFont }]}>
-                    {pressureVal ? `${pressureVal}/${pressureSec || 80}` : '119/78'}{' '}
+                    {pressureVal
+                      ? `${Math.round(parseFloat(String(pressureVal)) * growthProgress)}/${Math.round(parseFloat(String(pressureSec || 80)) * growthProgress)}`
+                      : `${Math.round(119 * growthProgress)}/${Math.round(78 * growthProgress)}`}{' '}
                     <Text style={{ fontSize: 11, color: palette.textSub }}>mmHg</Text>
                   </Text>
                   <View style={[styles.healthPillMini, { backgroundColor: `${c4}18` }]}>
@@ -555,7 +805,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     Glucosa / Azúcar
                   </Text>
                   <Text style={[styles.healthVal, { color: palette.text, fontFamily: dataFont }]}>
-                    {glucoseVal || '94'}{' '}
+                    {Math.round(parseFloat(String(glucoseVal || '94')) * growthProgress)}{' '}
                     <Text style={{ fontSize: 11, color: palette.textSub }}>mg/dL</Text>
                   </Text>
                   <View style={[styles.healthPillMini, { backgroundColor: `${c3}18` }]}>
@@ -610,7 +860,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 
               <View style={styles.bodyWeightRow}>
                 <Text style={[styles.bodyWeightVal, { color: palette.text, fontFamily: dataFont }]}>
-                  {currentWeight ? fmt(currentWeight) : '74.5'}{' '}
+                  {fmt(parseFloat(String(currentWeight || 74.5)) * growthProgress)}{' '}
                   <Text style={[styles.bodyWeightUnit, { color: palette.textSub, fontFamily: bodyFont }]}>
                     kg
                   </Text>
@@ -642,6 +892,23 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
           <Ionicons name="settings-outline" size={15} color={palette.textSub} />
           <Text style={[styles.configurePromptText, { color: palette.textSub, fontFamily: subtitleFont }]}>
             Personalizar temas, tipografías y datos del Home
+          </Text>
+        </Pressable>
+
+        {/* BOTÓN CERRAR SESIÓN DIRECTO EN EL HOME */}
+        <Pressable
+          style={[
+            styles.logoutHomeBtn,
+            {
+              borderColor: 'rgba(239, 68, 68, 0.35)',
+              backgroundColor: palette.isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.06)',
+            },
+          ]}
+          onPress={handleLogout}
+        >
+          <Ionicons name="log-out-outline" size={16} color="#EF4444" />
+          <Text style={[styles.logoutHomeText, { color: '#EF4444', fontFamily: subtitleFont }]}>
+            Cerrar Sesión
           </Text>
         </Pressable>
       </ScrollView>
@@ -911,15 +1178,64 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
     deletedPaletteIds,
     setTypography,
     toggleHomeWidget,
+    authUser,
+    logout,
+    syncStatus,
+    lastSyncedAt,
+    syncError,
   } = useStore();
+
+  const [syncLoading, setSyncLoading] = useState(false);
+
+  const handleSyncNow = async () => {
+    setSyncLoading(true);
+    const res = await pushUserDataToDatabase();
+    setSyncLoading(false);
+    if (res.success) {
+      Alert.alert(
+        'Base de Datos Sincronizada',
+        'Todos tus entrenamientos, comidas, suplementos, fotos, medidas y ajustes se han respaldado en la base de datos.',
+      );
+    } else {
+      Alert.alert('Error al sincronizar', res.error || 'No se pudo conectar con el servidor.');
+    }
+  };
+
+  const handlePullNow = async () => {
+    setSyncLoading(true);
+    const res = await pullUserDataFromDatabase();
+    setSyncLoading(false);
+    if (res.success) {
+      Alert.alert(
+        'Datos Restaurados',
+        `Se sincronizaron con éxito los registros almacenados en la base de datos (${res.count} categorías de datos).`,
+      );
+    } else {
+      Alert.alert('Error al descargar', res.error || 'No se pudo conectar con el servidor.');
+    }
+  };
 
   const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
 
   // Control de secciones desplegadas (por defecto 'palette' está abierta)
-  const [expandedSection, setExpandedSection] = useState<'palette' | 'typography' | 'widgets' | 'profile' | null>('palette');
+  const [expandedSection, setExpandedSection] = useState<'palette' | 'typography' | 'widgets' | 'profile' | 'account' | null>('palette');
 
-  const toggleSection = (sec: 'palette' | 'typography' | 'widgets' | 'profile') => {
+  const toggleSection = (sec: 'palette' | 'typography' | 'widgets' | 'profile' | 'account') => {
     setExpandedSection(expandedSection === sec ? null : sec);
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Cerrar Sesión', '¿Estás seguro de que deseas cerrar tu sesión en este dispositivo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Cerrar Sesión',
+        style: 'destructive',
+        onPress: () => {
+          onClose();
+          logout();
+        },
+      },
+    ]);
   };
 
   // Creador de paleta nueva (mínimo 2 colores, hasta 5 colores, 2 por defecto)
@@ -988,6 +1304,8 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   // Perfil
   const [editName, setEditName] = useState(userProfile?.name || 'Sergio Tamayo');
   const [editNick, setEditNick] = useState(userProfile?.nickname || 'Sertic77');
+  const [editHeight, setEditHeight] = useState(userProfile?.height ? String(userProfile.height) : '178');
+  const [editGender, setEditGender] = useState<GenderOption>(userProfile?.gender || 'Masculino');
 
   const handleSaveCustomPalette = () => {
     if (!newPaletteName.trim() || newColors.length < 2) return;
@@ -1013,7 +1331,12 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   };
 
   const handleSaveProfile = () => {
-    setUserProfile({ name: editName.trim(), nickname: editNick.trim().replace('@', '') });
+    setUserProfile({
+      name: editName.trim(),
+      nickname: editNick.trim().replace('@', ''),
+      height: editHeight.trim() ? parseFloat(editHeight) || undefined : undefined,
+      gender: editGender,
+    });
   };
 
   const allPalettes: ColorPalette[] = [
@@ -1111,92 +1434,105 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                           ]}
                           onPress={() => setActivePalette(p.id)}
                         >
-                          <View style={modalStyles.paletteCardTop}>
-                            <Pressable
-                              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}
-                              onPress={(e) => {
-                                e.stopPropagation();
-                                setEditingPaletteName({
-                                  paletteId: p.id,
-                                  currentName: p.name,
-                                });
-                              }}
-                              hitSlop={6}
-                            >
-                              <Text
-                                style={[
-                                  modalStyles.paletteCardName,
-                                  { color: p.text },
-                                  isSelected && { fontWeight: '900' },
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {p.name}
-                              </Text>
-                              <Ionicons name="pencil-sharp" size={11} color={palette.textSub} style={{ opacity: 0.6 }} />
-                            </Pressable>
-                            {isSelected && (
-                              <Ionicons name="checkmark-circle" size={18} color={palette.primary} />
-                            )}
-                          </View>
+                          <View style={modalStyles.paletteCardContentRow}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <View style={modalStyles.paletteCardTop}>
+                                <Text
+                                  style={[
+                                    modalStyles.paletteCardName,
+                                    { color: p.text },
+                                    isSelected && { fontWeight: '900' },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {p.name}
+                                </Text>
+                              </View>
 
-                          {/* Muestras de colores */}
-                          <View style={modalStyles.swatchesRow}>
-                            {sampleColors.map((col, idx) => (
+                              {/* Muestras de colores */}
+                              <View style={modalStyles.swatchesRow}>
+                                {sampleColors.map((col, idx) => (
+                                  <Pressable
+                                    key={idx}
+                                    style={[
+                                      modalStyles.swatchCircle,
+                                      {
+                                        backgroundColor: col,
+                                        borderColor: '#FFFFFF',
+                                        marginLeft: idx > 0 ? -6 : 0,
+                                      },
+                                    ]}
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      setEditingPaletteColor({
+                                        paletteId: p.id,
+                                        colorIndex: idx,
+                                        currentColor: col,
+                                      });
+                                    }}
+                                    hitSlop={6}
+                                  />
+                                ))}
+
+                                {/* Badge de cantidad de colores */}
+                                <View
+                                  style={[
+                                    modalStyles.paletteColorsBadge,
+                                    {
+                                      backgroundColor: `${p.primary}18`,
+                                      borderColor: `${p.primary}35`,
+                                    },
+                                  ]}
+                                >
+                                  <Text style={[modalStyles.paletteColorsBadgeText, { color: p.primary }]}>
+                                    {sampleColors.length === 2 ? '2 colores' : `${sampleColors.length} colores`}
+                                  </Text>
+                                </View>
+
+                                {p.isDark && (
+                                  <View style={modalStyles.darkTagMini}>
+                                    <Ionicons name="moon" size={11} color={palette.textSub} />
+                                    <Text style={[modalStyles.darkTagText, { color: palette.textSub }]}>Dark</Text>
+                                  </View>
+                                )}
+                              </View>
+                            </View>
+
+                            {/* Acciones de Editar y Borrar alineadas verticalmente */}
+                            <View style={modalStyles.paletteVerticalActions}>
                               <Pressable
-                                key={idx}
-                                style={[
-                                  modalStyles.swatchCircle,
-                                  {
-                                    backgroundColor: col,
-                                    borderColor: '#FFFFFF',
-                                    marginLeft: idx > 0 ? -6 : 0,
-                                  },
+                                style={({ pressed }) => [
+                                  modalStyles.paletteActionIconBtn,
+                                  { backgroundColor: palette.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+                                  pressed && { opacity: 0.7 },
                                 ]}
                                 onPress={(e) => {
                                   e.stopPropagation();
-                                  setEditingPaletteColor({
+                                  setEditingPaletteName({
                                     paletteId: p.id,
-                                    colorIndex: idx,
-                                    currentColor: col,
+                                    currentName: p.name,
                                   });
                                 }}
                                 hitSlop={6}
-                              />
-                            ))}
+                              >
+                                <Ionicons name="pencil-outline" size={13} color={palette.textSub} />
+                              </Pressable>
 
-                            {/* Badge de cantidad de colores */}
-                            <View
-                              style={[
-                                modalStyles.paletteColorsBadge,
-                                {
-                                  backgroundColor: `${p.primary}18`,
-                                  borderColor: `${p.primary}35`,
-                                },
-                              ]}
-                            >
-                              <Text style={[modalStyles.paletteColorsBadgeText, { color: p.primary }]}>
-                                {sampleColors.length === 2 ? '2 colores + opacidades' : `${sampleColors.length} colores`}
-                              </Text>
+                              <Pressable
+                                style={({ pressed }) => [
+                                  modalStyles.paletteActionIconBtn,
+                                  { backgroundColor: 'rgba(239, 68, 68, 0.1)' },
+                                  pressed && { opacity: 0.7 },
+                                ]}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  deletePalette(p.id);
+                                }}
+                                hitSlop={6}
+                              >
+                                <Ionicons name="trash-outline" size={13} color="#EF4444" />
+                              </Pressable>
                             </View>
-
-                            {p.isDark && (
-                              <View style={modalStyles.darkTagMini}>
-                                <Ionicons name="moon" size={11} color={palette.textSub} />
-                                <Text style={[modalStyles.darkTagText, { color: palette.textSub }]}>Dark</Text>
-                              </View>
-                            )}
-
-                            <Pressable
-                              style={modalStyles.deleteCustomBtn}
-                              onPress={(e) => {
-                                e.stopPropagation();
-                                deletePalette(p.id);
-                              }}
-                              hitSlop={8}
-                            >
-                              <Ionicons name="trash-outline" size={15} color={palette.secondary} />
-                            </Pressable>
                           </View>
                         </Pressable>
                       );
@@ -1536,7 +1872,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
             </View>
 
             {/* ==========================================================
-                OPCIÓN 3: QUÉ DATOS MOSTRAR EN EL HOME (DESPLEGABLE)
+                OPCIÓN 3: HOME DISPLAY (DESPLEGABLE)
             ========================================================== */}
             <View style={[modalStyles.accordionCard, { borderColor: palette.border }]}>
               <Pressable
@@ -1554,7 +1890,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={[modalStyles.accordionTitle, { color: palette.text }]}>
-                    Qué datos mostrar en el home
+                    Home Display
                   </Text>
                   <Text style={[modalStyles.accordionDesc, { color: palette.textSub }]}>
                     Activa o desactiva las tarjetas de la pantalla principal
@@ -1580,6 +1916,16 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     desc="Calorías consumidas hoy vs meta y desglose de Proteína, Carbos y Grasas."
                     enabled={!!homeWidgets?.calories}
                     onToggle={() => toggleHomeWidget('calories')}
+                    palette={palette}
+                  />
+
+                  <WidgetToggleRow
+                    icon="cube-outline"
+                    iconColor={palette.accent || palette.primary}
+                    title="Azúcar"
+                    desc="Activa el registro y seguimiento de gramos de azúcar en comidas y métricas nutricionales."
+                    enabled={!!homeWidgets?.sugar}
+                    onToggle={() => toggleHomeWidget('sugar')}
                     palette={palette}
                   />
 
@@ -1648,7 +1994,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     Perfil de Usuario
                   </Text>
                   <Text style={[modalStyles.accordionDesc, { color: palette.textSub }]}>
-                    {editName} (@{editNick.replace('@', '')})
+                    {editName} (@{editNick.replace('@', '')}) · {editGender} · {editHeight ? `${editHeight} cm` : 'Sin altura'}
                   </Text>
                 </View>
                 <Ionicons
@@ -1694,6 +2040,249 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     onBlur={handleSaveProfile}
                     autoCapitalize="none"
                   />
+
+                  <Text style={[modalStyles.formLabel, { color: palette.textSub, marginTop: 8 }]}>
+                    Altura (cm)
+                  </Text>
+                  <TextInput
+                    style={[
+                      modalStyles.formInput,
+                      {
+                        backgroundColor: palette.bg,
+                        color: palette.text,
+                        borderColor: palette.border,
+                      },
+                    ]}
+                    value={editHeight}
+                    onChangeText={setEditHeight}
+                    onBlur={handleSaveProfile}
+                    placeholder="Ej. 178"
+                    placeholderTextColor={palette.textSub}
+                    keyboardType="numeric"
+                  />
+
+                  <Text style={[modalStyles.formLabel, { color: palette.textSub, marginTop: 12 }]}>
+                    Género
+                  </Text>
+                  <View style={modalStyles.genderRow}>
+                    {(['Masculino', 'Femenino', 'Otro', 'Prefiero no decir'] as GenderOption[]).map((g) => {
+                      const isSelected = editGender === g;
+                      const iconName =
+                        g === 'Masculino'
+                          ? 'male-outline'
+                          : g === 'Femenino'
+                          ? 'female-outline'
+                          : g === 'Otro'
+                          ? 'transgender-outline'
+                          : 'person-outline';
+                      return (
+                        <Pressable
+                          key={g}
+                          style={[
+                            modalStyles.genderPill,
+                            {
+                              backgroundColor: isSelected ? palette.primary : palette.bg,
+                              borderColor: isSelected ? palette.primary : palette.border,
+                            },
+                          ]}
+                          onPress={() => {
+                            setEditGender(g);
+                            setUserProfile({
+                              name: editName.trim(),
+                              nickname: editNick.trim().replace('@', ''),
+                              height: editHeight.trim() ? parseFloat(editHeight) || undefined : undefined,
+                              gender: g,
+                            });
+                          }}
+                        >
+                          <Ionicons
+                            name={iconName}
+                            size={14}
+                            color={isSelected ? '#FFFFFF' : palette.textSub}
+                          />
+                          <Text
+                            style={[
+                              modalStyles.genderPillText,
+                              {
+                                color: isSelected ? '#FFFFFF' : palette.text,
+                                fontWeight: isSelected ? '800' : '600',
+                              },
+                            ]}
+                          >
+                            {g}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* ==========================================================
+                OPCIÓN 5: CUENTA Y SESIÓN (BACKEND)
+            ========================================================== */}
+            <View style={[modalStyles.accordionCard, { borderColor: palette.border }]}>
+              <Pressable
+                style={[
+                  modalStyles.accordionHeader,
+                  expandedSection === 'account' && {
+                    borderBottomWidth: 1,
+                    borderBottomColor: palette.border,
+                  },
+                ]}
+                onPress={() => toggleSection('account')}
+              >
+                <View style={[modalStyles.accordionIconBox, { backgroundColor: `${palette.primary}18` }]}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color={palette.primary} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={[modalStyles.accordionTitle, { color: palette.text }]}>
+                    Cuenta y Sesión
+                  </Text>
+                  <Text style={[modalStyles.accordionDesc, { color: palette.textSub }]}>
+                    {authUser?.email || 'Sesión activa en el servidor local'}
+                  </Text>
+                </View>
+                <Ionicons
+                  name={expandedSection === 'account' ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={palette.primary}
+                />
+              </Pressable>
+
+              {expandedSection === 'account' && (
+                <View style={modalStyles.accordionContent}>
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={[modalStyles.formLabel, { color: palette.textSub }]}>CORREO REGISTRADO</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text, marginTop: 2 }}>
+                      {authUser?.email || 'Sin correo registrado'}
+                    </Text>
+                  </View>
+
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={[modalStyles.formLabel, { color: palette.textSub }]}>TIPO DE AUTENTICACIÓN</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: palette.text, marginTop: 2 }}>
+                      {authUser?.provider ? `Cuenta ${authUser.provider.toUpperCase()}` : 'Correo y Contraseña'}
+                    </Text>
+                  </View>
+
+                  {/* Estado y Sincronización de Base de Datos */}
+                  <View
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      backgroundColor: palette.isDark ? '#0F172A' : '#F1F5F9',
+                      borderWidth: 1,
+                      borderColor: palette.border,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <Ionicons
+                        name={
+                          syncStatus === 'error'
+                            ? 'cloud-offline'
+                            : syncStatus === 'syncing'
+                            ? 'cloud-upload'
+                            : 'cloud-done'
+                        }
+                        size={18}
+                        color={syncStatus === 'error' ? '#EF4444' : palette.primary}
+                      />
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: palette.text }}>
+                        BASE DE DATOS Y RESPALDO
+                      </Text>
+                    </View>
+
+                    <Text style={{ fontSize: 12, color: palette.textSub, lineHeight: 17, marginBottom: 8 }}>
+                      {syncStatus === 'syncing'
+                        ? 'Sincronizando información en la base de datos...'
+                        : syncStatus === 'error'
+                        ? `Error de conexión: ${syncError || 'Servidor local no alcanzable'}`
+                        : 'Toda tu información (comidas, rutinas, suplementos, fotos, medidas y personalización) está guardada y sincronizada en la base de datos.'}
+                    </Text>
+
+                    {lastSyncedAt && (
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: palette.primary, marginBottom: 10 }}>
+                        Último respaldo: {lastSyncedAt}
+                      </Text>
+                    )}
+
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable
+                        style={({ pressed }) => [
+                          {
+                            flex: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            paddingVertical: 9,
+                            borderRadius: 10,
+                            backgroundColor: palette.primary,
+                          },
+                          (pressed || syncLoading) && { opacity: 0.7 },
+                        ]}
+                        onPress={handleSyncNow}
+                        disabled={syncLoading}
+                      >
+                        <Ionicons name="cloud-upload-outline" size={15} color="#FFFFFF" />
+                        <Text style={{ color: '#FFFFFF', fontSize: 11.5, fontWeight: '800' }}>
+                          {syncLoading ? 'Guardando...' : 'Respaldar BD'}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        style={({ pressed }) => [
+                          {
+                            flex: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            paddingVertical: 9,
+                            borderRadius: 10,
+                            backgroundColor: palette.cardBg,
+                            borderWidth: 1,
+                            borderColor: palette.border,
+                          },
+                          (pressed || syncLoading) && { opacity: 0.7 },
+                        ]}
+                        onPress={handlePullNow}
+                        disabled={syncLoading}
+                      >
+                        <Ionicons name="cloud-download-outline" size={15} color={palette.text} />
+                        <Text style={{ color: palette.text, fontSize: 11.5, fontWeight: '800' }}>
+                          Restaurar BD
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Botón de Cerrar Sesión */}
+                  <Pressable
+                    style={({ pressed }) => [
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        paddingVertical: 11,
+                        borderRadius: 12,
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(239, 68, 68, 0.3)',
+                      },
+                      pressed && { opacity: 0.8 },
+                    ]}
+                    onPress={handleLogout}
+                  >
+                    <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+                    <Text style={{ color: '#EF4444', fontSize: 13.5, fontWeight: '800' }}>
+                      Cerrar Sesión en este dispositivo
+                    </Text>
+                  </Pressable>
                 </View>
               )}
             </View>
@@ -1767,46 +2356,134 @@ function TypographyCategoryRow({
   onSelect: (font: FontStyleOption) => void;
   palette: ColorPalette;
 }) {
-  return (
-    <View style={[modalStyles.typeCategoryCard, { borderColor: palette.border }]}>
-      <Text style={[modalStyles.typeCategoryTitle, { color: palette.text }]}>
-        {categoryTitle}
-      </Text>
-      <Text style={[modalStyles.typeCategoryDesc, { color: palette.textSub }]}>
-        {categoryDesc}
-      </Text>
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedOpt = FONT_OPTIONS.find((f) => f.key === currentValue) || FONT_OPTIONS[0];
 
-      <View style={modalStyles.typeOptionsGrid}>
-        {FONT_OPTIONS.map((opt) => {
-          const isSelected = currentValue === opt.key;
-          return (
-            <Pressable
-              key={opt.key}
-              style={[
-                modalStyles.typePillOption,
-                {
-                  backgroundColor: isSelected ? palette.primary : palette.bg,
-                  borderColor: isSelected ? palette.primary : palette.border,
-                },
-              ]}
-              onPress={() => onSelect(opt.key)}
-            >
-              <Text
-                style={[
-                  modalStyles.typePillOptionLabel,
+  return (
+    <View style={modalStyles.typeCategoryCard}>
+      <View style={{ marginBottom: 8 }}>
+        <Text style={[modalStyles.typeCategoryTitle, { color: palette.text }]}>
+          {categoryTitle}
+        </Text>
+        <Text style={[modalStyles.typeCategoryDesc, { color: palette.textSub }]}>
+          {categoryDesc}
+        </Text>
+      </View>
+
+      {/* Botón trigger del dropdown con preview en vivo */}
+      <Pressable
+        style={({ pressed }) => [
+          modalStyles.fontDropdownTrigger,
+          {
+            backgroundColor: palette.bg,
+            borderColor: isOpen ? palette.primary : palette.border,
+          },
+          pressed && { opacity: 0.85 },
+        ]}
+        onPress={() => setIsOpen(!isOpen)}
+      >
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={[modalStyles.fontDropdownCurrentName, { color: palette.text }]}>
+              {selectedOpt.label}
+            </Text>
+            <View style={[modalStyles.fontActiveTag, { backgroundColor: `${palette.primary}18` }]}>
+              <Text style={[modalStyles.fontActiveTagText, { color: palette.primary }]}>Activa</Text>
+            </View>
+          </View>
+          <Text
+            style={[
+              modalStyles.fontDropdownSpecimen,
+              {
+                color: palette.primary,
+                fontFamily: getFontFamily(selectedOpt.key),
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {selectedOpt.preview}
+          </Text>
+        </View>
+
+        <Ionicons
+          name={isOpen ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color={palette.primary}
+        />
+      </Pressable>
+
+      {/* Menú desplegable con previsualización para cada fuente */}
+      {isOpen && (
+        <View style={[modalStyles.fontDropdownMenu, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+          {FONT_OPTIONS.map((opt) => {
+            const isSelected = opt.key === currentValue;
+            const optFont = getFontFamily(opt.key);
+            return (
+              <Pressable
+                key={opt.key}
+                style={({ pressed }) => [
+                  modalStyles.fontDropdownItem,
                   {
-                    color: isSelected ? '#FFFFFF' : palette.text,
-                    fontFamily: getFontFamily(opt.key),
-                    fontWeight: isSelected ? '800' : '600',
+                    borderBottomColor: palette.border,
+                    backgroundColor: isSelected
+                      ? `${palette.primary}12`
+                      : pressed
+                      ? (palette.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)')
+                      : 'transparent',
                   },
                 ]}
+                onPress={() => {
+                  onSelect(opt.key);
+                  setIsOpen(false);
+                }}
               >
-                {opt.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text
+                      style={[
+                        modalStyles.fontItemLabel,
+                        {
+                          color: isSelected ? palette.primary : palette.text,
+                          fontWeight: isSelected ? '800' : '600',
+                        },
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                    {isSelected && (
+                      <Ionicons name="checkmark" size={14} color={palette.primary} />
+                    )}
+                  </View>
+
+                  {/* Muestra real para apreciar cómo se ve la fuente */}
+                  <Text
+                    style={[
+                      modalStyles.fontItemSpecimen,
+                      {
+                        color: isSelected ? palette.primary : palette.text,
+                        fontFamily: optFont,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {opt.preview}
+                  </Text>
+
+                  <Text style={[modalStyles.fontItemDesc, { color: palette.textSub }]}>
+                    {opt.description}
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                  size={18}
+                  color={isSelected ? palette.primary : palette.textSub}
+                />
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
@@ -1937,10 +2614,32 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
 
-  // Lado derecho del héroe: Ajustes y Racha
+  // Lado derecho del héroe: Menú Hamburguesa con despliegue horizontal
   heroRightCol: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  heroActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroHamburgerBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   heroSettingsBtn: {
     width: 32,
@@ -1949,6 +2648,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  heroLogoutBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutHomeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  logoutHomeText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   heroStreakBadge: {
     alignItems: 'center',
@@ -2287,6 +3009,25 @@ const modalStyles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
   },
+  paletteCardContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  paletteVerticalActions: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginLeft: 6,
+  },
+  paletteActionIconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   paletteCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2498,9 +3239,9 @@ const modalStyles = StyleSheet.create({
 
   // Tipografía
   typeCategoryCard: {
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+    borderWidth: 0,
     marginBottom: 10,
   },
   typeCategoryTitle: {
@@ -2512,6 +3253,59 @@ const modalStyles = StyleSheet.create({
   typeCategoryDesc: {
     fontSize: 10,
     marginBottom: 8,
+  },
+  fontDropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  fontDropdownCurrentName: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  fontActiveTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  fontActiveTagText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  fontDropdownSpecimen: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+  fontDropdownMenu: {
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  fontDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 0.5,
+  },
+  fontItemLabel: {
+    fontSize: 13,
+  },
+  fontItemSpecimen: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  fontItemDesc: {
+    fontSize: 10,
   },
   typeOptionsGrid: {
     flexDirection: 'row',
@@ -2615,6 +3409,24 @@ const modalStyles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  genderRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  genderPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  genderPillText: {
+    fontSize: 12,
   },
 });
 

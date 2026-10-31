@@ -142,11 +142,18 @@ export function applyGlobalTheme(palette: ColorPalette, _typography?: Typography
   C.pastelHoney = c1;
   C.accent = c1;
 
-  // 5. Macros y Estados
+  // 5. Macros y Estados con 3 colores claramente diferenciados
+  const thirdMacroColor =
+    cols.length >= 3
+      ? c3
+      : (c1.startsWith('#8') || c1.startsWith('#6') || c1.startsWith('#3') || c1.startsWith('#4'))
+      ? '#F59E0B'
+      : '#06B6D4';
+
   C.kcal = c1;
-  C.protein = c2;
-  C.carbs = cols.length >= 3 ? c3 : getPaletteColorWithAlpha(c1, 0.85);
-  C.fat = cols.length >= 4 ? c4 : getPaletteColorWithAlpha(c2, 0.85);
+  C.protein = c1;
+  C.carbs = c2;
+  C.fat = thirdMacroColor;
   C.success = c1;
 
   // 6. Mutar GRADIENTS para fondos y botones con los colores de la paleta activa

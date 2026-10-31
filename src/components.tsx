@@ -22,6 +22,7 @@ import { FoodUnit, Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTo
 export function MacroSummary({ m }: { m: Macros }) {
   const activePaletteId = useStore((st) => st.activePaletteId);
   const customPalettes = useStore((st) => st.customPalettes);
+  const homeWidgets = useStore((st) => st.homeWidgets);
   const palette = getActivePalette({ activePaletteId, customPalettes });
 
   const size = 152;
@@ -34,8 +35,10 @@ export function MacroSummary({ m }: { m: Macros }) {
   const flameTranslateY = useRef(new Animated.Value(0)).current;
   const flameRotate = useRef(new Animated.Value(0)).current;
   const flameAura = useRef(new Animated.Value(0.4)).current;
-  const ringScaleAnim = useRef(new Animated.Value(0.92)).current;
+  const ringScaleAnim = useRef(new Animated.Value(0.88)).current;
   const barsAnim = useRef(new Animated.Value(0)).current;
+  const cardEntryAnim = useRef(new Animated.Value(0)).current;
+  const [ringProgress, setRingProgress] = useState(0);
 
   // Animación del Fondo de Energía Flotante Anime
   const floatAnim1 = useRef(new Animated.Value(0)).current;
@@ -47,24 +50,38 @@ export function MacroSummary({ m }: { m: Macros }) {
   });
 
   useEffect(() => {
-    // 1. Animación de Ignición / Entrada del Anillo
-    Animated.spring(ringScaleAnim, {
-      toValue: 1,
-      friction: 6,
-      tension: 60,
-      useNativeDriver: true,
-    }).start();
-
-    // 2. Animación de llenado de las barras de energía
+    // 1. Animación de Entrada coordinada de la tarjeta, anillo de macros y barras
+    cardEntryAnim.setValue(0);
+    setRingProgress(0);
     barsAnim.setValue(0);
-    Animated.timing(barsAnim, {
-      toValue: 1,
-      duration: 750,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
+    ringScaleAnim.setValue(0.88);
 
-    // 3. Pulso expresivo continuo de la llama de Kcal ganadas (pulso, movimiento y brillo verde)
+    const listenerId = cardEntryAnim.addListener(({ value }) => {
+      setRingProgress(value);
+    });
+
+    Animated.parallel([
+      Animated.timing(cardEntryAnim, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.spring(ringScaleAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 55,
+        useNativeDriver: true,
+      }),
+      Animated.timing(barsAnim, {
+        toValue: 1,
+        duration: 1250,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    // 2. Pulso expresivo continuo de la llama de Kcal ganadas (pulso, movimiento y brillo verde)
     const pulseLoop = Animated.loop(
       Animated.sequence([
         Animated.parallel([
@@ -174,6 +191,7 @@ export function MacroSummary({ m }: { m: Macros }) {
     bgLoop2.start();
 
     return () => {
+      cardEntryAnim.removeListener(listenerId);
       pulseLoop.stop();
       bobbingLoop.stop();
       tiltLoop.stop();
@@ -193,9 +211,21 @@ export function MacroSummary({ m }: { m: Macros }) {
     palette.colors && palette.colors.length >= 2
       ? palette.colors
       : [palette.primary, palette.secondary];
-  const colorProtein = paletteColors[2] || paletteColors[0] || palette.primary || C.protein;
-  const colorCarbs = paletteColors[1] || palette.secondary || C.carbs;
-  const colorFat = paletteColors[3] || paletteColors[1] || palette.secondary || C.fat;
+
+  const c1 = paletteColors[0] || palette.primary;
+  const c2 = paletteColors[1] || palette.secondary;
+  const c3 =
+    paletteColors[2] ||
+    (palette.accent && palette.accent !== c1 && palette.accent !== c2
+      ? palette.accent
+      : (c1.startsWith('#8') || c1.startsWith('#6') || c1.startsWith('#3') || c1.startsWith('#4'))
+      ? '#F59E0B'
+      : '#06B6D4');
+
+  const colorProtein = c1;
+  const colorCarbs = c2;
+  const colorFat = c3;
+  const colorSugar = paletteColors[4] || palette.accent || palette.primary;
 
   const macroColors = {
     protein: colorProtein,
@@ -230,8 +260,17 @@ export function MacroSummary({ m }: { m: Macros }) {
     outputRange: [15, -15],
   });
 
+  const cardTranslateY = cardEntryAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [18, 0],
+  });
+  const cardScale = cardEntryAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.97, 1],
+  });
+
   return (
-    <View
+    <Animated.View
       style={[
         s.glassCard,
         {
@@ -240,6 +279,8 @@ export function MacroSummary({ m }: { m: Macros }) {
           borderColor: 'transparent',
           shadowOpacity: 0,
           elevation: 0,
+          opacity: cardEntryAnim,
+          transform: [{ translateY: cardTranslateY }, { scale: cardScale }],
         },
       ]}
     >
@@ -299,8 +340,8 @@ export function MacroSummary({ m }: { m: Macros }) {
                     stroke={g.color || C[g.k]}
                     strokeWidth={stroke}
                     fill="none"
-                    strokeDasharray={`${g.len} ${circ}`}
-                    strokeDashoffset={-g.offset}
+                    strokeDasharray={`${g.len * Math.max(0.001, ringProgress)} ${circ}`}
+                    strokeDashoffset={-g.offset * ringProgress}
                     strokeLinecap="round"
                   />
                 ) : null,
@@ -340,33 +381,35 @@ export function MacroSummary({ m }: { m: Macros }) {
                       },
                     ]}
                   >
-                    <Ionicons name="flame" size={32} color={C.kcal} />
+                    <Ionicons name="flame" size={32} color={palette.primary} />
                   </Animated.View>
                 </View>
-                <Text style={s.kcalBigNumber}>{Math.round(m.kcal || 0)}</Text>
-                <Text style={s.kcalUnit}>KCAL GANADAS</Text>
+                <Text style={[s.kcalBigNumber, palette.isDark && { color: '#FFFFFF' }]}>{Math.round((m.kcal || 0) * ringProgress)}</Text>
+                <Text style={[s.kcalUnit, { color: palette.primary }]}>KCAL GANADAS</Text>
               </View>
             </View>
           </Animated.View>
 
           {/* Barras de Macros Anime Pastel Animadas */}
-          <View style={{ flex: 1, marginLeft: 18, gap: 11 }}>
+          <View style={{ flex: 1, marginLeft: 18, gap: homeWidgets?.sugar ? 8 : 11 }}>
             {[
-              { label: 'Proteína', key: 'protein' as const, icon: 'flash' as const, color: colorProtein },
-              { label: 'Carbos', key: 'carbs' as const, icon: 'leaf' as const, color: colorCarbs },
-              { label: 'Grasas', key: 'fat' as const, icon: 'water' as const, color: colorFat },
-            ].map(({ label, key, icon, color }) => {
-              const pct = totalMacrosKcal > 0 ? Math.round((kc[key] / totalMacrosKcal) * 100) : 0;
+              { label: 'Proteína', icon: 'flash' as const, color: colorProtein, val: m.protein, pct: totalMacrosKcal > 0 ? Math.round((kc.protein / totalMacrosKcal) * 100) : 0 },
+              { label: 'Carbos', icon: 'leaf' as const, color: colorCarbs, val: m.carbs, pct: totalMacrosKcal > 0 ? Math.round((kc.carbs / totalMacrosKcal) * 100) : 0 },
+              { label: 'Grasas', icon: 'water' as const, color: colorFat, val: m.fat, pct: totalMacrosKcal > 0 ? Math.round((kc.fat / totalMacrosKcal) * 100) : 0 },
+              ...(homeWidgets?.sugar
+                ? [{ label: 'Azúcar', icon: 'cube-outline' as const, color: colorSugar, val: m.sugar || 0, pct: m.carbs > 0 ? Math.min(100, Math.round(((m.sugar || 0) / m.carbs) * 100)) : 0 }]
+                : []),
+            ].map(({ label, icon, color, val, pct }) => {
               return (
-                <View key={key}>
+                <View key={label}>
                   <View style={s.statRowHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                       <Ionicons name={icon} size={12} color={color} />
                       <Text style={s.statLabel}>{label}</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={[s.statValue, { color }]}>{fmt(m[key])}g</Text>
-                      <Text style={s.statPct}>{pct}%</Text>
+                      <Text style={[s.statValue, { color }]}>{fmt(val * ringProgress)}g</Text>
+                      <Text style={s.statPct}>{Math.round(pct * ringProgress)}%</Text>
                     </View>
                   </View>
                   <View style={s.statTrack}>
@@ -389,7 +432,7 @@ export function MacroSummary({ m }: { m: Macros }) {
           </View>
         </View>
       </LinearGradient>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -436,7 +479,8 @@ export function MainNavigationSegmented({
         {
           borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
           shadowColor: palette.primary,
-          backgroundColor: 'transparent',
+          backgroundColor: palette.bg,
+          marginBottom: 4,
         },
       ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
@@ -841,6 +885,7 @@ export function MacroChips({ m, small }: { m: Macros; small?: boolean }) {
   const activePaletteId = useStore((st) => st.activePaletteId);
   const customPalettes = useStore((st) => st.customPalettes);
   const deletedPaletteIds = useStore((st) => st.deletedPaletteIds);
+  const homeWidgets = useStore((st) => st.homeWidgets);
   const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
 
   const pColors = palette.colors && palette.colors.length >= 2 ? palette.colors : [palette.primary, palette.secondary];
@@ -848,6 +893,7 @@ export function MacroChips({ m, small }: { m: Macros; small?: boolean }) {
   const colorCarbs = pColors[1] || palette.secondary;
   const colorProtein = pColors[2] || pColors[0] || palette.primary;
   const colorFat = pColors[3] || pColors[1] || palette.secondary;
+  const colorSugar = pColors[4] || palette.accent || palette.primary;
 
   return (
     <View style={s.chipsRow}>
@@ -855,6 +901,9 @@ export function MacroChips({ m, small }: { m: Macros; small?: boolean }) {
       <MacroBadge icon="leaf" color={colorCarbs} text={`C ${fmt(m.carbs)}g`} small={small} palette={palette} />
       <MacroBadge icon="flash" color={colorProtein} text={`P ${fmt(m.protein)}g`} small={small} palette={palette} />
       <MacroBadge icon="water" color={colorFat} text={`G ${fmt(m.fat)}g`} small={small} palette={palette} />
+      {homeWidgets?.sugar && (
+        <MacroBadge icon="cube-outline" color={colorSugar} text={`Az ${fmt(m.sugar || 0)}g`} small={small} palette={palette} />
+      )}
     </View>
   );
 }
@@ -1078,6 +1127,11 @@ function ItemRow({
   onDelete: () => void;
   onOpenPicker: () => void;
 }) {
+  const activePaletteId = useStore((st) => st.activePaletteId);
+  const customPalettes = useStore((st) => st.customPalettes);
+  const deletedPaletteIds = useStore((st) => st.deletedPaletteIds);
+  const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
+
   const ing = ingredients.find((i) => i.id === item.ingredientId);
   const m = scaleMacros(ing, item.grams);
   const currentUnit: FoodUnit = item.unit || ing?.unit || 'g';
@@ -1095,6 +1149,15 @@ function ItemRow({
           onPress={onOpenPicker}
           style={({ pressed }) => [
             s.ingredientPickerButton,
+            {
+              borderColor: !ing
+                ? getPaletteColorWithAlpha(palette.primary, 0.38)
+                : getPaletteColorWithAlpha(palette.primary, 0.22),
+            },
+            palette.isDark && {
+              backgroundColor: palette.primary,
+              borderColor: palette.primary,
+            },
             !ing && s.ingredientPickerButtonEmpty,
             pressed && s.btnPressed,
           ]}
@@ -1102,25 +1165,43 @@ function ItemRow({
           <Ionicons
             name={ing ? 'sparkles' : 'search-outline'}
             size={16}
-            color={ing ? C.pastelPurple : C.sub}
+            color={palette.isDark ? '#FFFFFF' : ing ? palette.primary : C.sub}
           />
           <Text
             numberOfLines={1}
-            style={[s.ingredientPickerButtonText, !ing && { color: C.subMuted }]}
+            style={[
+              s.ingredientPickerButtonText,
+              palette.isDark && { color: '#FFFFFF' },
+              !ing && { color: palette.isDark ? 'rgba(255, 255, 255, 0.8)' : C.subMuted },
+            ]}
           >
             {ing ? ing.name : '✦ Toca para buscar ingrediente...'}
           </Text>
-          <Ionicons name="chevron-down" size={14} color={C.sub} style={{ marginLeft: 'auto' }} />
+          <Ionicons
+            name="chevron-down"
+            size={14}
+            color={palette.isDark ? '#FFFFFF' : C.sub}
+            style={{ marginLeft: 'auto' }}
+          />
         </Pressable>
 
         {/* Input de Cantidad con selector interactivo de unidad */}
-        <View style={s.gramsInputContainer}>
+        <View
+          style={[
+            s.gramsInputContainer,
+            { borderColor: getPaletteColorWithAlpha(palette.primary, 0.22) },
+            palette.isDark && {
+              backgroundColor: palette.primary,
+              borderColor: palette.primary,
+            },
+          ]}
+        >
           <TextInput
             value={item.grams ? String(item.grams) : ''}
             keyboardType="decimal-pad"
             placeholder="0"
-            placeholderTextColor={C.subMuted}
-            style={s.gramsTextInput}
+            placeholderTextColor={palette.isDark ? 'rgba(255, 255, 255, 0.7)' : C.subMuted}
+            style={[s.gramsTextInput, palette.isDark && { color: '#FFFFFF' }]}
             onChangeText={(t) =>
               onChange({ ...item, grams: parseFloat(t.replace(',', '.')) || 0 })
             }
@@ -1130,8 +1211,8 @@ function ItemRow({
             hitSlop={8}
             style={({ pressed }) => [s.gramsUnitBadge, pressed && s.btnPressed]}
           >
-            <Text style={s.gramsUnitText}>{currentUnit}</Text>
-            <Ionicons name="swap-vertical" size={10} color="#94A3B8" />
+            <Text style={[s.gramsUnitText, palette.isDark && { color: '#FFFFFF' }]}>{currentUnit}</Text>
+            <Ionicons name="swap-vertical" size={10} color={palette.isDark ? '#FFFFFF' : '#94A3B8'} />
           </Pressable>
         </View>
 

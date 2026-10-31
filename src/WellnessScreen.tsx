@@ -634,8 +634,8 @@ export default function WellnessScreen() {
           </View>
         </View>
 
-        {/* VARIANT SELECTOR CON DOS BOTONES: SUEÑO Y SUPLEMENTOS (Sticky) */}
-        <View style={[wellnessStyles.stickyTabsContainer, { backgroundColor: palette.bg }]}>
+        {/* VARIANT SELECTOR CON TRES BOTONES: SUEÑO, SUPLEMENTOS Y SALUD (Sticky) */}
+        <View style={wellnessStyles.stickyTabsContainer}>
           <WellnessModeSegmented value={tab} onChange={setTab} palette={palette} />
         </View>
 
@@ -1262,7 +1262,13 @@ export default function WellnessScreen() {
                       <View
                         key={supp.id}
                         style={[
-                          wellnessStyles.supplementItemCard, { backgroundColor: isAllDone ? getPaletteColorWithAlpha(palette.secondary, 0.08) : getPaletteColorWithAlpha(palette.primary, 0.04), borderColor: isAllDone ? getPaletteColorWithAlpha(palette.secondary, 0.4) : getPaletteColorWithAlpha(palette.primary, 0.2) },
+                          wellnessStyles.supplementItemCard,
+                          {
+                            backgroundColor: palette.isDark ? '#1E293B' : '#FFFFFF',
+                            borderColor: isAllDone
+                              ? palette.secondary
+                              : getPaletteColorWithAlpha(palette.primary, 0.25),
+                          },
                         ]}
                       >
                         <View style={wellnessStyles.supplementMainRow}>
@@ -1284,6 +1290,7 @@ export default function WellnessScreen() {
                                 <Text
                                   style={[
                                     wellnessStyles.supplementNameText,
+                                    palette.isDark && { color: '#FFFFFF' },
                                     isAllDone && wellnessStyles.supplementNameTextDone,
                                   ]}
                                 >
@@ -1318,20 +1325,24 @@ export default function WellnessScreen() {
                               style={({ pressed }) => [
                                 wellnessStyles.alarmClockBtn,
                                 supp.alarmTime && wellnessStyles.alarmClockBtnActive,
+                                palette.isDark && {
+                                  backgroundColor: palette.primary,
+                                  borderColor: palette.primary,
+                                },
                                 pressed && s.btnPressed,
                               ]}
                             >
                               <Ionicons
                                 name={supp.alarmTime ? 'alarm' : 'alarm-outline'}
                                 size={14}
-                                color={supp.alarmTime ? palette.primary : C.sub}
+                                color={palette.isDark ? '#FFFFFF' : (supp.alarmTime ? palette.primary : C.sub)}
                               />
                               {supp.alarmTime ? (
-                                <Text style={wellnessStyles.alarmClockBtnText}>
+                                <Text style={[wellnessStyles.alarmClockBtnText, palette.isDark && { color: '#FFFFFF' }]}>
                                   {formatAlarmTime12h(supp.alarmTime)} · {getAlarmSoundById(supp.alarmSound).name}
                                 </Text>
                               ) : (
-                                <Text style={wellnessStyles.alarmClockBtnPlaceholderText}>
+                                <Text style={[wellnessStyles.alarmClockBtnPlaceholderText, palette.isDark && { color: '#FFFFFF' }]}>
                                   Programar alarma
                                 </Text>
                               )}
@@ -1357,7 +1368,7 @@ export default function WellnessScreen() {
                                     wellnessStyles.doseCheckboxBtn,
                                     {
                                       borderColor: getPaletteColorWithAlpha(palette.primary, 0.35),
-                                      backgroundColor: palette.isDark ? '#1E293B' : getPaletteColorWithAlpha(palette.primary, 0.05),
+                                      backgroundColor: 'transparent',
                                     },
                                     checked && wellnessStyles.doseCheckboxBtnActive,
                                     pressed && { transform: [{ scale: 0.92 }] },
@@ -2311,10 +2322,11 @@ function WellnessModeSegmented({
     <View
       style={[
         s.mainSegmentedContainer,
-        palette && {
-          backgroundColor: 'transparent',
-          borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
-          shadowColor: palette.primary,
+        {
+          backgroundColor: palette ? palette.bg : C.bg,
+          borderColor: getPaletteColorWithAlpha(prim, 0.25),
+          shadowColor: prim,
+          marginBottom: 4,
         },
       ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
@@ -2417,9 +2429,9 @@ const wellnessStyles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   stickyTabsContainer: {
-    backgroundColor: C.bg,
-    paddingTop: 4,
-    paddingBottom: 10,
+    backgroundColor: 'transparent',
+    paddingTop: 2,
+    paddingBottom: 4,
     zIndex: 50,
   },
 
@@ -4009,8 +4021,49 @@ function SleepAndCaloriesHistoricalChart({
   const colWidth = chartWidth / 7;
   const barWidth = chartMode === 'both' ? 10 : 18;
 
+  // Animación de entrada de la gráfica (Crecimiento de barras y elevación fluida de la tarjeta)
+  const entryAnim = useRef(new Animated.Value(0)).current;
+  const [growProgress, setGrowProgress] = useState(0);
+
+  useEffect(() => {
+    entryAnim.setValue(0);
+    setGrowProgress(0);
+    const listenerId = entryAnim.addListener(({ value }) => {
+      setGrowProgress(value);
+    });
+    Animated.timing(entryAnim, {
+      toValue: 1,
+      duration: 1200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+
+    return () => {
+      entryAnim.removeListener(listenerId);
+    };
+  }, [chartMode]);
+
+  const cardTranslateY = entryAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [18, 0],
+  });
+  const cardScale = entryAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.97, 1],
+  });
+
   return (
-    <View style={[wellnessStyles.historyChartCard, { backgroundColor: 'transparent', borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) }]}>
+    <Animated.View
+      style={[
+        wellnessStyles.historyChartCard,
+        {
+          backgroundColor: 'transparent',
+          borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
+          opacity: entryAnim,
+          transform: [{ translateY: cardTranslateY }, { scale: cardScale }],
+        },
+      ]}
+    >
       <LinearGradient
         colors={
           palette.isDark
@@ -4140,10 +4193,10 @@ function SleepAndCaloriesHistoricalChart({
               const centerX = i * colWidth + colWidth / 2;
               const isSelected = d.dateKey === selectedDateKey;
 
-              const sleepHeight = Math.max(0, Math.min(drawHeight, (d.sleepHours / maxSleepScale) * drawHeight));
+              const sleepHeight = Math.max(0, Math.min(drawHeight, (d.sleepHours / maxSleepScale) * drawHeight * Math.max(0.001, growProgress)));
               const sleepY = chartHeight - sleepHeight;
 
-              const calHeight = Math.max(0, Math.min(drawHeight, (d.calories / maxCaloriesScale) * drawHeight));
+              const calHeight = Math.max(0, Math.min(drawHeight, (d.calories / maxCaloriesScale) * drawHeight * Math.max(0.001, growProgress)));
               const calY = chartHeight - calHeight;
 
               return (
@@ -4312,7 +4365,7 @@ function SleepAndCaloriesHistoricalChart({
           </View>
         )}
       </LinearGradient>
-    </View>
+    </Animated.View>
   );
 }
 

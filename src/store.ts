@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 /* ==========================================================
    TIPOS DE COMIDA
 ========================================================== */
-export type Macros = { kcal: number; carbs: number; protein: number; fat: number };
+export type Macros = { kcal: number; carbs: number; protein: number; fat: number; sugar?: number };
 
 /** Valores nutricionales tal como vienen en el empaque, para `servingGrams` gramos. */
 export type FoodUnit = 'g' | 'ml' | 'ud';
@@ -118,14 +118,20 @@ export type SleepLogEntry = {
 /* ==========================================================
    CONFIGURACIÓN Y PERSONALIZACIÓN (PALETAS, TIPOGRAFÍA, HOME)
 ========================================================== */
+export type GenderOption = 'Masculino' | 'Femenino' | 'Otro' | 'Prefiero no decir';
+
 export type UserProfile = {
   name: string;
   nickname: string;
+  height?: number; // en cm
+  gender?: GenderOption;
 };
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
   name: 'Sergio Tamayo',
   nickname: 'Sertic77',
+  height: 178,
+  gender: 'Masculino',
 };
 
 export type ColorPalette = {
@@ -144,7 +150,15 @@ export type ColorPalette = {
   custom?: boolean;
 };
 
-export type FontStyleOption = 'system' | 'serif' | 'monospace' | 'rounded';
+export type FontStyleOption =
+  | 'system'
+  | 'condensed'
+  | 'athletic'
+  | 'rounded'
+  | 'futuristic'
+  | 'elegant'
+  | 'serif'
+  | 'monospace';
 
 export type TypographySettings = {
   titles: FontStyleOption;
@@ -160,6 +174,7 @@ export type HomeVisibleWidgets = {
   supplements: boolean;
   health: boolean;
   body: boolean;
+  sugar: boolean;
 };
 
 export const PRESET_PALETTES: ColorPalette[] = [
@@ -277,10 +292,19 @@ export const DEFAULT_HOME_WIDGETS: HomeVisibleWidgets = {
   supplements: true,
   health: true,
   body: true,
+  sugar: false,
 };
 
 export function getFontFamily(fontOption: FontStyleOption): string | undefined {
   switch (fontOption) {
+    case 'condensed':
+      return Platform.select({ ios: 'HelveticaNeue-CondensedBold', android: 'sans-serif-condensed', default: 'sans-serif-condensed' });
+    case 'athletic':
+      return Platform.select({ ios: 'Impact', android: 'sans-serif-black', default: 'sans-serif-black' });
+    case 'futuristic':
+      return Platform.select({ ios: 'Trebuchet MS', android: 'sans-serif-light', default: 'sans-serif' });
+    case 'elegant':
+      return Platform.select({ ios: 'Palatino', android: 'serif', default: 'serif' });
     case 'serif':
       return Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
     case 'monospace':
@@ -540,15 +564,19 @@ export const SEED_SLEEP_LOGS: Record<string, SleepLogEntry> = {
   },
 };
 
-export const ZERO: Macros = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
-
-
+export const ZERO: Macros = { kcal: 0, carbs: 0, protein: 0, fat: 0, sugar: 0 };
 
 /** Escala los macros del ingrediente a la cantidad indicada. */
 export function scaleMacros(ing: Ingredient | undefined, grams: number): Macros {
   if (!ing || !ing.servingGrams || !grams) return ZERO;
   const f = grams / ing.servingGrams;
-  return { kcal: ing.kcal * f, carbs: ing.carbs * f, protein: ing.protein * f, fat: ing.fat * f };
+  return {
+    kcal: ing.kcal * f,
+    carbs: ing.carbs * f,
+    protein: ing.protein * f,
+    fat: ing.fat * f,
+    sugar: (ing.sugar || 0) * f,
+  };
 }
 
 export const addMacros = (a: Macros, b: Macros): Macros => ({
@@ -556,6 +584,7 @@ export const addMacros = (a: Macros, b: Macros): Macros => ({
   carbs: a.carbs + b.carbs,
   protein: a.protein + b.protein,
   fat: a.fat + b.fat,
+  sugar: (a.sugar || 0) + (b.sugar || 0),
 });
 
 export function itemsTotal(items: MealItem[], ingredients: Ingredient[]): Macros {
@@ -569,12 +598,12 @@ export function itemsTotal(items: MealItem[], ingredients: Ingredient[]): Macros
    SEMILLAS INICIALES (SEED DATA)
 ========================================================== */
 const SEED_INGREDIENTS: Ingredient[] = [
-  { id: 'seed-pb', name: 'Mantequilla de maní', servingGrams: 50, kcal: 110, protein: 12, carbs: 5, fat: 17, unit: 'g' },
-  { id: 'seed-egg', name: 'Huevo', servingGrams: 1, kcal: 72, protein: 6.3, carbs: 0.4, fat: 4.8, unit: 'ud' },
-  { id: 'seed-milk', name: 'Leche entera', servingGrams: 200, kcal: 124, protein: 6.4, carbs: 9.6, fat: 6.8, unit: 'ml' },
-  { id: 'seed-rice', name: 'Arroz blanco cocido', servingGrams: 100, kcal: 130, protein: 2.7, carbs: 28, fat: 0.3, unit: 'g' },
-  { id: 'seed-chicken', name: 'Pechuga de pollo', servingGrams: 100, kcal: 165, protein: 31, carbs: 0, fat: 3.6, unit: 'g' },
-  { id: 'seed-oats', name: 'Avena', servingGrams: 40, kcal: 150, protein: 5, carbs: 27, fat: 3, unit: 'g' },
+  { id: 'seed-pb', name: 'Mantequilla de maní', servingGrams: 50, kcal: 110, protein: 12, carbs: 5, fat: 17, sugar: 2.1, unit: 'g' },
+  { id: 'seed-egg', name: 'Huevo', servingGrams: 1, kcal: 72, protein: 6.3, carbs: 0.4, fat: 4.8, sugar: 0.2, unit: 'ud' },
+  { id: 'seed-milk', name: 'Leche entera', servingGrams: 200, kcal: 124, protein: 6.4, carbs: 9.6, fat: 6.8, sugar: 9.6, unit: 'ml' },
+  { id: 'seed-rice', name: 'Arroz blanco cocido', servingGrams: 100, kcal: 130, protein: 2.7, carbs: 28, fat: 0.3, sugar: 0.1, unit: 'g' },
+  { id: 'seed-chicken', name: 'Pechuga de pollo', servingGrams: 100, kcal: 165, protein: 31, carbs: 0, fat: 3.6, sugar: 0, unit: 'g' },
+  { id: 'seed-oats', name: 'Avena', servingGrams: 40, kcal: 150, protein: 5, carbs: 27, fat: 3, sugar: 0.8, unit: 'g' },
 ];
 
 const SEED_EXERCISES: Exercise[] = [
@@ -680,6 +709,42 @@ type State = {
   deletePalette: (id: string) => void;
   setTypography: (settings: Partial<TypographySettings>) => void;
   toggleHomeWidget: (widgetKey: keyof HomeVisibleWidgets) => void;
+
+  // Autenticación & Servidor Backend
+  authToken: string | null;
+  authUser: {
+    id: string;
+    email: string;
+    name: string;
+    nickname?: string;
+    provider: string;
+    avatarUrl?: string;
+  } | null;
+  isAuthenticated: boolean;
+  setAuth: (
+    token: string,
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      nickname?: string;
+      provider: string;
+      avatarUrl?: string;
+    },
+  ) => void;
+  logout: () => void;
+
+  // Sincronización con Base de Datos
+  syncStatus: 'idle' | 'syncing' | 'saved' | 'error';
+  lastSyncedAt: string | null;
+  syncError: string | null;
+  setSyncStatus: (
+    status: 'idle' | 'syncing' | 'saved' | 'error',
+    lastSyncedAt?: string,
+    syncError?: string,
+  ) => void;
+  applyRemoteData: (records: Record<string, any>) => void;
+  resetUserData: () => void;
 };
 
 export const useStore = create<State>()(
@@ -1265,6 +1330,110 @@ export const useStore = create<State>()(
             },
           };
         }),
+
+      // Autenticación & Sesión
+      authToken: null,
+      authUser: null,
+      isAuthenticated: false,
+      setAuth: (token, user) =>
+        set((s) => ({
+          authToken: token,
+          authUser: user,
+          isAuthenticated: true,
+          userProfile: {
+            ...(s.userProfile || DEFAULT_USER_PROFILE),
+            name: user.name || s.userProfile?.name || 'Usuario',
+            nickname: user.nickname || s.userProfile?.nickname || 'Atleta',
+          },
+        })),
+      logout: () =>
+        set({
+          authToken: null,
+          authUser: null,
+          isAuthenticated: false,
+          ingredients: SEED_INGREDIENTS,
+          savedMeals: [],
+          logs: {},
+          exercises: SEED_EXERCISES,
+          workoutLogs: {},
+          measurementLogs: {},
+          weightLogs: {},
+          photoLogs: {},
+          supplements: SEED_SUPPLEMENTS,
+          supplementLogs: {},
+          healthMetrics: SEED_HEALTH_METRICS,
+          healthLogs: SEED_HEALTH_LOGS,
+          sleepLogs: SEED_SLEEP_LOGS,
+          userProfile: DEFAULT_USER_PROFILE,
+          activePaletteId: 'default',
+          customPalettes: [],
+          deletedPaletteIds: [],
+          typography: DEFAULT_TYPOGRAPHY,
+          homeWidgets: DEFAULT_HOME_WIDGETS,
+          syncStatus: 'idle',
+          lastSyncedAt: null,
+          syncError: null,
+        }),
+
+      // Sincronización con Base de Datos
+      syncStatus: 'idle',
+      lastSyncedAt: null,
+      syncError: null,
+      setSyncStatus: (status, lastSyncedAt, syncError) =>
+        set((s) => ({
+          syncStatus: status,
+          lastSyncedAt: lastSyncedAt !== undefined ? lastSyncedAt : s.lastSyncedAt,
+          syncError: syncError !== undefined ? syncError : null,
+        })),
+      applyRemoteData: (records) =>
+        set((s) => {
+          const updates: Partial<State> = {};
+          if (records.ingredients && Array.isArray(records.ingredients)) updates.ingredients = records.ingredients;
+          if (records.savedMeals && Array.isArray(records.savedMeals)) updates.savedMeals = records.savedMeals;
+          if (records.logs && typeof records.logs === 'object') updates.logs = records.logs;
+          if (records.exercises && Array.isArray(records.exercises)) updates.exercises = records.exercises;
+          if (records.workoutLogs && typeof records.workoutLogs === 'object') updates.workoutLogs = records.workoutLogs;
+          if (records.measurementLogs && typeof records.measurementLogs === 'object') updates.measurementLogs = records.measurementLogs;
+          if (records.weightLogs && typeof records.weightLogs === 'object') updates.weightLogs = records.weightLogs;
+          if (records.photoLogs && typeof records.photoLogs === 'object') updates.photoLogs = records.photoLogs;
+          if (records.supplements && Array.isArray(records.supplements)) updates.supplements = records.supplements;
+          if (records.supplementLogs && typeof records.supplementLogs === 'object') updates.supplementLogs = records.supplementLogs;
+          if (records.healthMetrics && Array.isArray(records.healthMetrics)) updates.healthMetrics = records.healthMetrics;
+          if (records.healthLogs && typeof records.healthLogs === 'object') updates.healthLogs = records.healthLogs;
+          if (records.sleepLogs && typeof records.sleepLogs === 'object') updates.sleepLogs = records.sleepLogs;
+          if (records.userProfile && typeof records.userProfile === 'object') updates.userProfile = records.userProfile;
+          if (records.activePaletteId && typeof records.activePaletteId === 'string') updates.activePaletteId = records.activePaletteId;
+          if (records.customPalettes && Array.isArray(records.customPalettes)) updates.customPalettes = records.customPalettes;
+          if (records.deletedPaletteIds && Array.isArray(records.deletedPaletteIds)) updates.deletedPaletteIds = records.deletedPaletteIds;
+          if (records.typography && typeof records.typography === 'object') updates.typography = records.typography;
+          if (records.homeWidgets && typeof records.homeWidgets === 'object') updates.homeWidgets = records.homeWidgets;
+          return updates;
+        }),
+      resetUserData: () =>
+        set({
+          ingredients: SEED_INGREDIENTS,
+          savedMeals: [],
+          logs: {},
+          exercises: SEED_EXERCISES,
+          workoutLogs: {},
+          measurementLogs: {},
+          weightLogs: {},
+          photoLogs: {},
+          supplements: SEED_SUPPLEMENTS,
+          supplementLogs: {},
+          healthMetrics: SEED_HEALTH_METRICS,
+          healthLogs: SEED_HEALTH_LOGS,
+          sleepLogs: SEED_SLEEP_LOGS,
+          userProfile: DEFAULT_USER_PROFILE,
+          activePaletteId: 'default',
+          customPalettes: [],
+          deletedPaletteIds: [],
+          typography: DEFAULT_TYPOGRAPHY,
+          homeWidgets: DEFAULT_HOME_WIDGETS,
+          syncStatus: 'idle',
+          lastSyncedAt: null,
+          syncError: null,
+        }),
     }),
     {
       name: 'evolve-app-data',
@@ -1272,6 +1441,9 @@ export const useStore = create<State>()(
       merge: (persistedState: any, currentState) => ({
         ...currentState,
         ...(persistedState || {}),
+        authToken: persistedState?.authToken || null,
+        authUser: persistedState?.authUser || null,
+        isAuthenticated: Boolean(persistedState?.authToken && persistedState?.authUser),
         healthMetrics:
           persistedState && Array.isArray(persistedState.healthMetrics) && persistedState.healthMetrics.length > 0
             ? persistedState.healthMetrics

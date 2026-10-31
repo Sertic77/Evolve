@@ -15,6 +15,7 @@ import {
   Keyboard,
   Image,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import Svg, {
   Path,
@@ -334,7 +335,7 @@ export default function MeasureScreen() {
               <Ionicons name="sparkles" size={11} color={palette.primary} />
               <Text style={[measureStyles.cyberTagText, { color: palette.primary }]}>✦ EVOLVE // ANTROPOMETRÍA ✦</Text>
             </View>
-            <Text style={measureStyles.screenTitle}>Medidas</Text>
+            <Text style={[measureStyles.screenTitle, palette.isDark && { color: '#FFFFFF' }]}>Medidas</Text>
           </View>
 
           <View style={[measureStyles.headerBadgeMini, { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25), backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08) }]}>
@@ -523,7 +524,8 @@ function MeasureModeSegmented({
         {
           borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
           shadowColor: palette.primary,
-          backgroundColor: 'transparent',
+          backgroundColor: palette.bg,
+          marginBottom: 4,
         },
       ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
@@ -590,6 +592,9 @@ function AnimeBodyMapCard({
   onOpenWeightModal: () => void;
   onSelectPart: (p: BodyPartKey) => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const registeredCount = Object.keys(measurements).length;
   const { width: windowWidth } = useWindowDimensions();
   // Escala proporcional exacta al lienzo nativo 516x1024 de las ilustraciones
@@ -616,12 +621,17 @@ function AnimeBodyMapCard({
               onPress={onOpenModelSelect}
               style={({ pressed }) => [
                 measureStyles.croquisSelectorBtn,
+                {
+                  borderColor: getPaletteColorWithAlpha(palette.primary, 0.45),
+                  backgroundColor: palette.isDark ? 'rgba(30, 41, 59, 0.7)' : '#FFFFFF',
+                  shadowColor: palette.primary,
+                },
                 pressed && s.btnPressed,
               ]}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
                 <LinearGradient
-                  colors={genderModel === 'male' ? ['#8B5CF6', '#60A5FA'] : ['#EC4899', '#F472B6']}
+                  colors={[palette.primary, palette.secondary || palette.primary]}
                   style={measureStyles.modelIconBadge}
                 >
                   <Ionicons
@@ -631,45 +641,56 @@ function AnimeBodyMapCard({
                   />
                 </LinearGradient>
                 <View style={{ flex: 1 }}>
-                  <Text style={measureStyles.croquisSelectorTitle} numberOfLines={1}>
+                  <Text style={[measureStyles.croquisSelectorTitle, palette.isDark && { color: '#FFFFFF' }]} numberOfLines={1}>
                     {genderModel === 'male' ? 'Hombre (Musculoso)' : 'Mujer (Esbelta / Fit)'}
                   </Text>
-                  <Text style={measureStyles.croquisSelectorHint}>
+                  <Text style={[measureStyles.croquisSelectorHint, { color: palette.primary }]}>
                     Cambiar silueta anime ▾
                   </Text>
                 </View>
               </View>
-              <Ionicons name="swap-horizontal" size={16} color={C.pastelPurple} />
+              <Ionicons name="swap-horizontal" size={16} color={palette.primary} />
             </Pressable>
           </View>
 
           {/* Badge de progreso de medidas */}
-          <View style={measureStyles.measureProgressBadge}>
-            <Text style={measureStyles.measureProgressText}>
+          <View
+            style={[
+              measureStyles.measureProgressBadge,
+              {
+                borderColor: getPaletteColorWithAlpha(palette.primary, 0.35),
+                backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08),
+              },
+            ]}
+          >
+            <Text style={[measureStyles.measureProgressText, { color: palette.primary }]}>
               {registeredCount} / 12
             </Text>
-            <Text style={measureStyles.measureProgressSub}>REGISTRADAS</Text>
+            <Text style={[measureStyles.measureProgressSub, { color: palette.textSub }]}>REGISTRADAS</Text>
           </View>
         </View>
 
         {/* SELECTOR VISTA FRONTAL / POSTERIOR */}
-        <View style={measureStyles.viewToggleContainer}>
+        <View style={[measureStyles.viewToggleContainer, { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) }]}>
           <Pressable
             onPress={() => onChangeView('front')}
             style={[
               measureStyles.viewToggleBtn,
-              bodyView === 'front' && measureStyles.viewToggleBtnActive,
+              bodyView === 'front' && {
+                backgroundColor: palette.primary,
+                shadowColor: palette.primary,
+              },
             ]}
           >
             <Ionicons
               name="person-outline"
               size={13}
-              color={bodyView === 'front' ? '#FFFFFF' : C.sub}
+              color={bodyView === 'front' ? '#FFFFFF' : palette.textSub}
             />
             <Text
               style={[
                 measureStyles.viewToggleText,
-                bodyView === 'front' && measureStyles.viewToggleTextActive,
+                { color: bodyView === 'front' ? '#FFFFFF' : palette.textSub },
               ]}
             >
               Vista Frontal
@@ -680,18 +701,21 @@ function AnimeBodyMapCard({
             onPress={() => onChangeView('back')}
             style={[
               measureStyles.viewToggleBtn,
-              bodyView === 'back' && measureStyles.viewToggleBtnActive,
+              bodyView === 'back' && {
+                backgroundColor: palette.primary,
+                shadowColor: palette.primary,
+              },
             ]}
           >
             <Ionicons
               name="refresh-outline"
               size={13}
-              color={bodyView === 'back' ? '#FFFFFF' : C.sub}
+              color={bodyView === 'back' ? '#FFFFFF' : palette.textSub}
             />
             <Text
               style={[
                 measureStyles.viewToggleText,
-                bodyView === 'back' && measureStyles.viewToggleTextActive,
+                { color: bodyView === 'back' ? '#FFFFFF' : palette.textSub },
               ]}
             >
               Vista Posterior
@@ -832,19 +856,24 @@ function AnimeBodyMapCard({
                 onPress={onOpenWeightModal}
                 style={({ pressed }) => [
                   measureStyles.integratedWeightWidget,
+                  {
+                    borderColor: getPaletteColorWithAlpha(palette.primary, 0.6),
+                    shadowColor: palette.primary,
+                    backgroundColor: palette.isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.95)',
+                  },
                   pressed && s.btnPressed,
                 ]}
               >
-                <View style={measureStyles.integratedWeightIconCircle}>
+                <View style={[measureStyles.integratedWeightIconCircle, { backgroundColor: palette.primary }]}>
                   <Ionicons name="scale-outline" size={14} color="#FFFFFF" />
                 </View>
                 <View>
-                  <Text style={measureStyles.integratedWeightTag}>PESO</Text>
-                  <Text style={measureStyles.integratedWeightValue}>
+                  <Text style={[measureStyles.integratedWeightTag, { color: palette.primary }]}>PESO</Text>
+                  <Text style={[measureStyles.integratedWeightValue, { color: palette.text }]}>
                     {weight !== undefined && weight > 0 ? `${weight} kg` : '+ Añadir'}
                   </Text>
                 </View>
-                <Ionicons name="pencil-outline" size={11} color="#F0ABFC" style={{ marginLeft: 3 }} />
+                <Ionicons name="pencil-outline" size={11} color={palette.primary} style={{ marginLeft: 3 }} />
               </Pressable>
             </View>
           </View>
@@ -853,11 +882,11 @@ function AnimeBodyMapCard({
         {/* Leyenda interactiva inferior */}
         <View style={measureStyles.croquisLegendRow}>
           <View style={measureStyles.legendItem}>
-            <View style={[measureStyles.legendDot, { backgroundColor: '#8B5CF6' }]} />
+            <View style={[measureStyles.legendDot, { backgroundColor: palette.primary }]} />
             <Text style={measureStyles.legendLabel}>Medido</Text>
           </View>
           <View style={measureStyles.legendItem}>
-            <View style={[measureStyles.legendDot, { backgroundColor: 'rgba(15, 23, 42, 0.72)', borderColor: '#94A3B8', borderWidth: 1.2 }]} />
+            <View style={[measureStyles.legendDot, { backgroundColor: 'rgba(15, 23, 42, 0.72)', borderColor: palette.textSub, borderWidth: 1.2 }]} />
             <Text style={measureStyles.legendLabel}>Por medir (Área oscura)</Text>
           </View>
           <View style={measureStyles.legendItem}>
@@ -888,6 +917,9 @@ function BodyMeasureBubble({
   right?: number;
   onPress: () => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
   const hasVal = value !== undefined && value > 0;
 
   return (
@@ -905,14 +937,27 @@ function BodyMeasureBubble({
         style={[
           measureStyles.floatingBubbleBadge,
           hasVal
-            ? measureStyles.floatingBubbleBadgeActive
-            : measureStyles.floatingBubbleBadgeEmpty,
+            ? {
+                backgroundColor: palette.isDark ? 'rgba(30, 18, 56, 0.9)' : 'rgba(255, 255, 255, 0.95)',
+                borderWidth: 1.5,
+                borderColor: palette.primary,
+                shadowColor: palette.primary,
+                shadowOpacity: 0.35,
+                shadowRadius: 6,
+                elevation: 4,
+              }
+            : {
+                backgroundColor: 'rgba(15, 23, 42, 0.72)',
+                borderWidth: 1,
+                borderStyle: 'dashed',
+                borderColor: getPaletteColorWithAlpha(palette.primary, 0.45),
+              },
         ]}
       >
         <Text
           style={[
             measureStyles.floatingBubbleLabel,
-            hasVal && measureStyles.floatingBubbleLabelActive,
+            hasVal ? { color: palette.text, fontWeight: '800' } : { color: 'rgba(226, 232, 240, 0.92)' },
           ]}
         >
           {label}
@@ -920,7 +965,7 @@ function BodyMeasureBubble({
         <Text
           style={[
             measureStyles.floatingBubbleValue,
-            hasVal && measureStyles.floatingBubbleValueActive,
+            hasVal ? { color: palette.primary } : { color: getPaletteColorWithAlpha(palette.primary, 0.8) },
           ]}
         >
           {hasVal ? `${value} cm` : '+'}
@@ -944,6 +989,10 @@ function GenderModelSelectModal({
   onSelect: (m: GenderModel) => void;
   onClose: () => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const models: {
     key: GenderModel;
     title: string;
@@ -958,7 +1007,7 @@ function GenderModelSelectModal({
       subtitle: 'Proporciones atléticas masculinas: hombros amplios, espalda V, pecho firme y piernas definidas.',
       badge: 'ESTILO SHONEN',
       icon: 'barbell-outline',
-      colors: ['#8B5CF6', '#60A5FA'] as const,
+      colors: [palette.primary, palette.secondary || palette.primary] as const,
     },
     {
       key: 'female',
@@ -966,7 +1015,7 @@ function GenderModelSelectModal({
       subtitle: 'Proporciones atléticas femeninas: cintura esbelta, glúteos torneados y silueta tonificada.',
       badge: 'ESTILO FITNESS FIT',
       icon: 'sparkles-outline',
-      colors: ['#EC4899', '#F472B6'] as const,
+      colors: [palette.accent || palette.primary, palette.primary] as const,
     },
   ];
 
@@ -976,7 +1025,7 @@ function GenderModelSelectModal({
         <Pressable style={measureStyles.selectModelCard} onPress={(e) => e.stopPropagation()}>
           <View style={measureStyles.selectModelHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="body" size={18} color={C.pastelPurple} />
+              <Ionicons name="body" size={18} color={palette.primary} />
               <Text style={measureStyles.selectModelTitle}>Escoge tu Croquis Anime</Text>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
@@ -997,7 +1046,14 @@ function GenderModelSelectModal({
                   onPress={() => onSelect(m.key)}
                   style={({ pressed }) => [
                     measureStyles.modelOptionBtn,
-                    active && measureStyles.modelOptionBtnActive,
+                    active && {
+                      borderColor: palette.primary,
+                      backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08),
+                      shadowColor: palette.primary,
+                      shadowOpacity: 0.16,
+                      shadowRadius: 8,
+                      elevation: 3,
+                    },
                     pressed && s.btnPressed,
                   ]}
                 >
@@ -1012,7 +1068,7 @@ function GenderModelSelectModal({
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                       <Text style={measureStyles.modelOptionTitle}>{m.title}</Text>
                       {active && (
-                        <View style={measureStyles.activeModelTag}>
+                        <View style={[measureStyles.activeModelTag, { backgroundColor: palette.primary }]}>
                           <Text style={measureStyles.activeModelTagText}>ACTIVO</Text>
                         </View>
                       )}
@@ -1048,6 +1104,10 @@ function AnimeBodyVector({
   width: number;
   height: number;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const imageSource =
     genderModel === 'male'
       ? view === 'front'
@@ -1072,13 +1132,13 @@ function AnimeBodyVector({
     const val = measurements[partKey];
     const isMeasured = val !== undefined && val > 0;
 
-    // Si tiene medida: brillo neón violeta/magenta; si NO tiene valor definido: área oscura/opaca claramente visible
+    // Si tiene medida: brillo neón de la paleta activa; si NO tiene valor definido: área oscura/opaca claramente visible
     const pathFill = isMeasured
-      ? 'rgba(232, 121, 249, 0.30)'
+      ? getPaletteColorWithAlpha(palette.primary, 0.32)
       : 'rgba(15, 23, 42, 0.56)';
 
     const pathStroke = isMeasured
-      ? '#F0ABFC'
+      ? palette.primary
       : 'rgba(148, 163, 184, 0.82)';
 
     const pathStrokeWidth = isMeasured ? 2.6 : 1.8;
@@ -1089,7 +1149,7 @@ function AnimeBodyVector({
           <Path
             d={d}
             fill="none"
-            stroke="rgba(217, 70, 239, 0.35)"
+            stroke={getPaletteColorWithAlpha(palette.primary, 0.35)}
             strokeWidth={7}
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -1111,7 +1171,7 @@ function AnimeBodyVector({
             cx={centerX}
             cy={centerY}
             r={isMeasured ? 11 : 9}
-            fill={isMeasured ? 'rgba(232, 121, 249, 0.32)' : 'rgba(15, 23, 42, 0.72)'}
+            fill={isMeasured ? getPaletteColorWithAlpha(palette.primary, 0.35) : 'rgba(15, 23, 42, 0.72)'}
             stroke={isMeasured ? 'none' : 'rgba(148, 163, 184, 0.75)'}
             strokeWidth={isMeasured ? 0 : 1.2}
           />
@@ -1119,7 +1179,7 @@ function AnimeBodyVector({
             cx={centerX}
             cy={centerY}
             r={isMeasured ? 5.5 : 3.8}
-            fill={isMeasured ? '#E879F9' : 'rgba(226, 232, 240, 0.88)'}
+            fill={isMeasured ? palette.primary : 'rgba(226, 232, 240, 0.88)'}
             stroke={isMeasured ? '#FFFFFF' : 'rgba(15, 23, 42, 0.9)'}
             strokeWidth={1.5}
           />
@@ -1137,7 +1197,7 @@ function AnimeBodyVector({
         key={`hud_${partKey}`}
         d={d}
         fill="none"
-        stroke={active ? 'rgba(240, 171, 252, 0.85)' : 'rgba(226, 232, 240, 0.42)'}
+        stroke={active ? getPaletteColorWithAlpha(palette.primary, 0.85) : 'rgba(226, 232, 240, 0.42)'}
         strokeWidth={active ? 2 : 1.4}
         strokeDasharray={active ? undefined : '4,4'}
         strokeLinecap="round"
@@ -1148,7 +1208,17 @@ function AnimeBodyVector({
   };
 
   return (
-    <View style={[measureStyles.svgContainer, { width, height }]}>
+    <View
+      style={[
+        measureStyles.svgContainer,
+        {
+          width,
+          height,
+          borderColor: getPaletteColorWithAlpha(palette.primary, 0.45),
+          shadowColor: palette.primary,
+        },
+      ]}
+    >
       {/* 1. Ilustración Anime Cyber-HUD 516x1024 en proporción 1:1 exacta */}
       <Image
         source={imageSource}
@@ -1419,7 +1489,7 @@ function BodyPartGrowthChartCard({
               <Ionicons name="trending-up-outline" size={12} color={palette.primary} />
               <Text style={[measureStyles.chartTagText, { color: palette.primary }]}>✦ EVOLUCIÓN MUSCULAR ✦</Text>
             </View>
-            <Text style={measureStyles.chartTitle}>Gráfica de Crecimiento</Text>
+            <Text style={[measureStyles.chartTitle, palette.isDark && { color: '#FFFFFF' }]}>Gráfica de Crecimiento</Text>
           </View>
 
           {/* Botón Dropdown de Selección de Tiempo */}
@@ -1428,13 +1498,19 @@ function BodyPartGrowthChartCard({
               onPress={() => setTimeDropdownOpen((prev) => !prev)}
               style={({ pressed }) => [
                 measureStyles.timeDropdownBtn,
-                { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) },
-                timeDropdownOpen && measureStyles.timeDropdownBtnActive,
+                { borderColor: getPaletteColorWithAlpha(palette.primary, 0.35) },
+                timeDropdownOpen && {
+                  borderColor: palette.primary,
+                  backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08),
+                },
                 pressed && s.btnPressed,
               ]}
             >
               <Ionicons name="calendar-outline" size={13} color={palette.primary} />
-              <Text style={measureStyles.timeDropdownBtnText} numberOfLines={1}>
+              <Text
+                style={[measureStyles.timeDropdownBtnText, { color: palette.primary }]}
+                numberOfLines={1}
+              >
                 {activeTimeOption.shortLabel}
               </Text>
               <Ionicons
@@ -1445,7 +1521,12 @@ function BodyPartGrowthChartCard({
             </Pressable>
 
             {timeDropdownOpen && (
-              <View style={measureStyles.timeDropdownMenu}>
+              <View
+                style={[
+                  measureStyles.timeDropdownMenu,
+                  { borderColor: getPaletteColorWithAlpha(palette.primary, 0.35) },
+                ]}
+              >
                 {TIME_FILTER_OPTIONS.map((tf) => {
                   const active = timeFilter === tf.key;
                   return (
@@ -1457,20 +1538,22 @@ function BodyPartGrowthChartCard({
                       }}
                       style={({ pressed }) => [
                         measureStyles.timeDropdownOption,
-                        active && measureStyles.timeDropdownOptionActive,
+                        active && {
+                          backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08),
+                        },
                         pressed && { opacity: 0.75 },
                       ]}
                     >
                       <Text
                         style={[
                           measureStyles.timeDropdownOptionText,
-                          active && measureStyles.timeDropdownOptionTextActive,
+                          active && { color: palette.primary, fontWeight: '800' },
                         ]}
                       >
                         {tf.label}
                       </Text>
                       {active && (
-                        <Ionicons name="checkmark-circle" size={15} color="#8B5CF6" />
+                        <Ionicons name="checkmark-circle" size={15} color={palette.primary} />
                       )}
                     </Pressable>
                   );
@@ -1499,13 +1582,18 @@ function BodyPartGrowthChartCard({
                   onPress={() => onSelectPart(pKey)}
                   style={({ pressed }) => [
                     measureStyles.musclePillBtn,
-                    isSelected && measureStyles.musclePillBtnActive,
+                    isSelected && {
+                      shadowColor: palette.primary,
+                      shadowOpacity: 0.28,
+                      shadowRadius: 6,
+                      elevation: 3,
+                    },
                     pressed && s.btnPressed,
                   ]}
                 >
                   {isSelected ? (
                     <LinearGradient
-                      colors={[palette.primary, palette.secondary]}
+                      colors={[palette.primary, palette.secondary || palette.primary]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={measureStyles.musclePillGradient}
@@ -1589,8 +1677,13 @@ function BodyPartGrowthChartCard({
           {points.length === 0 ? (
             /* Estado sin datos en este período */
             <View style={measureStyles.chartEmptyState}>
-              <View style={measureStyles.emptyStateIconCircle}>
-                <Ionicons name="analytics-outline" size={26} color="#A78BFA" />
+              <View
+                style={[
+                  measureStyles.emptyStateIconCircle,
+                  { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12) },
+                ]}
+              >
+                <Ionicons name="analytics-outline" size={26} color={palette.primary} />
               </View>
               <Text style={measureStyles.emptyStateTitle}>Sin registros en este período</Text>
               <Text style={measureStyles.emptyStateSubtitle}>
@@ -1600,11 +1693,12 @@ function BodyPartGrowthChartCard({
                 onPress={() => onOpenEditModal(selectedPart)}
                 style={({ pressed }) => [
                   measureStyles.emptyAddBtn,
+                  { borderColor: getPaletteColorWithAlpha(palette.primary, 0.4) },
                   pressed && s.btnPressed,
                 ]}
               >
-                <Ionicons name="add-circle-outline" size={14} color="#8B5CF6" />
-                <Text style={measureStyles.emptyAddBtnText}>Registrar medida hoy</Text>
+                <Ionicons name="add-circle-outline" size={14} color={palette.primary} />
+                <Text style={[measureStyles.emptyAddBtnText, { color: palette.primary }]}>Registrar medida hoy</Text>
               </Pressable>
             </View>
           ) : points.length === 1 ? (
@@ -1612,7 +1706,7 @@ function BodyPartGrowthChartCard({
             <View style={measureStyles.chartSinglePointState}>
               <View style={measureStyles.singlePointHero}>
                 <LinearGradient
-                  colors={[palette.primary, palette.secondary]}
+                  colors={[palette.primary, palette.secondary || palette.primary]}
                   style={measureStyles.singlePointCircle}
                 >
                   <Text style={measureStyles.singlePointHeroVal}>{points[0].val}</Text>
@@ -1632,8 +1726,8 @@ function BodyPartGrowthChartCard({
               <Svg width={chartWidth} height={chartHeight}>
                 <Defs>
                   <SvgGradient id="growthCurveGrad" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.32" />
-                    <Stop offset="100%" stopColor="#EC4899" stopOpacity="0.02" />
+                    <Stop offset="0%" stopColor={palette.primary} stopOpacity="0.32" />
+                    <Stop offset="100%" stopColor={palette.secondary || palette.primary} stopOpacity="0.02" />
                   </SvgGradient>
                 </Defs>
 
@@ -1672,7 +1766,7 @@ function BodyPartGrowthChartCard({
                 <Path
                   d={curvePathD}
                   fill="none"
-                  stroke="#8B5CF6"
+                  stroke={palette.primary}
                   strokeWidth={3}
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -1685,17 +1779,17 @@ function BodyPartGrowthChartCard({
                       cx={c.x}
                       cy={c.y}
                       r={8}
-                      fill="rgba(139, 92, 246, 0.2)"
+                      fill={getPaletteColorWithAlpha(palette.primary, 0.2)}
                     />
                     <Circle
                       cx={c.x}
                       cy={c.y}
                       r={4.5}
                       fill="#FFFFFF"
-                      stroke="#8B5CF6"
+                      stroke={palette.primary}
                       strokeWidth={2.4}
                     />
-                    <Circle cx={c.x} cy={c.y} r={2} fill="#8B5CF6" />
+                    <Circle cx={c.x} cy={c.y} r={2} fill={palette.primary} />
                   </G>
                 ))}
               </Svg>
@@ -1710,10 +1804,11 @@ function BodyPartGrowthChartCard({
                       {
                         left: c.x - 22,
                         top: Math.max(2, c.y - 25),
+                        borderColor: getPaletteColorWithAlpha(palette.primary, 0.45),
                       },
                     ]}
                   >
-                    <Text style={measureStyles.chartPointValueText}>{c.val}</Text>
+                    <Text style={[measureStyles.chartPointValueText, { color: palette.primary }]}>{c.val}</Text>
                   </View>
                 ))}
               </View>
@@ -1752,6 +1847,10 @@ function MeasurementsSummaryGrid({
   measurements: DayMeasurements;
   onSelectPart: (p: BodyPartKey) => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const sections: {
     title: string;
     icon: any;
@@ -1761,19 +1860,19 @@ function MeasurementsSummaryGrid({
     {
       title: 'Torso & Espalda',
       icon: 'shield-outline',
-      color: C.pastelPurple,
+      color: palette.primary,
       keys: ['chest', 'back', 'waist', 'glutes'],
     },
     {
       title: 'Brazos & Antebrazos',
       icon: 'barbell-outline',
-      color: '#EC4899',
+      color: palette.secondary || palette.primary,
       keys: ['right_arm', 'left_arm', 'right_forearm', 'left_forearm'],
     },
     {
       title: 'Piernas & Pantorrillas',
       icon: 'walk-outline',
-      color: '#10B981',
+      color: palette.accent || palette.primary,
       keys: ['right_thigh', 'left_thigh', 'right_calf', 'left_calf'],
     },
   ];
@@ -1782,17 +1881,17 @@ function MeasurementsSummaryGrid({
     <View style={measureStyles.gridContainer}>
       <View style={measureStyles.gridHeaderRow}>
         <View style={measureStyles.gridHeaderTag}>
-          <Ionicons name="list-outline" size={13} color={C.pastelPurple} />
-          <Text style={measureStyles.gridHeaderTagText}>REGISTRO RÁPIDO</Text>
+          <Ionicons name="list-outline" size={13} color={palette.primary} />
+          <Text style={[measureStyles.gridHeaderTagText, { color: palette.primary }]}>REGISTRO RÁPIDO</Text>
         </View>
-        <Text style={measureStyles.gridHeaderTitle}>Todas las medidas</Text>
+        <Text style={[measureStyles.gridHeaderTitle, palette.isDark && { color: '#FFFFFF' }]}>Todas las medidas</Text>
       </View>
 
       {sections.map((sec) => (
         <View key={sec.title} style={measureStyles.sectionBlock}>
           <View style={measureStyles.sectionHeaderRow}>
             <Ionicons name={sec.icon} size={15} color={sec.color} />
-            <Text style={measureStyles.sectionTitle}>{sec.title}</Text>
+            <Text style={[measureStyles.sectionTitle, palette.isDark && { color: '#FFFFFF' }]}>{sec.title}</Text>
           </View>
 
           <View style={measureStyles.cardsGrid}>
@@ -1807,29 +1906,55 @@ function MeasurementsSummaryGrid({
                   onPress={() => onSelectPart(k)}
                   style={({ pressed }) => [
                     measureStyles.itemCard,
-                    hasVal && measureStyles.itemCardActive,
+                    {
+                      backgroundColor: palette.isDark ? '#1E293B' : '#FFFFFF',
+                      borderColor: palette.isDark ? '#334155' : C.borderLight,
+                    },
+                    !hasVal
+                      ? {
+                          borderColor: getPaletteColorWithAlpha(palette.primary, 0.45),
+                          backgroundColor: palette.isDark
+                            ? getPaletteColorWithAlpha(palette.primary, 0.08)
+                            : getPaletteColorWithAlpha(palette.primary, 0.04),
+                        }
+                      : {
+                          borderColor: palette.primary,
+                          backgroundColor: palette.isDark
+                            ? palette.primary
+                            : getPaletteColorWithAlpha(palette.primary, 0.16),
+                        },
                     pressed && s.btnPressed,
                   ]}
                 >
                   <View style={measureStyles.itemCardTop}>
-                    <Text style={measureStyles.itemCardLabel} numberOfLines={1}>
+                    <Text
+                      style={[
+                        measureStyles.itemCardLabel,
+                        palette.isDark && (hasVal ? { color: '#FFFFFF' } : { color: '#CBD5E1' }),
+                      ]}
+                      numberOfLines={1}
+                    >
                       {info.label}
                     </Text>
                     {hasVal ? (
-                      <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={14}
+                        color={palette.isDark ? '#FFFFFF' : palette.primary}
+                      />
                     ) : (
-                      <Ionicons name="add-circle-outline" size={14} color={C.subMuted} />
+                      <Ionicons name="add-circle-outline" size={14} color={palette.primary} />
                     )}
                   </View>
 
                   <View style={measureStyles.itemCardBottom}>
                     {hasVal ? (
                       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
-                        <Text style={measureStyles.itemCardValNum}>{val}</Text>
-                        <Text style={measureStyles.itemCardValUnit}>cm</Text>
+                        <Text style={[measureStyles.itemCardValNum, palette.isDark && { color: '#FFFFFF' }]}>{val}</Text>
+                        <Text style={[measureStyles.itemCardValUnit, { color: palette.isDark ? '#FFFFFF' : palette.primary }]}>cm</Text>
                       </View>
                     ) : (
-                      <Text style={measureStyles.itemCardEmpty}>+ Medir</Text>
+                      <Text style={[measureStyles.itemCardEmpty, { color: palette.primary }]}>+ Medir</Text>
                     )}
                   </View>
                 </Pressable>
@@ -1862,6 +1987,10 @@ function MeasurementEditModal({
   onSave: (val: number) => void;
   onDelete: () => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const info = BODY_PARTS_INFO[partKey];
   const [valStr, setValStr] = useState<string>(
     currentValue !== undefined ? String(currentValue) : ''
@@ -1902,8 +2031,8 @@ function MeasurementEditModal({
               {/* Cabecera del Modal */}
               <View style={measureStyles.modalHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                  <View style={measureStyles.modalIconCircle}>
-                    <Ionicons name={info.icon} size={20} color={C.pastelPurple} />
+                  <View style={[measureStyles.modalIconCircle, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12) }]}>
+                    <Ionicons name={info.icon} size={20} color={palette.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={measureStyles.modalTitle} numberOfLines={1}>{info.label}</Text>
@@ -1921,7 +2050,7 @@ function MeasurementEditModal({
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                   <Text style={measureStyles.numberInputHint}>Perímetro corporal</Text>
                   <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
-                    <Text style={measureStyles.hideKeyboardHint}>Ocultar teclado ▾</Text>
+                    <Text style={[measureStyles.hideKeyboardHint, { color: palette.primary }]}>Ocultar teclado ▾</Text>
                   </Pressable>
                 </View>
 
@@ -1935,7 +2064,7 @@ function MeasurementEditModal({
                     placeholderTextColor={C.subMuted}
                     style={measureStyles.numberInputBig}
                   />
-                  <Text style={measureStyles.numberUnitBig}>cm</Text>
+                  <Text style={[measureStyles.numberUnitBig, { color: palette.primary }]}>cm</Text>
                 </View>
 
                 {/* Steppers rápidos de ajuste (+/- 0.5, +/- 1.0) */}
@@ -1949,7 +2078,7 @@ function MeasurementEditModal({
                         pressed && s.btnPressed,
                       ]}
                     >
-                      <Text style={measureStyles.stepperBtnText}>
+                      <Text style={[measureStyles.stepperBtnText, { color: palette.primary }]}>
                         {step > 0 ? `+${step}` : `${step}`}
                       </Text>
                     </Pressable>
@@ -2011,9 +2140,15 @@ function WeightEditModal({
   onSave: (w: number) => void;
   onDelete: () => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const palette = getActivePalette({ activePaletteId, customPalettes });
+
   const [valStr, setValStr] = useState<string>(
     currentWeight !== undefined ? String(currentWeight) : ''
   );
+  const [isSyncingScale, setIsSyncingScale] = useState(false);
+  const [scaleSyncStep, setScaleSyncStep] = useState<string>('');
 
   const numVal = parseFloat(valStr) || 75.0;
 
@@ -2021,6 +2156,30 @@ function WeightEditModal({
     const base = parseFloat(valStr) || 75.0;
     const updated = Math.max(20, Math.round((base + delta) * 10) / 10);
     setValStr(String(updated));
+  };
+
+  const handleSyncSmartScale = () => {
+    setIsSyncingScale(true);
+    setScaleSyncStep('Buscando báscula inteligente (Bluetooth)...');
+
+    setTimeout(() => {
+      setScaleSyncStep('Báscula conectada: Smart BodyScale Pro');
+    }, 700);
+
+    setTimeout(() => {
+      setScaleSyncStep('Extrayendo bioimpedancia y peso...');
+    }, 1400);
+
+    setTimeout(() => {
+      const simulatedWeight = 78.4;
+      setValStr(String(simulatedWeight));
+      setIsSyncingScale(false);
+      setScaleSyncStep('');
+      Alert.alert(
+        'Báscula Sincronizada',
+        `Se extrajeron los datos con éxito:\n\n• Peso: ${simulatedWeight} kg\n• % Grasa Corporal: 14.8%\n• Masa Muscular: 42.1%\n\nSe ha colocado el peso en el campo para confirmar.`
+      );
+    }, 2100);
   };
 
   const handleSave = () => {
@@ -2050,8 +2209,8 @@ function WeightEditModal({
               {/* Header */}
               <View style={measureStyles.modalHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                  <View style={[measureStyles.modalIconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                    <Ionicons name="scale-outline" size={20} color="#10B981" />
+                  <View style={[measureStyles.modalIconCircle, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.14) }]}>
+                    <Ionicons name="scale-outline" size={20} color={palette.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={measureStyles.modalTitle}>Peso Corporal</Text>
@@ -2064,12 +2223,51 @@ function WeightEditModal({
                 </Pressable>
               </View>
 
+              {/* Botón para Sincronizar Báscula Inteligente */}
+              <Pressable
+                onPress={handleSyncSmartScale}
+                disabled={isSyncingScale}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.1),
+                    borderWidth: 1.5,
+                    borderColor: palette.primary,
+                    borderRadius: 14,
+                    paddingVertical: 11,
+                    paddingHorizontal: 12,
+                    marginBottom: 16,
+                  },
+                  pressed && { opacity: 0.8 },
+                  isSyncingScale && { opacity: 0.7 },
+                ]}
+              >
+                {isSyncingScale ? (
+                  <>
+                    <ActivityIndicator size="small" color={palette.primary} />
+                    <Text style={{ color: palette.primary, fontSize: 12, fontWeight: '800' }}>
+                      {scaleSyncStep}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="bluetooth" size={17} color={palette.primary} />
+                    <Text style={{ color: palette.primary, fontSize: 13, fontWeight: '800' }}>
+                      Sincronizar Báscula Inteligente
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+
               {/* Input */}
               <View style={measureStyles.numberInputBigContainer}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                   <Text style={measureStyles.numberInputHint}>Masa corporal total</Text>
                   <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
-                    <Text style={measureStyles.hideKeyboardHint}>Ocultar teclado ▾</Text>
+                    <Text style={[measureStyles.hideKeyboardHint, { color: palette.primary }]}>Ocultar teclado ▾</Text>
                   </Pressable>
                 </View>
 
@@ -2083,7 +2281,7 @@ function WeightEditModal({
                     placeholderTextColor={C.subMuted}
                     style={measureStyles.numberInputBig}
                   />
-                  <Text style={[measureStyles.numberUnitBig, { color: '#10B981' }]}>kg</Text>
+                  <Text style={[measureStyles.numberUnitBig, { color: palette.primary }]}>kg</Text>
                 </View>
 
                 {/* Steppers */}
@@ -2097,7 +2295,7 @@ function WeightEditModal({
                         pressed && s.btnPressed,
                       ]}
                     >
-                      <Text style={measureStyles.stepperBtnText}>
+                      <Text style={[measureStyles.stepperBtnText, { color: palette.primary }]}>
                         {step > 0 ? `+${step}` : `${step}`}
                       </Text>
                     </Pressable>
@@ -2194,6 +2392,15 @@ const GIF_SPEEDS: { label: string; desc: string; ms: number }[] = [
   { label: '3x', desc: '3x (Turbo)', ms: 185 },
   { label: '4x', desc: '4x (Ultra)', ms: 140 },
   { label: '5x', desc: '5x (Máximo)', ms: 110 },
+];
+
+const EDGE_DELAY_OPTIONS: { val: number; label: string }[] = [
+  { val: 0, label: '0s (Sin pausa)' },
+  { val: 1, label: '1s' },
+  { val: 2, label: '2s' },
+  { val: 3, label: '3s' },
+  { val: 4, label: '4s' },
+  { val: 5, label: '5s' },
 ];
 
 // Decodifica Base64 a Uint8Array en JS puro sin depender de Buffer
@@ -3292,6 +3499,7 @@ function ProgressPhotosSection({
     'ex:ex-bench',
     'calories',
   ]);
+  const [edgeDelaySeconds, setEdgeDelaySeconds] = useState<number>(2); // Pausa inicial y final configurable (2s por defecto)
   const [metricsModalOpen, setMetricsModalOpen] = useState<boolean>(false);
   const [shareModalOpen, setShareModalOpen] = useState<boolean>(false);
 
@@ -3633,7 +3841,7 @@ function ProgressPhotosSection({
       : 0;
   const activeFrame = projectedFrames[safeIndex];
 
-  // Temporizador para el modo de proyección tipo GIF con 2 SEGUNDOS (2000ms) de delay al iniciar y 2 SEGUNDOS (2000ms) al finalizar
+  // Temporizador para el modo de proyección tipo GIF con delay configurable al iniciar y al finalizar
   useEffect(() => {
     if (!isPlayingGif || projectedFrames.length <= 1) {
       return;
@@ -3641,14 +3849,17 @@ function ProgressPhotosSection({
     const isFirstFrame = safeIndex === 0;
     const isLastFrame = safeIndex === projectedFrames.length - 1;
     const baseMs = GIF_SPEEDS[gifSpeedIdx]?.ms || 550;
-    const delayForCurrentFrame = isFirstFrame || isLastFrame ? 2000 : baseMs;
+    const delayForCurrentFrame =
+      (isFirstFrame || isLastFrame) && edgeDelaySeconds > 0
+        ? edgeDelaySeconds * 1000
+        : baseMs;
 
     const timer = setTimeout(() => {
       setCurrentIndex((prev) => (prev + 1) % projectedFrames.length);
     }, delayForCurrentFrame);
 
     return () => clearTimeout(timer);
-  }, [isPlayingGif, projectedFrames.length, gifSpeedIdx, safeIndex]);
+  }, [isPlayingGif, projectedFrames.length, gifSpeedIdx, safeIndex, edgeDelaySeconds]);
 
   // Captura de foto con la Cámara del dispositivo
   const handleTakePhotoWithCamera = async (angle: 'front' | 'side' | 'back') => {
@@ -3777,8 +3988,11 @@ function ProgressPhotosSection({
         metrics: frame.metrics,
       });
 
-      // 2 segundos (2000 ms) de delay al iniciar y 2 segundos (2000 ms) al finalizar
-      const frameDurationMs = isFirst || isLast ? 2000 : delayMs;
+      // Pausa configurable al iniciar y al finalizar
+      const frameDurationMs =
+        (isFirst || isLast) && edgeDelaySeconds > 0
+          ? edgeDelaySeconds * 1000
+          : delayMs;
       preparedFrames.push({
         rgba: decoded.data,
         durationMs: frameDurationMs,
@@ -3837,7 +4051,7 @@ function ProgressPhotosSection({
       setShareModalOpen(false);
       Alert.alert(
         '¡Video Guardado en tu Dispositivo!',
-        `Se guardó tu video MP4 con las métricas integradas (${projectedFrames.length} fotos, pausa inicial/final de 2s y velocidad ${GIF_SPEEDS[gifSpeedIdx]?.label}).`
+        `Se guardó tu video MP4 con las métricas integradas (${projectedFrames.length} fotos, pausa inicial/final de ${edgeDelaySeconds}s y velocidad ${GIF_SPEEDS[gifSpeedIdx]?.label}).`
       );
     } catch {
       Alert.alert('Error al guardar', 'No se pudo guardar el video en el dispositivo.');
@@ -3901,8 +4115,8 @@ function ProgressPhotosSection({
       >
         <View style={measureStyles.modalHeaderRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-            <View style={measureStyles.modalIconCircle}>
-              <Ionicons name="stats-chart" size={19} color={C.pastelPurple} />
+            <View style={[measureStyles.modalIconCircle, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12) }]}>
+              <Ionicons name="stats-chart" size={19} color={palette.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={measureStyles.modalTitle}>Métricas del Video</Text>
@@ -3921,9 +4135,49 @@ function ProgressPhotosSection({
         </View>
 
         <ScrollView
-          style={{ marginTop: 10, maxHeight: 380 }}
+          style={{ marginTop: 10, maxHeight: 420 }}
           showsVerticalScrollIndicator={false}
         >
+          {/* Configuración de Pausa / Tiempo de espera al inicio y al final */}
+          <View style={{ marginBottom: 14 }}>
+            <Text style={measureStyles.selectorSectionHint}>
+              TIEMPO DE ESPERA (PAUSA AL INICIO Y FINAL)
+            </Text>
+            <View style={measureStyles.metricsConfigChipsWrap}>
+              {EDGE_DELAY_OPTIONS.map((opt) => {
+                const active = edgeDelaySeconds === opt.val;
+                return (
+                  <Pressable
+                    key={opt.val}
+                    onPress={() => setEdgeDelaySeconds(opt.val)}
+                    style={({ pressed }) => [
+                      measureStyles.metricConfigChip,
+                      active && {
+                        backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.1),
+                        borderColor: palette.primary,
+                      },
+                      pressed && s.btnPressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name={active ? 'time' : 'time-outline'}
+                      size={14}
+                      color={active ? palette.primary : C.subMuted}
+                    />
+                    <Text
+                      style={[
+                        measureStyles.metricConfigChipText,
+                        active && { color: palette.primary, fontWeight: '800' },
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
           {[
             { key: 'general', title: 'Peso y Nutrición (Comida)' },
             { key: 'strength', title: 'Fuerza y Ejercicios (Entreno)' },
@@ -3942,19 +4196,22 @@ function ProgressPhotosSection({
                         onPress={() => toggleMetricKey(opt.key)}
                         style={({ pressed }) => [
                           measureStyles.metricConfigChip,
-                          active && measureStyles.metricConfigChipActive,
+                          active && {
+                            backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.1),
+                            borderColor: palette.primary,
+                          },
                           pressed && s.btnPressed,
                         ]}
                       >
                         <Ionicons
                           name={active ? 'checkbox' : 'square-outline'}
                           size={15}
-                          color={active ? '#8B5CF6' : C.subMuted}
+                          color={active ? palette.primary : C.subMuted}
                         />
                         <Text
                           style={[
                             measureStyles.metricConfigChipText,
-                            active && measureStyles.metricConfigChipTextActive,
+                            active && { color: palette.primary, fontWeight: '800' },
                           ]}
                         >
                           {opt.shortLabel}
@@ -4010,8 +4267,14 @@ function ProgressPhotosSection({
         />
 
         {/* Cápsula Superior Izquierda: Únicamente la Fecha (sin ángulo y sin texto inicio/final) */}
-        <View style={measureStyles.projectorTopLeftBadge} pointerEvents="none">
-          <View style={measureStyles.videoDateGlowDot} />
+        <View
+          style={[
+            measureStyles.projectorTopLeftBadge,
+            { borderColor: getPaletteColorWithAlpha(palette.primary, 0.45) },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={[measureStyles.videoDateGlowDot, { backgroundColor: palette.primary }]} />
           <Text style={measureStyles.projectorDateText}>
             {activeFrame.formattedDate}
           </Text>
@@ -4083,6 +4346,7 @@ function ProgressPhotosSection({
               style={[
                 measureStyles.projectorProgressFill,
                 {
+                  backgroundColor: palette.primary,
                   width: `${
                     projectedFrames.length === 1
                       ? 100
@@ -4107,17 +4371,23 @@ function ProgressPhotosSection({
         <LinearGradient colors={GRADIENTS.cardGlass} style={measureStyles.croquisCardGradient}>
           <View style={measureStyles.croquisHeaderRow}>
             <View style={{ flex: 1 }}>
-              <View style={s.hudBadge}>
-                <Ionicons name="camera-outline" size={11} color={C.pastelPurple} />
-                <Text style={s.hudBadgeText}>✦ CAPTURA DEL DÍA ✦</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                <Ionicons name="camera-outline" size={13} color={palette.primary} />
+                <Text style={{ color: palette.primary, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>
+                  ✦ CAPTURA DEL DÍA ✦
+                </Text>
               </View>
               <Text style={measureStyles.croquisSubTitle}>
                 Toca un ángulo para tomar foto con cámara o subir de galería
               </Text>
             </View>
-            <View style={measureStyles.measureProgressBadge}>
-              <Text style={measureStyles.measureProgressText}>{dayPhotos.length} / 3</Text>
-              <Text style={measureStyles.measureProgressSub}>ÁNGULOS</Text>
+            <View style={{ alignItems: 'flex-end', justifyContent: 'flex-start' }}>
+              <Text style={{ color: palette.primary, fontSize: 16, fontWeight: '900' }}>
+                {dayPhotos.length} / 3
+              </Text>
+              <Text style={{ color: palette.textSub, fontSize: 8.5, fontWeight: '800', letterSpacing: 0.8 }}>
+                ÁNGULOS
+              </Text>
             </View>
           </View>
 
@@ -4133,7 +4403,7 @@ function ProgressPhotosSection({
                   onPress={() => setActiveAngleModal(ang.key)}
                   style={({ pressed }) => [
                     measureStyles.photoAngleBtnCard,
-                    hasPhoto && measureStyles.photoAngleBtnCardActive,
+                    { borderWidth: 0, shadowOpacity: 0, elevation: 0 },
                     pressed && s.btnPressed,
                   ]}
                 >
@@ -4142,10 +4412,10 @@ function ProgressPhotosSection({
                     <View
                       style={[
                         measureStyles.photoAngleIconDot,
-                        { backgroundColor: `${ang.accent}1F` },
+                        { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12) },
                       ]}
                     >
-                      <Ionicons name={ang.icon} size={12} color={ang.accent} />
+                      <Ionicons name={ang.icon} size={12} color={palette.primary} />
                     </View>
                     <Text style={measureStyles.photoAngleTitle} numberOfLines={1}>
                       {ang.label}
@@ -4161,19 +4431,32 @@ function ProgressPhotosSection({
                         resizeMode="cover"
                       />
                       <View style={measureStyles.photoThumbSavedBadge}>
-                        <Ionicons name="checkmark-circle" size={13} color="#10B981" />
+                        <Ionicons name="checkmark-circle" size={13} color={palette.primary} />
                         <Text style={measureStyles.photoThumbSavedText}>Lista</Text>
                       </View>
-                      <View style={measureStyles.photoThumbEditCorner}>
+                      <View style={[measureStyles.photoThumbEditCorner, { backgroundColor: palette.primary }]}>
                         <Ionicons name="camera" size={12} color="#FFFFFF" />
                       </View>
                     </View>
                   ) : (
-                    <View style={measureStyles.photoAngleEmptySlot}>
-                      <View style={measureStyles.photoAngleCameraOrb}>
-                        <Ionicons name="camera" size={20} color={C.pastelPurple} />
+                    <View
+                      style={[
+                        measureStyles.photoAngleEmptySlot,
+                        {
+                          borderColor: getPaletteColorWithAlpha(palette.primary, 0.5),
+                          backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.04),
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          measureStyles.photoAngleCameraOrb,
+                          { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12) },
+                        ]}
+                      >
+                        <Ionicons name="camera" size={20} color={palette.primary} />
                       </View>
-                      <Text style={measureStyles.photoAngleActionText}>+ Foto</Text>
+                      <Text style={[measureStyles.photoAngleActionText, { color: palette.primary }]}>+ Foto</Text>
                       <Text style={measureStyles.photoAngleSubHint} numberOfLines={1}>
                         Cámara / Galería
                       </Text>
@@ -4192,20 +4475,20 @@ function ProgressPhotosSection({
           {/* Cabecera del Proyector */}
           <View style={measureStyles.projectorHeaderRow}>
             <View style={{ flex: 1 }}>
-              <View style={measureStyles.chartTagBadge}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 }}>
                 <Ionicons name="film-outline" size={12} color={palette.primary} />
                 <Text style={[measureStyles.chartTagText, { color: palette.primary }]}>✦ PROYECCIÓN CRONOLÓGICA ✦</Text>
               </View>
-              <Text style={measureStyles.chartTitle}>Avance en Video</Text>
+              <Text style={[measureStyles.chartTitle, palette.isDark && { color: '#FFFFFF' }]}>Avance en Video</Text>
               <Text style={measureStyles.croquisSubTitle}>
                 Toca el video para pantalla completa • Pausa de 2s al inicio y al final
               </Text>
             </View>
 
-            {/* Indicador de total de fotos en la secuencia */}
-            <View style={measureStyles.framesCounterBadge}>
-              <Text style={measureStyles.framesCounterValue}>{projectedFrames.length}</Text>
-              <Text style={measureStyles.framesCounterLabel}>FOTOS</Text>
+            {/* Indicador de total de fotos en la secuencia: sin borde y en la esquina superior derecha */}
+            <View style={{ alignItems: 'flex-end', justifyContent: 'flex-start' }}>
+              <Text style={{ color: palette.primary, fontSize: 16, fontWeight: '900' }}>{projectedFrames.length}</Text>
+              <Text style={{ color: palette.textSub, fontSize: 8.5, fontWeight: '800', letterSpacing: 0.7 }}>FOTOS</Text>
             </View>
           </View>
 
@@ -4219,7 +4502,13 @@ function ProgressPhotosSection({
                   onPress={() => setProjectorFilter(opt.key)}
                   style={({ pressed }) => [
                     measureStyles.projectorFilterPill,
-                    active && measureStyles.projectorFilterPillActive,
+                    active && {
+                      backgroundColor: palette.primary,
+                      shadowColor: palette.primary,
+                      shadowOpacity: 0.28,
+                      shadowRadius: 5,
+                      elevation: 2,
+                    },
                     pressed && s.btnPressed,
                   ]}
                 >
@@ -4247,11 +4536,12 @@ function ProgressPhotosSection({
               onPress={() => setMetricsModalOpen(true)}
               style={({ pressed }) => [
                 measureStyles.gifMetricsConfigBtn,
+                { borderColor: getPaletteColorWithAlpha(palette.primary, 0.45) },
                 pressed && s.btnPressed,
               ]}
             >
-              <Ionicons name="options-outline" size={15} color="#8B5CF6" />
-              <Text style={measureStyles.gifMetricsConfigBtnText}>
+              <Ionicons name="options-outline" size={15} color={palette.primary} />
+              <Text style={[measureStyles.gifMetricsConfigBtnText, { color: palette.primary }]}>
                 Configurar métricas ({selectedMetricKeys.length})
               </Text>
             </Pressable>
@@ -4274,9 +4564,19 @@ function ProgressPhotosSection({
 
           {/* Escenario de Proyección */}
           {projectedFrames.length === 0 ? (
-            <View style={measureStyles.projectorEmptyStage}>
-              <View style={measureStyles.emptyStateIconCircle}>
-                <Ionicons name="images-outline" size={26} color="#8B5CF6" />
+            <View
+              style={[
+                measureStyles.projectorEmptyStage,
+                { borderColor: getPaletteColorWithAlpha(palette.primary, 0.4) },
+              ]}
+            >
+              <View
+                style={[
+                  measureStyles.emptyStateIconCircle,
+                  { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12) },
+                ]}
+              >
+                <Ionicons name="images-outline" size={26} color={palette.primary} />
               </View>
               <Text style={measureStyles.emptyStateTitle}>
                 Sin fotos para proyectar ({PROJECTOR_FILTER_OPTIONS.find((o) => o.key === projectorFilter)?.label})
@@ -4290,11 +4590,12 @@ function ProgressPhotosSection({
                 }
                 style={({ pressed }) => [
                   measureStyles.emptyAddBtn,
+                  { borderColor: getPaletteColorWithAlpha(palette.primary, 0.45) },
                   pressed && s.btnPressed,
                 ]}
               >
-                <Ionicons name="camera-outline" size={14} color="#8B5CF6" />
-                <Text style={measureStyles.emptyAddBtnText}>Subir primera foto ahora</Text>
+                <Ionicons name="camera-outline" size={14} color={palette.primary} />
+                <Text style={[measureStyles.emptyAddBtnText, { color: palette.primary }]}>Subir primera foto ahora</Text>
               </Pressable>
             </View>
           ) : (
@@ -4310,12 +4611,17 @@ function ProgressPhotosSection({
                   disabled={projectedFrames.length <= 1}
                   style={({ pressed }) => [
                     measureStyles.stepControlBtn,
+                    {
+                      backgroundColor: 'transparent',
+                      borderWidth: 1.2,
+                      borderColor: palette.secondary || palette.primary,
+                    },
                     projectedFrames.length <= 1 && { opacity: 0.45 },
                     pressed && s.btnPressed,
                   ]}
                 >
-                  <Ionicons name="play-skip-back" size={15} color={C.text} />
-                  <Text style={measureStyles.stepControlBtnText}>Anterior</Text>
+                  <Ionicons name="play-skip-back" size={15} color={palette.secondary || palette.primary} />
+                  <Text style={[measureStyles.stepControlBtnText, { color: palette.secondary || palette.primary }]}>Anterior</Text>
                 </Pressable>
 
                 {/* Botón Central: Reproducir / Pausar Avance Tipo GIF */}
@@ -4323,11 +4629,16 @@ function ProgressPhotosSection({
                   onPress={toggleGifPlayback}
                   style={({ pressed }) => [
                     measureStyles.gifPlayMainBtn,
+                    { shadowColor: palette.primary },
                     pressed && s.btnPressed,
                   ]}
                 >
                   <LinearGradient
-                    colors={isPlayingGif ? ['#EC4899', '#8B5CF6'] : ['#8B5CF6', '#EC4899']}
+                    colors={
+                      isPlayingGif
+                        ? [palette.secondary || palette.primary, palette.primary]
+                        : [palette.primary, palette.secondary || palette.primary]
+                    }
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={measureStyles.gifPlayMainGradient}
@@ -4349,12 +4660,17 @@ function ProgressPhotosSection({
                   disabled={projectedFrames.length <= 1}
                   style={({ pressed }) => [
                     measureStyles.stepControlBtn,
+                    {
+                      backgroundColor: 'transparent',
+                      borderWidth: 1.2,
+                      borderColor: palette.secondary || palette.primary,
+                    },
                     projectedFrames.length <= 1 && { opacity: 0.45 },
                     pressed && s.btnPressed,
                   ]}
                 >
-                  <Text style={measureStyles.stepControlBtnText}>Siguiente</Text>
-                  <Ionicons name="play-skip-forward" size={15} color={C.text} />
+                  <Text style={[measureStyles.stepControlBtnText, { color: palette.secondary || palette.primary }]}>Siguiente</Text>
+                  <Ionicons name="play-skip-forward" size={15} color={palette.secondary || palette.primary} />
                 </Pressable>
               </View>
 
@@ -4371,13 +4687,16 @@ function ProgressPhotosSection({
                       onPress={() => setSpeedDropdownOpen((prev) => !prev)}
                       style={({ pressed }) => [
                         measureStyles.timeDropdownBtn,
-                { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) },
-                        speedDropdownOpen && measureStyles.timeDropdownBtnActive,
+                        { borderColor: getPaletteColorWithAlpha(palette.primary, 0.35) },
+                        speedDropdownOpen && {
+                          borderColor: palette.primary,
+                          backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08),
+                        },
                         pressed && s.btnPressed,
                       ]}
                     >
-                      <Ionicons name="speedometer-outline" size={13} color="#8B5CF6" />
-                      <Text style={measureStyles.timeDropdownBtnText}>
+                      <Ionicons name="speedometer-outline" size={13} color={palette.primary} />
+                      <Text style={[measureStyles.timeDropdownBtnText, { color: palette.primary }]}>
                         Velocidad: {GIF_SPEEDS[gifSpeedIdx]?.label || '1x'}
                       </Text>
                       <Ionicons
@@ -4391,7 +4710,12 @@ function ProgressPhotosSection({
                       <View
                         style={[
                           measureStyles.timeDropdownMenu,
-                          { width: 155, bottom: 38, top: undefined },
+                          {
+                            width: 155,
+                            bottom: 38,
+                            top: undefined,
+                            borderColor: getPaletteColorWithAlpha(palette.primary, 0.35),
+                          },
                         ]}
                       >
                         {GIF_SPEEDS.map((sp, idx) => {
@@ -4405,20 +4729,22 @@ function ProgressPhotosSection({
                               }}
                               style={({ pressed }) => [
                                 measureStyles.timeDropdownOption,
-                                active && measureStyles.timeDropdownOptionActive,
+                                active && {
+                                  backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08),
+                                },
                                 pressed && { opacity: 0.75 },
                               ]}
                             >
                               <Text
                                 style={[
                                   measureStyles.timeDropdownOptionText,
-                                  active && measureStyles.timeDropdownOptionTextActive,
+                                  active && { color: palette.primary, fontWeight: '800' },
                                 ]}
                               >
                                 {sp.desc}
                               </Text>
                               {active && (
-                                <Ionicons name="checkmark-circle" size={15} color="#8B5CF6" />
+                                <Ionicons name="checkmark-circle" size={15} color={palette.primary} />
                               )}
                             </Pressable>
                           );
@@ -4444,7 +4770,10 @@ function ProgressPhotosSection({
                         }}
                         style={[
                           measureStyles.frameStripThumbCard,
-                          selected && measureStyles.frameStripThumbCardActive,
+                          selected && {
+                            borderColor: palette.primary,
+                            backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.1),
+                          },
                         ]}
                       >
                         <Image
@@ -4482,8 +4811,8 @@ function ProgressPhotosSection({
               >
                 <View style={measureStyles.modalHeaderRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                    <View style={measureStyles.modalIconCircle}>
-                      <Ionicons name="share-social" size={19} color="#EC4899" />
+                    <View style={[measureStyles.modalIconCircle, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12) }]}>
+                      <Ionicons name="share-social" size={19} color={palette.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={measureStyles.modalTitle}>Compartir Video</Text>
@@ -4506,12 +4835,13 @@ function ProgressPhotosSection({
                     disabled={exportingAction !== null}
                     style={({ pressed }) => [
                       measureStyles.gifExportSaveBtn,
+                      { borderColor: getPaletteColorWithAlpha(palette.primary, 0.45) },
                       exportingAction !== null && { opacity: 0.6 },
                       pressed && s.btnPressed,
                     ]}
                   >
-                    <Ionicons name="videocam-outline" size={16} color="#8B5CF6" />
-                    <Text style={measureStyles.gifExportSaveText} numberOfLines={1}>
+                    <Ionicons name="videocam-outline" size={16} color={palette.primary} />
+                    <Text style={[measureStyles.gifExportSaveText, { color: palette.primary }]} numberOfLines={1}>
                       {exportingAction === 'save' ? 'Creando Video...' : 'Guardar Video'}
                     </Text>
                   </Pressable>
@@ -4556,31 +4886,8 @@ function ProgressPhotosSection({
         }}
       >
         <View style={measureStyles.fullscreenRootContainer}>
-          {/* Cabecera Superior de Pantalla Completa */}
-          <View style={measureStyles.fullscreenTopBar}>
-            <View style={{ flex: 1 }}>
-              <Text style={measureStyles.fullscreenTopTag}>✦ MODO PANTALLA COMPLETA ✦</Text>
-              <Text style={measureStyles.fullscreenTopTitle}>Proyector de Video & Métricas</Text>
-            </View>
-
-            <Pressable
-              onPress={() => {
-                setSpeedDropdownOpen(false);
-                onSetFullscreen(false);
-              }}
-              style={({ pressed }) => [
-                measureStyles.fullscreenClosePillBtn,
-                pressed && s.btnPressed,
-              ]}
-            >
-              <Ionicons name="contract-outline" size={16} color="#FFFFFF" />
-              <Text style={measureStyles.fullscreenClosePillText}>Salir</Text>
-            </Pressable>
-          </View>
-
-          {/* Opciones de Configuración Adaptadas a Pantalla Completa */}
-          <View style={[measureStyles.fullscreenConfigSection, { zIndex: 60 }]}>
-            {/* Filtro de Ángulos en Pantalla Completa */}
+          {/* Fila Superior Compacta: Selector Variant de Ángulo (izquierda) y Botón Salir solo icono (derecha) */}
+          <View style={measureStyles.fullscreenCompactHeaderRow}>
             <View style={measureStyles.fullscreenAngleFilterRow}>
               {PROJECTOR_FILTER_OPTIONS.map((opt) => {
                 const active = projectorFilter === opt.key;
@@ -4590,7 +4897,7 @@ function ProgressPhotosSection({
                     onPress={() => setProjectorFilter(opt.key)}
                     style={({ pressed }) => [
                       measureStyles.fullscreenAnglePill,
-                      active && measureStyles.fullscreenAnglePillActive,
+                      active && { backgroundColor: palette.primary },
                       pressed && s.btnPressed,
                     ]}
                   >
@@ -4612,82 +4919,98 @@ function ProgressPhotosSection({
               })}
             </View>
 
-            {/* Fila de Configurar Métricas + Dropdown de Velocidad (0.5x - 5x) en Pantalla Completa */}
-            <View style={[measureStyles.fullscreenSubConfigRow, { zIndex: 70 }]}>
+            <Pressable
+              onPress={() => {
+                setSpeedDropdownOpen(false);
+                onSetFullscreen(false);
+              }}
+              style={({ pressed }) => [
+                measureStyles.fullscreenExitIconBtn,
+                pressed && s.btnPressed,
+              ]}
+              hitSlop={8}
+            >
+              <Ionicons name="contract-outline" size={19} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
+          {/* Fila Compacta de Métricas + Dropdown de Velocidad en Pantalla Completa */}
+          <View style={[measureStyles.fullscreenSubConfigRow, { zIndex: 70, marginBottom: 4 }]}>
+            <Pressable
+              onPress={() => {
+                setSpeedDropdownOpen(false);
+                setMetricsModalOpen(true);
+              }}
+              style={({ pressed }) => [
+                measureStyles.fullscreenMetricBtn,
+                { borderColor: getPaletteColorWithAlpha(palette.primary, 0.45) },
+                pressed && s.btnPressed,
+              ]}
+            >
+              <Ionicons name="options-outline" size={15} color={palette.primary} />
+              <Text style={[measureStyles.fullscreenMetricBtnText, { color: palette.primary }]}>
+                Métricas ({selectedMetricKeys.length})
+              </Text>
+            </Pressable>
+
+            <View style={measureStyles.timeDropdownWrapper}>
               <Pressable
-                onPress={() => {
-                  setSpeedDropdownOpen(false);
-                  setMetricsModalOpen(true);
-                }}
+                onPress={() => setSpeedDropdownOpen((prev) => !prev)}
                 style={({ pressed }) => [
-                  measureStyles.fullscreenMetricBtn,
+                  measureStyles.fullscreenSpeedBtn,
+                  { borderColor: getPaletteColorWithAlpha(palette.primary, 0.45) },
                   pressed && s.btnPressed,
                 ]}
               >
-                <Ionicons name="options-outline" size={15} color="#F0ABFC" />
-                <Text style={measureStyles.fullscreenMetricBtnText}>
-                  Métricas ({selectedMetricKeys.length})
+                <Ionicons name="speedometer-outline" size={14} color={palette.primary} />
+                <Text style={[measureStyles.fullscreenSpeedBtnText, { color: palette.primary }]}>
+                  Velocidad: {GIF_SPEEDS[gifSpeedIdx]?.label || '1x'}
                 </Text>
+                <Ionicons
+                  name={speedDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={palette.primary}
+                />
               </Pressable>
 
-              <View style={measureStyles.timeDropdownWrapper}>
-                <Pressable
-                  onPress={() => setSpeedDropdownOpen((prev) => !prev)}
-                  style={({ pressed }) => [
-                    measureStyles.fullscreenSpeedBtn,
-                    pressed && s.btnPressed,
+              {speedDropdownOpen && (
+                <View
+                  style={[
+                    measureStyles.timeDropdownMenu,
+                    { width: 165, top: 40, right: 0 },
                   ]}
                 >
-                  <Ionicons name="speedometer-outline" size={14} color="#C4B5FD" />
-                  <Text style={measureStyles.fullscreenSpeedBtnText}>
-                    Velocidad: {GIF_SPEEDS[gifSpeedIdx]?.label || '1x'}
-                  </Text>
-                  <Ionicons
-                    name={speedDropdownOpen ? 'chevron-up' : 'chevron-down'}
-                    size={14}
-                    color="#C4B5FD"
-                  />
-                </Pressable>
-
-                {speedDropdownOpen && (
-                  <View
-                    style={[
-                      measureStyles.timeDropdownMenu,
-                      { width: 165, top: 40, right: 0 },
-                    ]}
-                  >
-                    {GIF_SPEEDS.map((sp, idx) => {
-                      const active = gifSpeedIdx === idx;
-                      return (
-                        <Pressable
-                          key={sp.label}
-                          onPress={() => {
-                            setGifSpeedIdx(idx);
-                            setSpeedDropdownOpen(false);
-                          }}
-                          style={({ pressed }) => [
-                            measureStyles.timeDropdownOption,
-                            active && measureStyles.timeDropdownOptionActive,
-                            pressed && { opacity: 0.75 },
+                  {GIF_SPEEDS.map((sp, idx) => {
+                    const active = gifSpeedIdx === idx;
+                    return (
+                      <Pressable
+                        key={sp.label}
+                        onPress={() => {
+                          setGifSpeedIdx(idx);
+                          setSpeedDropdownOpen(false);
+                        }}
+                        style={({ pressed }) => [
+                          measureStyles.timeDropdownOption,
+                          active && { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08) },
+                          pressed && { opacity: 0.75 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            measureStyles.timeDropdownOptionText,
+                            active && { color: palette.primary, fontWeight: '800' },
                           ]}
                         >
-                          <Text
-                            style={[
-                              measureStyles.timeDropdownOptionText,
-                              active && measureStyles.timeDropdownOptionTextActive,
-                            ]}
-                          >
-                            {sp.desc}
-                          </Text>
-                          {active && (
-                            <Ionicons name="checkmark-circle" size={15} color="#8B5CF6" />
-                          )}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
+                          {sp.desc}
+                        </Text>
+                        {active && (
+                          <Ionicons name="checkmark-circle" size={15} color={palette.primary} />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           </View>
 
@@ -4695,7 +5018,7 @@ function ProgressPhotosSection({
           <View style={measureStyles.fullscreenStageArea}>
             {projectedFrames.length === 0 ? (
               <View style={{ alignItems: 'center', padding: 24 }}>
-                <Ionicons name="images-outline" size={40} color="#A78BFA" />
+                <Ionicons name="images-outline" size={40} color={palette.primary} />
                 <Text style={[measureStyles.fullscreenTopTitle, { marginTop: 10 }]}>
                   No hay fotos en este ángulo
                 </Text>
@@ -4714,23 +5037,33 @@ function ProgressPhotosSection({
                   disabled={projectedFrames.length <= 1}
                   style={({ pressed }) => [
                     measureStyles.fullscreenStepBtn,
+                    {
+                      backgroundColor: 'transparent',
+                      borderWidth: 1.2,
+                      borderColor: palette.secondary || palette.primary,
+                    },
                     projectedFrames.length <= 1 && { opacity: 0.45 },
                     pressed && s.btnPressed,
                   ]}
                 >
-                  <Ionicons name="play-skip-back" size={15} color="#FFFFFF" />
-                  <Text style={measureStyles.fullscreenStepBtnText}>Anterior</Text>
+                  <Ionicons name="play-skip-back" size={15} color={palette.secondary || palette.primary} />
+                  <Text style={[measureStyles.fullscreenStepBtnText, { color: palette.secondary || palette.primary }]}>Anterior</Text>
                 </Pressable>
 
                 <Pressable
                   onPress={toggleGifPlayback}
                   style={({ pressed }) => [
                     measureStyles.gifPlayMainBtn,
+                    { shadowColor: palette.primary },
                     pressed && s.btnPressed,
                   ]}
                 >
                   <LinearGradient
-                    colors={isPlayingGif ? ['#EC4899', '#8B5CF6'] : ['#8B5CF6', '#EC4899']}
+                    colors={
+                      isPlayingGif
+                        ? [palette.secondary || palette.primary, palette.primary]
+                        : [palette.primary, palette.secondary || palette.primary]
+                    }
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={measureStyles.gifPlayMainGradient}
@@ -4751,12 +5084,17 @@ function ProgressPhotosSection({
                   disabled={projectedFrames.length <= 1}
                   style={({ pressed }) => [
                     measureStyles.fullscreenStepBtn,
+                    {
+                      backgroundColor: 'transparent',
+                      borderWidth: 1.2,
+                      borderColor: palette.secondary || palette.primary,
+                    },
                     projectedFrames.length <= 1 && { opacity: 0.45 },
                     pressed && s.btnPressed,
                   ]}
                 >
-                  <Text style={measureStyles.fullscreenStepBtnText}>Siguiente</Text>
-                  <Ionicons name="play-skip-forward" size={15} color="#FFFFFF" />
+                  <Text style={[measureStyles.fullscreenStepBtnText, { color: palette.secondary || palette.primary }]}>Siguiente</Text>
+                  <Ionicons name="play-skip-forward" size={15} color={palette.secondary || palette.primary} />
                 </Pressable>
               </View>
 
@@ -4839,11 +5177,11 @@ function ProgressPhotosSection({
               <>
                 <View style={measureStyles.modalHeaderRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                    <View style={measureStyles.modalIconCircle}>
+                    <View style={[measureStyles.modalIconCircle, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12) }]}>
                       <Ionicons
                         name={selectedModalAngleInfo.icon}
                         size={20}
-                        color={C.pastelPurple}
+                        color={palette.primary}
                       />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -4880,11 +5218,12 @@ function ProgressPhotosSection({
                     onPress={() => handleTakePhotoWithCamera(selectedModalAngleInfo.key)}
                     style={({ pressed }) => [
                       measureStyles.photoSourceOptionBtn,
+                      { borderColor: getPaletteColorWithAlpha(palette.primary, 0.35) },
                       pressed && s.btnPressed,
                     ]}
                   >
                     <LinearGradient
-                      colors={[palette.primary, palette.secondary]}
+                      colors={[palette.primary, palette.secondary || palette.primary]}
                       style={measureStyles.photoSourceIconBadge}
                     >
                       <Ionicons name="camera" size={20} color="#FFFFFF" />
@@ -4897,7 +5236,7 @@ function ProgressPhotosSection({
                         Abre la cámara de tu dispositivo ahora mismo
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={18} color={C.pastelPurple} />
+                    <Ionicons name="chevron-forward" size={18} color={palette.primary} />
                   </Pressable>
 
                   {/* Opción 2: Elegir de la Galería */}
@@ -4905,11 +5244,12 @@ function ProgressPhotosSection({
                     onPress={() => handlePickFromGallery(selectedModalAngleInfo.key)}
                     style={({ pressed }) => [
                       measureStyles.photoSourceOptionBtn,
+                      { borderColor: getPaletteColorWithAlpha(palette.primary, 0.35) },
                       pressed && s.btnPressed,
                     ]}
                   >
                     <LinearGradient
-                      colors={['#3B82F6', '#8B5CF6']}
+                      colors={[palette.secondary || palette.primary, palette.primary]}
                       style={measureStyles.photoSourceIconBadge}
                     >
                       <Ionicons name="images" size={20} color="#FFFFFF" />
@@ -4922,7 +5262,7 @@ function ProgressPhotosSection({
                         Elige una foto guardada en tu teléfono
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={18} color={C.pastelPurple} />
+                    <Ionicons name="chevron-forward" size={18} color={palette.primary} />
                   </Pressable>
 
                   {/* Opción 3: Eliminar foto actual si ya existe en este día */}
@@ -5012,8 +5352,8 @@ const measureStyles = StyleSheet.create({
   growthChartCard: {
     borderRadius: 22,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: C.borderLight,
+    borderWidth: 0,
+    borderColor: 'transparent',
     overflow: 'hidden',
     backgroundColor: C.bgCard,
     shadowColor: C.pastelPurple,
@@ -5347,7 +5687,7 @@ const measureStyles = StyleSheet.create({
   stickyTabsContainer: {
     backgroundColor: 'transparent',
     paddingTop: 2,
-    paddingBottom: 8,
+    paddingBottom: 4,
     zIndex: 25,
   },
 
@@ -5355,8 +5695,8 @@ const measureStyles = StyleSheet.create({
   croquisGlassCard: {
     borderRadius: 22,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: C.borderLight,
+    borderWidth: 0,
+    borderColor: 'transparent',
     overflow: 'hidden',
     backgroundColor: C.bgCard,
     shadowColor: C.pastelPurple,
@@ -5952,15 +6292,14 @@ const measureStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 8,
-    borderWidth: 1.5,
-    borderColor: C.borderLight,
+    borderWidth: 0,
+    borderColor: 'transparent',
     shadowColor: C.pastelPurple,
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 1,
   },
   photoAngleBtnCardActive: {
-    borderColor: 'rgba(139, 92, 246, 0.55)',
     backgroundColor: '#FAF5FF',
   },
   photoAngleHeaderRow: {
@@ -6082,12 +6421,12 @@ const measureStyles = StyleSheet.create({
   },
   projectorFilterBar: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(238, 242, 255, 0.9)',
+    backgroundColor: 'rgba(148, 163, 184, 0.08)',
     borderRadius: 14,
     padding: 4,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: C.borderLight,
+    borderColor: 'rgba(148, 163, 184, 0.15)',
     gap: 4,
   },
   projectorFilterPill: {
@@ -6363,6 +6702,22 @@ const measureStyles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 28 : 16,
     paddingHorizontal: 14,
   },
+  fullscreenCompactHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  fullscreenExitIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   fullscreenTopBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -6401,13 +6756,14 @@ const measureStyles = StyleSheet.create({
     marginBottom: 10,
   },
   fullscreenAngleFilterRow: {
+    flex: 1,
     flexDirection: 'row',
-    backgroundColor: 'rgba(30, 41, 59, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 12,
-    padding: 4,
+    padding: 3,
     gap: 4,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   fullscreenAnglePill: {
     flex: 1,

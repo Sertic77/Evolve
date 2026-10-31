@@ -127,6 +127,65 @@ export function getMuscleTheme(muscleGroup: string): StatTheme {
   };
 }
 
+/* ==========================================================
+   ARMONIZACIÓN CROMÁTICA MATEMÁTICA SEGÚN LA PALETA ACTIVA
+========================================================== */
+function hexToHsl(hex: string): [number, number, number] {
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c.split('').map((x) => x + x).join('');
+  const r = parseInt(c.substring(0, 2), 16) / 255;
+  const g = parseInt(c.substring(2, 4), 16) / 255;
+  const b = parseInt(c.substring(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  h = ((h % 360) + 360) % 360;
+  s = Math.max(0, Math.min(100, s)) / 100;
+  l = Math.max(0, Math.min(100, l)) / 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  const toHex = (n: number) => {
+    const hx = Math.round((n + m) * 255).toString(16);
+    return hx.length === 1 ? '0' + hx : hx;
+  };
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function createHarmonizedStatTheme(baseColor: string, icon: any, badgeLabel: string): StatTheme {
+  const [h, s, l] = hexToHsl(baseColor);
+  const lighter = hslToHex(h, Math.min(95, s + 5), Math.min(75, l + 10));
+  const darker = hslToHex(h, Math.min(95, s + 5), Math.max(25, l - 8));
+  return {
+    primary: baseColor,
+    gradient: [lighter, darker],
+    bgGradient: [getPaletteColorWithAlpha(baseColor, 0.22), getPaletteColorWithAlpha(baseColor, 0.05)],
+    icon,
+    badgeLabel,
+  };
+}
+
 /* Estimación de Kcal quemadas por serie de ejercicio (Base para Smartwatch) */
 export function estimateSetKcal(exercise: Exercise | undefined, s: WorkoutSet): number {
   if (s.timeSeconds && s.timeSeconds > 0) {
@@ -245,7 +304,7 @@ export default function TrainScreen() {
               <Ionicons name="flash" size={11} color={palette.primary} />
               <Text style={[styles.cyberTagText, { color: palette.primary }]}>✦ EVOLVE // ENTRENAMIENTO ✦</Text>
             </View>
-            <Text style={styles.screenTitle}>Entreno</Text>
+            <Text style={[styles.screenTitle, palette.isDark && { color: '#FFFFFF' }]}>Entreno</Text>
           </View>
 
           <View style={[styles.dateChipMini, { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25), backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08) }]}>
@@ -409,6 +468,10 @@ function WorkoutDynamicChart({
   const statFadeAnim = useRef(new Animated.Value(1)).current;
   const statSlideAnim = useRef(new Animated.Value(0)).current;
 
+  // Animación de entrada de la Sesión del Día (Crecimiento de anillo y elevación fluida de la tarjeta)
+  const sessionEntryAnim = useRef(new Animated.Value(0)).current;
+  const [sessionProgress, setSessionProgress] = useState(0);
+
   useEffect(() => {
     Animated.timing(heightAnim, {
       toValue: tab === 0 ? 234 : 288,
@@ -562,6 +625,27 @@ function WorkoutDynamicChart({
     return { totalKcal, totalVolume, totalSets, totalReps };
   }, [dayExercises, exercises]);
 
+  useEffect(() => {
+    if (tab === 0) {
+      sessionEntryAnim.setValue(0);
+      setSessionProgress(0);
+      const listenerId = sessionEntryAnim.addListener(({ value }) => {
+        setSessionProgress(value);
+      });
+
+      Animated.timing(sessionEntryAnim, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+
+      return () => {
+        sessionEntryAnim.removeListener(listenerId);
+      };
+    }
+  }, [tab, dayStats.totalKcal, dayStats.totalVolume, dayExercises.length]);
+
   // Recopilación de estadísticas rotativas históricas (cuando no hay ejercicio seleccionado)
   const autoRotateStats = useMemo(() => {
     const allRecords: {
@@ -573,6 +657,25 @@ function WorkoutDynamicChart({
       badge: string;
       theme: StatTheme;
     }[] = [];
+
+    // Colores exclusivos y estrictos de la paleta seleccionada
+    const selectedPaletteColors: string[] = [
+      palette.primary,
+      palette.secondary,
+      palette.accent,
+      ...(palette.colors || []),
+    ].filter((c): c is string => typeof c === 'string' && c.trim().length > 0);
+
+    const activeColors = Array.from(new Set(selectedPaletteColors));
+    const getColor = (idx: number) => activeColors[idx % activeColors.length];
+
+    const createPaletteTheme = (color: string, icon: any, badgeLabel: string): StatTheme => ({
+      primary: color,
+      gradient: [color, palette.secondary || color],
+      bgGradient: [getPaletteColorWithAlpha(color, 0.18), getPaletteColorWithAlpha(color, 0.04)],
+      icon,
+      badgeLabel,
+    });
 
     // Calcular PR máx de ejercicios
     const maxWeights: Record<string, { weight: number; reps: number; date: string }> = {};
@@ -593,11 +696,13 @@ function WorkoutDynamicChart({
       });
     });
 
-    // Añadir mejores marcas de ejercicios del usuario con su tema dinámico
-    Object.entries(maxWeights).forEach(([exId, data]) => {
+    // Añadir mejores marcas de ejercicios del usuario con colores estrictos de la paleta
+    Object.entries(maxWeights).forEach(([exId, data], exIdx) => {
       const ex = exercises.find((e) => e.id === exId);
       if (ex && data.weight > 0) {
-        const theme = getMuscleTheme(ex.muscleGroup);
+        const baseTheme = getMuscleTheme(ex.muscleGroup);
+        const exColor = getColor(exIdx);
+        const theme = createPaletteTheme(exColor, baseTheme.icon, `${ex.muscleGroup.toUpperCase()}`);
         allRecords.push({
           title: `RÉCORD // ${ex.name.toUpperCase()}`,
           subtitle: `${data.reps} reps el ${data.date}`,
@@ -610,7 +715,7 @@ function WorkoutDynamicChart({
       }
     });
 
-    // Añadir volumen total acumulado
+    // Añadir volumen total acumulado usando el color primario de la paleta
     if (grandTotalVolume > 0) {
       allRecords.push({
         title: 'VOLUMEN HISTÓRICO TOTAL',
@@ -619,17 +724,11 @@ function WorkoutDynamicChart({
         unit: 'KG TOTALES',
         icon: 'barbell-outline',
         badge: 'VOLUMEN & TONELAJE',
-        theme: {
-          primary: '#8B5CF6',
-          gradient: ['#A78BFA', '#7C3AED'],
-          bgGradient: ['rgba(139, 92, 246, 0.22)', 'rgba(124, 58, 237, 0.05)'],
-          icon: 'barbell-outline',
-          badgeLabel: 'VOLUMEN TOTAL',
-        },
+        theme: createPaletteTheme(palette.primary, 'barbell-outline', 'VOLUMEN TOTAL'),
       });
     }
 
-    // Añadir series acumuladas
+    // Añadir series acumuladas usando el color secundario de la paleta
     if (grandTotalSets > 0) {
       allRecords.push({
         title: 'SERIES TOTALES COMPLETADAS',
@@ -638,17 +737,11 @@ function WorkoutDynamicChart({
         unit: 'SETS',
         icon: 'ribbon-outline',
         badge: 'DISCIPLINA ACUMULADA',
-        theme: {
-          primary: '#D97706',
-          gradient: ['#FBBF24', '#B45309'],
-          bgGradient: ['rgba(245, 158, 11, 0.22)', 'rgba(217, 119, 6, 0.05)'],
-          icon: 'ribbon-outline',
-          badgeLabel: 'SERIES TOTALES',
-        },
+        theme: createPaletteTheme(palette.secondary || getColor(1), 'ribbon-outline', 'SERIES TOTALES'),
       });
     }
 
-    // Tarjetas de demostración enriquecidas para variedad visual inmediata
+    // Tarjetas de demostración enriquecidas limitadas estrictamente a la paleta activa
     const demoRecords = [
       {
         title: 'BENCHMARK // PRESS DE BANCA',
@@ -657,7 +750,7 @@ function WorkoutDynamicChart({
         unit: 'KG PR',
         icon: 'heart-outline',
         badge: 'PECHO & EMPUJE',
-        theme: getMuscleTheme('Pecho'),
+        theme: createPaletteTheme(getColor(0), 'heart-outline', 'PECHO & EMPUJE'),
       },
       {
         title: 'BENCHMARK // SENTADILLA CON BARRA',
@@ -666,7 +759,7 @@ function WorkoutDynamicChart({
         unit: 'KG PR',
         icon: 'flash-outline',
         badge: 'PIERNAS & POTENCIA',
-        theme: getMuscleTheme('Piernas'),
+        theme: createPaletteTheme(getColor(1), 'flash-outline', 'PIERNAS & POTENCIA'),
       },
       {
         title: 'BENCHMARK // PESO MUERTO',
@@ -675,7 +768,7 @@ function WorkoutDynamicChart({
         unit: 'KG PR',
         icon: 'shield-outline',
         badge: 'ESPALDA & TRACCIÓN',
-        theme: getMuscleTheme('Espalda'),
+        theme: createPaletteTheme(getColor(2), 'shield-outline', 'ESPALDA & TRACCIÓN'),
       },
       {
         title: 'BENCHMARK // PRESS MILITAR',
@@ -684,7 +777,7 @@ function WorkoutDynamicChart({
         unit: 'KG PR',
         icon: 'diamond-outline',
         badge: 'HOMBROS 3D',
-        theme: getMuscleTheme('Hombros'),
+        theme: createPaletteTheme(getColor(3), 'diamond-outline', 'HOMBROS 3D'),
       },
       {
         title: 'BENCHMARK // CURL DE BÍCEPS',
@@ -693,7 +786,7 @@ function WorkoutDynamicChart({
         unit: 'KG PR',
         icon: 'barbell-outline',
         badge: 'BRAZOS & BÍCEPS',
-        theme: getMuscleTheme('Brazos'),
+        theme: createPaletteTheme(getColor(4), 'barbell-outline', 'BRAZOS & BÍCEPS'),
       },
       {
         title: 'OBJETIVO // GASTO CALÓRICO',
@@ -702,13 +795,7 @@ function WorkoutDynamicChart({
         unit: 'KCAL',
         icon: 'flame-outline',
         badge: 'CALORÍAS & SMARTWATCH',
-        theme: {
-          primary: '#F43F5E',
-          gradient: ['#FB7185', '#E11D48'],
-          bgGradient: ['rgba(244, 63, 94, 0.22)', 'rgba(225, 29, 72, 0.05)'],
-          icon: 'flame-outline',
-          badgeLabel: 'ENERGÍA QUEMADA',
-        },
+        theme: createPaletteTheme(getColor(0), 'flame-outline', 'ENERGÍA QUEMADA'),
       },
     ];
 
@@ -717,7 +804,7 @@ function WorkoutDynamicChart({
     }
 
     return [...allRecords, ...demoRecords.slice(0, 3)];
-  }, [workoutLogs, exercises]);
+  }, [workoutLogs, exercises, palette]);
 
   // Ciclo de rotación de estadísticas automáticas cada 4s (ULTRA SMOOTH, SIN PARPADEO)
   useEffect(() => {
@@ -880,7 +967,28 @@ function WorkoutDynamicChart({
 
         {/* MODO 1: GRÁFICA RESUMEN DE SESIÓN DIARIA (KCAL QUEMADAS EN ROJO + LLAMA VIVA EN MOVIMIENTO - TAMAÑO MATCH COMIDAS 152px) */}
         {tab === 0 && (
-          <View style={styles.dayWorkoutSummaryRow}>
+          <Animated.View
+            style={[
+              styles.dayWorkoutSummaryRow,
+              {
+                opacity: sessionEntryAnim,
+                transform: [
+                  {
+                    translateY: sessionEntryAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [18, 0],
+                    }),
+                  },
+                  {
+                    scale: sessionEntryAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.97, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             {/* Medidor Circular de Calorías Quemadas en Rojo Anime (152px) */}
             <View style={styles.workoutVolRingContainer}>
               <Svg width={WORKOUT_RING_SIZE} height={WORKOUT_RING_SIZE} style={{ transform: [{ rotate: '-90deg' }] }}>
@@ -899,7 +1007,7 @@ function WorkoutDynamicChart({
                   stroke={palette.primary}
                   strokeWidth={WORKOUT_RING_STROKE}
                   fill="none"
-                  strokeDasharray={`${Math.min((dayStats.totalKcal / 500) * WORKOUT_RING_CIRC, WORKOUT_RING_CIRC)} ${WORKOUT_RING_CIRC}`}
+                  strokeDasharray={`${Math.min((((dayStats.totalKcal * Math.max(0.001, sessionProgress))) / 500) * WORKOUT_RING_CIRC, WORKOUT_RING_CIRC)} ${WORKOUT_RING_CIRC}`}
                   strokeLinecap="round"
                 />
               </Svg>
@@ -933,10 +1041,10 @@ function WorkoutDynamicChart({
                     </Animated.View>
                   </View>
 
-                  <Text style={styles.workoutKcalNumber}>
-                    {dayStats.totalKcal}
+                  <Text style={[styles.workoutKcalNumber, palette.isDark && { color: '#FFFFFF' }]}>
+                    {Math.round((dayStats.totalKcal || 0) * sessionProgress)}
                   </Text>
-                  <Text style={styles.workoutKcalUnit}>KCAL QUEMADAS</Text>
+                  <Text style={[styles.workoutKcalUnit, { color: palette.primary }]}>KCAL QUEMADAS</Text>
                 </View>
               </View>
             </View>
@@ -949,9 +1057,12 @@ function WorkoutDynamicChart({
                   <Text style={styles.metricBlockLabel} numberOfLines={1}>Volumen levantado</Text>
                 </View>
                 <Text style={[styles.metricBlockValue, { color: colorVol }]}>
-                  {dayStats.totalVolume > 9999
-                    ? `${(dayStats.totalVolume / 1000).toFixed(1)}k kg`
-                    : `${Math.round(dayStats.totalVolume).toLocaleString()} kg`}
+                  {(() => {
+                    const currentVol = (dayStats.totalVolume || 0) * sessionProgress;
+                    return currentVol > 9999
+                      ? `${(currentVol / 1000).toFixed(1)}k kg`
+                      : `${Math.round(currentVol).toLocaleString()} kg`;
+                  })()}
                 </Text>
               </View>
 
@@ -960,7 +1071,9 @@ function WorkoutDynamicChart({
                   <Ionicons name="layers-outline" size={13} color={colorSets} />
                   <Text style={styles.metricBlockLabel} numberOfLines={1}>Series realizadas</Text>
                 </View>
-                <Text style={[styles.metricBlockValue, { color: colorSets }]}>{dayStats.totalSets} sets</Text>
+                <Text style={[styles.metricBlockValue, { color: colorSets }]}>
+                  {Math.round((dayStats.totalSets || 0) * sessionProgress)} sets
+                </Text>
               </View>
 
               <View style={[styles.metricBlockCard, { backgroundColor: getPaletteColorWithAlpha(colorReps, 0.08), borderColor: getPaletteColorWithAlpha(colorReps, 0.22) }]}>
@@ -968,10 +1081,12 @@ function WorkoutDynamicChart({
                   <Ionicons name="repeat-outline" size={13} color={colorReps} />
                   <Text style={styles.metricBlockLabel} numberOfLines={1}>Repeticiones totales</Text>
                 </View>
-                <Text style={[styles.metricBlockValue, { color: colorReps }]}>{dayStats.totalReps} reps</Text>
+                <Text style={[styles.metricBlockValue, { color: colorReps }]}>
+                  {Math.round((dayStats.totalReps || 0) * sessionProgress)} reps
+                </Text>
               </View>
             </View>
-          </View>
+          </Animated.View>
         )}
 
         {/* MODO 2: ESTADÍSTICAS AMPLIADAS */}
@@ -983,70 +1098,68 @@ function WorkoutDynamicChart({
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.selectedExerciseNameHeader} numberOfLines={1}>
+                      <Text style={[styles.selectedExerciseNameHeader, { color: palette.text }]} numberOfLines={1}>
                         {selectedExercise.name}
                       </Text>
-                      {(() => {
-                        const theme = getMuscleTheme(selectedExercise.muscleGroup);
-                        return (
-                          <View
-                            style={[
-                              styles.miniMusclePill,
-                              { backgroundColor: theme.primary + '18', borderColor: theme.primary + '40' },
-                            ]}
-                          >
-                            <Ionicons name={theme.icon} size={11} color={theme.primary} />
-                            <Text style={[styles.miniMusclePillText, { color: theme.primary }]}>
-                              {selectedExercise.muscleGroup}
-                            </Text>
-                          </View>
-                        );
-                      })()}
+                      <View
+                        style={[
+                          styles.miniMusclePill,
+                          {
+                            backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12),
+                            borderColor: getPaletteColorWithAlpha(palette.primary, 0.32),
+                          },
+                        ]}
+                      >
+                        <Ionicons name="fitness-outline" size={11} color={palette.primary} />
+                        <Text style={[styles.miniMusclePillText, { color: palette.primary }]}>
+                          {selectedExercise.muscleGroup}
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={styles.selectedExerciseSub}>Progresión de carga máxima ({rangeLabel})</Text>
+                    <Text style={[styles.selectedExerciseSub, { color: palette.textSub }]}>
+                      Progresión de carga máxima ({rangeLabel})
+                    </Text>
                   </View>
                   <Pressable onPress={onClearSelectedExercise} style={styles.closeSelectedBtn}>
-                    <Ionicons name="close" size={14} color={C.sub} />
+                    <Ionicons name="close" size={14} color={palette.textSub} />
                   </Pressable>
                 </View>
 
                 {/* BADGE DESTACADO DEL PR HISTÓRICO (MAYOR PESO A MAYOR NÚMERO DE REPS) */}
-                {(() => {
-                  const theme = getMuscleTheme(selectedExercise.muscleGroup);
-                  return (
-                    <View
-                      style={[
-                        styles.prHighlightCard,
-                        { backgroundColor: theme.primary + '14', borderColor: theme.primary + '40' },
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                        <Ionicons name="trophy" size={14} color={theme.primary} />
-                        <Text style={[styles.prHighlightTitle, { color: theme.primary }]}>
-                          RÉCORD HISTÓRICO (PR):
-                        </Text>
-                      </View>
-                      {exercisePR ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                          <Text style={styles.prHighlightWeight}>{exercisePR.weight} kg</Text>
-                          <Text style={[styles.prHighlightReps, { color: theme.primary }]}>
-                            × {exercisePR.reps} reps
-                          </Text>
-                          {exercisePR.date ? (
-                            <Text style={styles.prHighlightDate}>({exercisePR.date.slice(5)})</Text>
-                          ) : null}
-                        </View>
-                      ) : (
-                        <Text style={styles.prHighlightEmpty}>Sin registros aún</Text>
-                      )}
+                <View
+                  style={[
+                    styles.prHighlightCard,
+                    {
+                      backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.1),
+                      borderColor: getPaletteColorWithAlpha(palette.primary, 0.32),
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Ionicons name="trophy" size={14} color={palette.primary} />
+                    <Text style={[styles.prHighlightTitle, { color: palette.primary }]}>
+                      RÉCORD HISTÓRICO (PR):
+                    </Text>
+                  </View>
+                  {exercisePR ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                      <Text style={[styles.prHighlightWeight, { color: palette.text }]}>{exercisePR.weight} kg</Text>
+                      <Text style={[styles.prHighlightReps, { color: palette.primary }]}>
+                        × {exercisePR.reps} reps
+                      </Text>
+                      {exercisePR.date ? (
+                        <Text style={[styles.prHighlightDate, { color: palette.textSub }]}>({exercisePR.date.slice(5)})</Text>
+                      ) : null}
                     </View>
-                  );
-                })()}
+                  ) : (
+                    <Text style={[styles.prHighlightEmpty, { color: palette.textSub }]}>Sin registros aún</Text>
+                  )}
+                </View>
 
                 {historyData.length < 2 ? (
                   <View style={styles.emptyHistoryBox}>
-                    <Ionicons name="stats-chart-outline" size={28} color={C.subMuted} />
-                    <Text style={styles.emptyHistoryText}>
+                    <Ionicons name="stats-chart-outline" size={28} color={palette.textSub} />
+                    <Text style={[styles.emptyHistoryText, { color: palette.textSub }]}>
                       {historyData.length === 1
                         ? `1 registro guardado (${historyData[0].maxWeight} kg). Registra otro día para ver la curva.`
                         : 'Aún no hay registros en este rango para graficar.'}
@@ -1055,13 +1168,22 @@ function WorkoutDynamicChart({
                 ) : (
                   <WorkoutHistorySVGChart
                     data={historyData}
-                    theme={getMuscleTheme(selectedExercise.muscleGroup)}
+                    theme={{
+                      primary: palette.primary,
+                      gradient: [palette.primary, palette.secondary || palette.primary],
+                      bgGradient: [
+                        getPaletteColorWithAlpha(palette.primary, 0.2),
+                        getPaletteColorWithAlpha(palette.primary, 0.04),
+                      ],
+                      icon: 'stats-chart-outline',
+                      badgeLabel: selectedExercise.muscleGroup,
+                    }}
                     prWeight={exercisePR?.weight}
                   />
                 )}
               </View>
             ) : (
-              /* CARRUSEL DE ESTADÍSTICAS ROTATIVAS ANIMADAS AUTOMÁTICAS CON COLORES E ICONOS DINÁMICOS (ULTRA SMOOTH) */
+              /* CARRUSEL DE ESTADÍSTICAS ROTATIVAS ANIMADAS AUTOMÁTICAS LIMITADAS A LA PALETA ACTIVA */
               <Animated.View
                 style={[
                   { alignItems: 'center', justifyContent: 'center', flex: 1, width: '100%' },
@@ -1076,23 +1198,16 @@ function WorkoutDynamicChart({
                   const stTheme = currentStat.theme;
                   return (
                     <View style={{ alignItems: 'center', paddingHorizontal: 16, width: '100%' }}>
-                      {/* Tag de grupo con icono y color dinámico */}
-                      <View
-                        style={[
-                          styles.statDynamicBadge,
-                          { backgroundColor: stTheme.primary + '18', borderColor: stTheme.primary + '40' },
-                        ]}
-                      >
-                        <Ionicons name={currentStat.icon} size={12} color={stTheme.primary} />
-                        <Text style={[styles.statDynamicBadgeText, { color: stTheme.primary }]}>
-                          ✦ {currentStat.badge} ✦
-                        </Text>
-                      </View>
-
                       {/* Orbe resplandeciente con gradiente y color cambiante */}
                       <LinearGradient
-                        colors={[stTheme.bgGradient[0], stTheme.bgGradient[1]]}
-                        style={[styles.statOrbGlow, { borderColor: stTheme.primary + '35' }]}
+                        colors={[
+                          getPaletteColorWithAlpha(stTheme.primary, 0.2),
+                          getPaletteColorWithAlpha(palette.primary, 0.04),
+                        ]}
+                        style={[
+                          styles.statOrbGlow,
+                          { borderColor: getPaletteColorWithAlpha(stTheme.primary, 0.32) },
+                        ]}
                       >
                         <Ionicons name={currentStat.icon} size={28} color={stTheme.primary} />
                       </LinearGradient>
@@ -1104,11 +1219,29 @@ function WorkoutDynamicChart({
 
                       {/* Gran valor con color temático */}
                       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginVertical: 2 }}>
-                        <Text style={[styles.rotStatBigValue, { color: C.text }]}>{currentStat.value}</Text>
+                        <Text style={[styles.rotStatBigValue, { color: palette.text }]}>{currentStat.value}</Text>
                         <Text style={[styles.rotStatUnit, { color: stTheme.primary }]}>{currentStat.unit}</Text>
                       </View>
 
-                      <Text style={styles.rotStatSubtitle}>{currentStat.subtitle}</Text>
+                      <Text style={[styles.rotStatSubtitle, { color: palette.textSub }]}>{currentStat.subtitle}</Text>
+
+                      {/* Tag de grupo con icono y color dinámico ubicada abajo */}
+                      <View
+                        style={[
+                          styles.statDynamicBadge,
+                          {
+                            backgroundColor: getPaletteColorWithAlpha(stTheme.primary, 0.12),
+                            borderColor: getPaletteColorWithAlpha(stTheme.primary, 0.32),
+                            marginTop: 6,
+                            marginBottom: 8,
+                          },
+                        ]}
+                      >
+                        <Ionicons name={currentStat.icon} size={12} color={stTheme.primary} />
+                        <Text style={[styles.statDynamicBadgeText, { color: stTheme.primary }]}>
+                          ✦ {currentStat.badge} ✦
+                        </Text>
+                      </View>
 
                       {/* Indicador de progreso de puntos */}
                       <View style={styles.carouselDotsRow}>
@@ -1117,7 +1250,11 @@ function WorkoutDynamicChart({
                             key={dotIdx}
                             style={[
                               styles.carouselDot,
-                              dotIdx === statIndex && [styles.carouselDotActive, { backgroundColor: stTheme.primary }],
+                              { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.2) },
+                              dotIdx === statIndex && [
+                                styles.carouselDotActive,
+                                { backgroundColor: stTheme.primary },
+                              ],
                             ]}
                           />
                         ))}
@@ -1314,20 +1451,33 @@ function WorkoutDayLog({
         const totalReps = we.sets.reduce((acc, s) => acc + (s.reps || 0), 0);
 
         return (
-          <View key={we.id} style={styles.workoutExerciseCard}>
-            <LinearGradient colors={['#FFFFFF', '#F8FAFF']} style={{ padding: 16 }}>
-              {/* Barra lateral de acento */}
+          <View
+            key={we.id}
+            style={[
+              styles.workoutExerciseCard,
+              {
+                backgroundColor: palette.cardBg,
+                borderColor: palette.border,
+                shadowColor: palette.primary,
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={palette.isDark ? ['#1E293B', '#0F172A'] : ['#FFFFFF', '#F8FAFF']}
+              style={{ padding: 16 }}
+            >
+              {/* Barra lateral de acento (Borde izquierdo según la paleta) */}
               <View
                 style={[
                   styles.exerciseAccentBar,
-                  isTimeMode && { backgroundColor: '#F97316' },
+                  { backgroundColor: isTimeMode ? palette.secondary : palette.primary },
                 ]}
               />
 
               {/* Cabecera del Ejercicio */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, paddingLeft: 6 }}>
-                  <Text style={styles.exerciseTitleText}>{exName}</Text>
+                  <Text style={[styles.exerciseTitleText, palette.isDark && { color: '#FFFFFF' }]}>{exName}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                     <View
                       style={[
@@ -1356,17 +1506,23 @@ function WorkoutDayLog({
                           );
                         }
                       }}
-                      style={styles.modeTogglePill}
+                      style={[
+                        styles.modeTogglePill,
+                        palette.isDark && {
+                          backgroundColor: palette.primary,
+                          borderColor: palette.primary,
+                        },
+                      ]}
                     >
                       <Ionicons
                         name={isTimeMode ? 'timer-outline' : 'barbell-outline'}
                         size={12}
-                        color="#94A3B8"
+                        color={palette.isDark ? '#FFFFFF' : '#94A3B8'}
                       />
-                      <Text style={styles.modeToggleText}>
+                      <Text style={[styles.modeToggleText, palette.isDark && { color: '#FFFFFF' }]}>
                         {isTimeMode ? 'Tiempo / CrossFit' : 'Peso / Reps'}
                       </Text>
-                      <Ionicons name="swap-horizontal" size={11} color="#94A3B8" />
+                      <Ionicons name="swap-horizontal" size={11} color={palette.isDark ? '#FFFFFF' : '#94A3B8'} />
                     </Pressable>
 
                     <Text style={styles.volumeMiniText}>
@@ -1418,7 +1574,16 @@ function WorkoutDayLog({
                     {isTimeMode ? (
                       <>
                         {/* Input de Tiempo */}
-                        <View style={styles.setInputBox}>
+                        <View
+                          style={[
+                            styles.setInputBox,
+                            { borderColor: getPaletteColorWithAlpha(palette.primary, 0.22) },
+                            palette.isDark && {
+                              backgroundColor: palette.primary,
+                              borderColor: palette.primary,
+                            },
+                          ]}
+                        >
                           <TextInput
                             value={
                               set.timeSeconds !== undefined && set.timeSeconds !== null
@@ -1431,8 +1596,8 @@ function WorkoutDayLog({
                             }
                             keyboardType="decimal-pad"
                             placeholder="0"
-                            placeholderTextColor={C.subMuted}
-                            style={styles.setTextInput}
+                            placeholderTextColor={palette.isDark ? 'rgba(255, 255, 255, 0.7)' : C.subMuted}
+                            style={[styles.setTextInput, palette.isDark && { color: '#FFFFFF' }]}
                             onChangeText={(t) => {
                               const val = parseFloat(t.replace(',', '.')) || 0;
                               updateSets(
@@ -1442,11 +1607,20 @@ function WorkoutDayLog({
                               );
                             }}
                           />
-                          <Text style={styles.setUnitLabel}>min</Text>
+                          <Text style={[styles.setUnitLabel, palette.isDark && { color: '#FFFFFF' }]}>min</Text>
                         </View>
 
                         {/* Input de Distancia o Repeticiones */}
-                        <View style={styles.setInputBox}>
+                        <View
+                          style={[
+                            styles.setInputBox,
+                            { borderColor: getPaletteColorWithAlpha(palette.primary, 0.22) },
+                            palette.isDark && {
+                              backgroundColor: palette.primary,
+                              borderColor: palette.primary,
+                            },
+                          ]}
+                        >
                           <TextInput
                             value={
                               isKm
@@ -1459,8 +1633,8 @@ function WorkoutDayLog({
                             }
                             keyboardType="decimal-pad"
                             placeholder="0"
-                            placeholderTextColor={C.subMuted}
-                            style={styles.setTextInput}
+                            placeholderTextColor={palette.isDark ? 'rgba(255, 255, 255, 0.7)' : C.subMuted}
+                            style={[styles.setTextInput, palette.isDark && { color: '#FFFFFF' }]}
                             onChangeText={(t) => {
                               const val = parseFloat(t.replace(',', '.')) || 0;
                               if (isKm) {
@@ -1495,43 +1669,61 @@ function WorkoutDayLog({
                             hitSlop={6}
                             style={styles.toggleUnitBadge}
                           >
-                            <Text style={styles.toggleUnitText}>{isKm ? 'km' : 'reps'}</Text>
-                            <Ionicons name="swap-vertical" size={10} color="#94A3B8" />
+                            <Text style={[styles.toggleUnitText, palette.isDark && { color: '#FFFFFF' }]}>{isKm ? 'km' : 'reps'}</Text>
+                            <Ionicons name="swap-vertical" size={10} color={palette.isDark ? '#FFFFFF' : '#94A3B8'} />
                           </Pressable>
                         </View>
                       </>
                     ) : (
                       <>
                         {/* Input de Peso */}
-                        <View style={styles.setInputBox}>
+                        <View
+                          style={[
+                            styles.setInputBox,
+                            { borderColor: getPaletteColorWithAlpha(palette.primary, 0.22) },
+                            palette.isDark && {
+                              backgroundColor: palette.primary,
+                              borderColor: palette.primary,
+                            },
+                          ]}
+                        >
                           <TextInput
                             value={set.weight ? String(set.weight) : ''}
                             keyboardType="decimal-pad"
                             placeholder="0"
-                            placeholderTextColor={C.subMuted}
-                            style={styles.setTextInput}
+                            placeholderTextColor={palette.isDark ? 'rgba(255, 255, 255, 0.7)' : C.subMuted}
+                            style={[styles.setTextInput, palette.isDark && { color: '#FFFFFF' }]}
                             onChangeText={(t) => {
                               const val = parseFloat(t.replace(',', '.')) || 0;
                               updateSets(we.sets.map((s) => (s.id === set.id ? { ...s, weight: val } : s)));
                             }}
                           />
-                          <Text style={styles.setUnitLabel}>kg</Text>
+                          <Text style={[styles.setUnitLabel, palette.isDark && { color: '#FFFFFF' }]}>kg</Text>
                         </View>
 
                         {/* Input de Repeticiones */}
-                        <View style={styles.setInputBox}>
+                        <View
+                          style={[
+                            styles.setInputBox,
+                            { borderColor: getPaletteColorWithAlpha(palette.primary, 0.22) },
+                            palette.isDark && {
+                              backgroundColor: palette.primary,
+                              borderColor: palette.primary,
+                            },
+                          ]}
+                        >
                           <TextInput
                             value={set.reps ? String(set.reps) : ''}
                             keyboardType="number-pad"
                             placeholder="0"
-                            placeholderTextColor={C.subMuted}
-                            style={styles.setTextInput}
+                            placeholderTextColor={palette.isDark ? 'rgba(255, 255, 255, 0.7)' : C.subMuted}
+                            style={[styles.setTextInput, palette.isDark && { color: '#FFFFFF' }]}
                             onChangeText={(t) => {
                               const val = parseInt(t) || 0;
                               updateSets(we.sets.map((s) => (s.id === set.id ? { ...s, reps: val } : s)));
                             }}
                           />
-                          <Text style={styles.setUnitLabel}>reps</Text>
+                          <Text style={[styles.setUnitLabel, palette.isDark && { color: '#FFFFFF' }]}>reps</Text>
                         </View>
                       </>
                     )}
@@ -1609,6 +1801,11 @@ function WorkoutStatsLibrary({
   onOpenCreateModal: (defaultName?: string) => void;
   onEditExercise: (ex: Exercise) => void;
 }) {
+  const activePaletteId = useStore((s) => s.activePaletteId);
+  const customPalettes = useStore((s) => s.customPalettes);
+  const deletedPaletteIds = useStore((s) => s.deletedPaletteIds);
+  const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
+
   const [query, setQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('Todos');
 
@@ -1655,8 +1852,8 @@ function WorkoutStatsLibrary({
     <View style={{ marginTop: 6 }}>
       {/* Buscador y Botón Crear Ejercicio */}
       <View style={styles.searchAddRow}>
-        <View style={styles.searchBoxGlass}>
-          <Ionicons name="search" size={17} color={C.pastelPurple} />
+        <View style={[styles.searchBoxGlass, { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25) }]}>
+          <Ionicons name="search" size={17} color={palette.primary} />
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -1671,7 +1868,7 @@ function WorkoutStatsLibrary({
             </Pressable>
           )}
           <Pressable onPress={() => Keyboard.dismiss()} style={{ padding: 4 }}>
-            <Ionicons name="chevron-down-circle-outline" size={18} color={C.pastelPurple} />
+            <Ionicons name="chevron-down-circle-outline" size={18} color={palette.primary} />
           </Pressable>
         </View>
 
@@ -1696,11 +1893,11 @@ function WorkoutStatsLibrary({
             colors={['rgba(139, 92, 246, 0.12)', 'rgba(236, 72, 153, 0.12)']}
             style={styles.quickCreateBannerGradient}
           >
-            <Ionicons name="add-circle" size={20} color={C.pastelPurple} />
+            <Ionicons name="add-circle" size={20} color={palette.primary} />
             <Text style={styles.quickCreateBannerText}>
               Crear nuevo ejercicio: <Text style={{ color: C.text, fontWeight: '800' }}>"{query.trim()}"</Text>
             </Text>
-            <Ionicons name="chevron-forward" size={16} color={C.pastelPurple} />
+            <Ionicons name="chevron-forward" size={16} color={palette.primary} />
           </LinearGradient>
         </Pressable>
       )}
@@ -1709,14 +1906,20 @@ function WorkoutStatsLibrary({
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
         {MUSCLE_GROUPS.map((g) => {
           const active = selectedGroup === g;
-          const mTheme = g === 'Todos' ? null : getMuscleTheme(g);
           return (
             <Pressable
               key={g}
               onPress={() => setSelectedGroup(g)}
               style={[
                 styles.filterGroupPill,
-                active && (mTheme ? { backgroundColor: mTheme.primary, borderColor: mTheme.primary } : styles.filterGroupPillActive),
+                {
+                  borderColor: active
+                    ? palette.primary
+                    : getPaletteColorWithAlpha(palette.primary, 0.22),
+                },
+                active && {
+                  backgroundColor: palette.primary,
+                },
               ]}
             >
               <Text style={[styles.filterGroupText, active && styles.filterGroupTextActive]}>{g}</Text>
@@ -1764,20 +1967,42 @@ function WorkoutStatsLibrary({
             onPress={() => onSelectExercise(ex.id)}
             style={({ pressed }) => [
               styles.exerciseItemCard,
-              isSelected && [styles.exerciseItemCardSelected, { borderColor: exTheme.primary }],
+              {
+                borderColor: isSelected
+                  ? palette.primary
+                  : getPaletteColorWithAlpha(palette.primary, 0.2),
+                backgroundColor: palette.isDark ? '#1E293B' : '#FFFFFF',
+              },
+              isSelected && [
+                styles.exerciseItemCardSelected,
+                {
+                  borderColor: palette.primary,
+                  backgroundColor: palette.isDark
+                    ? getPaletteColorWithAlpha(palette.primary, 0.16)
+                    : '#FAF5FF',
+                },
+              ],
               pressed && s.btnPressed,
             ]}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.exerciseItemName, isSelected && { color: exTheme.primary }]}>{ex.name}</Text>
-                  {isSelected && <Ionicons name="checkmark-circle" size={16} color={exTheme.primary} />}
+                  <Text
+                    style={[
+                      styles.exerciseItemName,
+                      palette.isDark && { color: '#FFFFFF' },
+                      isSelected && { color: palette.primary },
+                    ]}
+                  >
+                    {ex.name}
+                  </Text>
+                  {isSelected && <Ionicons name="checkmark-circle" size={16} color={palette.primary} />}
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                  <View style={[styles.muscleBadge, { backgroundColor: exTheme.primary + '15', borderColor: exTheme.primary + '35' }]}>
-                    <Ionicons name={exTheme.icon} size={11} color={exTheme.primary} style={{ marginRight: 3 }} />
-                    <Text style={[styles.muscleBadgeText, { color: exTheme.primary }]}>{ex.muscleGroup}</Text>
+                  <View style={[styles.muscleBadge, { backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12), borderColor: getPaletteColorWithAlpha(palette.primary, 0.28) }]}>
+                    <Ionicons name={exTheme.icon} size={11} color={palette.primary} style={{ marginRight: 3 }} />
+                    <Text style={[styles.muscleBadgeText, { color: palette.primary }]}>{ex.muscleGroup}</Text>
                   </View>
                   <Text style={styles.statsMiniText}>
                     {st && st.maxWeight > 0
@@ -1806,7 +2031,7 @@ function TrainNavigationSegmented({ value, onChange }: { value: number; onChange
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
   const options = [
-    { label: 'Registrar entrenamiento', icon: 'barbell-outline' },
+    { label: 'Registrar Entreno', icon: 'barbell-outline' },
     { label: 'Estadísticas', icon: 'stats-chart-outline' },
   ];
 
@@ -1827,7 +2052,8 @@ function TrainNavigationSegmented({ value, onChange }: { value: number; onChange
         {
           borderColor: getPaletteColorWithAlpha(palette.primary, 0.25),
           shadowColor: palette.primary,
-          backgroundColor: 'transparent',
+          backgroundColor: palette.bg,
+          marginBottom: 4,
         },
       ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
@@ -2241,7 +2467,7 @@ const styles = StyleSheet.create({
   stickyTabsContainer: {
     backgroundColor: 'transparent',
     paddingTop: 2,
-    paddingBottom: 8,
+    paddingBottom: 4,
     zIndex: 25,
   },
   topHeader: {
@@ -2626,10 +2852,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   muscleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: 'rgba(139, 92, 246, 0.1)',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: 7,
   },
   muscleBadgeText: {
     color: C.pastelPurple,
