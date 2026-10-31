@@ -32,7 +32,7 @@ import { File, Paths } from 'expo-file-system';
 import { Asset, requestPermissionsAsync as requestMediaLibrarySavePerm } from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
-import { C, GRADIENTS } from './theme';
+import { C, GRADIENTS, registerThemeSheet } from './theme';
 import { DateSelector, PrimaryButton, s } from './components';
 import {
   useStore,
@@ -316,7 +316,7 @@ export default function MeasureScreen() {
   };
 
   return (
-    <View style={measureStyles.rootContainer}>
+    <View style={[measureStyles.rootContainer, { backgroundColor: C.bg }]}>
       <ScrollView
         contentContainerStyle={measureStyles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -6801,3 +6801,5 @@ const measureStyles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
+registerThemeSheet(measureStyles);

@@ -15,7 +15,7 @@ import {
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { C, GRADIENTS, fmt } from './theme';
+import { C, GRADIENTS, fmt, registerThemeSheet } from './theme';
 import { FoodUnit, Ingredient, Macros, MealBlock, MealItem, scaleMacros, itemsTotal, uid } from './store';
 
 /* ---------------- Resumen de Macros (Animado con Fondo Flotante Anime) ---------------- */
@@ -608,9 +608,8 @@ export function DateSelector({ date, onChange }: { date: Date; onChange: (d: Dat
   };
 
   const isToday = new Date().toDateString() === date.toDateString();
-  const label = isToday
-    ? 'Hoy'
-    : date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+  const rawDateStr = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  const label = rawDateStr.replace('.', '');
 
   return (
     <View style={s.dateSelectorRow}>
@@ -1894,3 +1893,5 @@ export const s = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
 });
+
+registerThemeSheet(s);

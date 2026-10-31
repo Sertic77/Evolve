@@ -19,7 +19,7 @@ import {
 import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Line } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { C, GRADIENTS, fmt } from './theme';
+import { C, GRADIENTS, fmt, registerThemeSheet } from './theme';
 import {
   useStore,
   dateKey,
@@ -3017,3 +3017,5 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
+registerThemeSheet(styles);

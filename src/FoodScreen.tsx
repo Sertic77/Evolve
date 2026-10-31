@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { C, GRADIENTS } from './theme';
+import { C, GRADIENTS, registerThemeSheet } from './theme';
 import {
   useStore,
   dateKey,
@@ -1448,3 +1448,5 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
 });
+
+registerThemeSheet(styles);

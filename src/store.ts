@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -91,6 +92,217 @@ export type HealthLogEntry = {
   notes?: string;
 };
 
+/* ==========================================================
+   TIPOS DE SUEÑO Y SMARTBAND (APPLE HEALTH / XIAOMI BAND)
+========================================================== */
+export type SleepLogEntry = {
+  hours: number;
+  minutes: number;
+  bedtime?: string;
+  wakeTime?: string;
+  deepSleepHours?: number;
+  lightSleepHours?: number;
+  remSleepHours?: number;
+  awakeMinutes?: number;
+  sleepScore?: number;
+  activeCaloriesBurned?: number; // Calorías activas quemadas sincronizadas del reloj
+  steps?: number;
+  restingHeartRate?: number;
+  syncedFromDevice?: boolean;
+  deviceName?: string;
+  source?: 'apple_health' | 'manual';
+  lastSyncedAt?: string;
+  qualityNote?: string;
+};
+
+/* ==========================================================
+   CONFIGURACIÓN Y PERSONALIZACIÓN (PALETAS, TIPOGRAFÍA, HOME)
+========================================================== */
+export type UserProfile = {
+  name: string;
+  nickname: string;
+};
+
+export const DEFAULT_USER_PROFILE: UserProfile = {
+  name: 'Sergio Tamayo',
+  nickname: 'Sertic77',
+};
+
+export type ColorPalette = {
+  id: string;
+  name: string;
+  isDark?: boolean;
+  colors: string[]; // Muestra de colores (mínimo 2 colores, variable por paleta)
+  primary: string;
+  secondary: string;
+  bg: string;
+  cardBg: string;
+  text: string;
+  textSub: string;
+  border: string;
+  accent: string;
+  custom?: boolean;
+};
+
+export type FontStyleOption = 'system' | 'serif' | 'monospace' | 'rounded';
+
+export type TypographySettings = {
+  titles: FontStyleOption;
+  subtitles: FontStyleOption;
+  body: FontStyleOption;
+  data: FontStyleOption;
+};
+
+export type HomeVisibleWidgets = {
+  profile: boolean;
+  calories: boolean;
+  workout: boolean;
+  supplements: boolean;
+  health: boolean;
+  body: boolean;
+};
+
+export const PRESET_PALETTES: ColorPalette[] = [
+  {
+    id: 'default',
+    name: 'Anime Pastel (Default)',
+    isDark: false,
+    colors: ['#8B5CF6', '#F472B6'], // 2 colores por defecto
+    primary: '#8B5CF6',
+    secondary: '#F472B6',
+    bg: '#F3F5FA',
+    cardBg: '#FFFFFF',
+    text: '#1E1B4B',
+    textSub: '#64748B',
+    border: 'rgba(203, 213, 225, 0.6)',
+    accent: '#8B5CF6',
+  },
+  {
+    id: 'dark',
+    name: 'Modo Nocturno (Midnight)',
+    isDark: true,
+    colors: ['#818CF8', '#EC4899'], // 2 colores por defecto
+    primary: '#818CF8',
+    secondary: '#EC4899',
+    bg: '#0F172A',
+    cardBg: '#1E293B',
+    text: '#F8FAFC',
+    textSub: '#94A3B8',
+    border: '#334155',
+    accent: '#818CF8',
+  },
+  {
+    id: 'sunset',
+    name: 'Atardecer Cálido',
+    isDark: false,
+    colors: ['#FB7185', '#F59E0B'], // 2 colores por defecto
+    primary: '#FB7185',
+    secondary: '#F59E0B',
+    bg: '#FFF7ED',
+    cardBg: '#FFFFFF',
+    text: '#431407',
+    textSub: '#9A3412',
+    border: '#FED7AA',
+    accent: '#FB7185',
+  },
+  {
+    id: 'emerald',
+    name: 'Menta & Esmeralda',
+    isDark: false,
+    colors: ['#10B981', '#06B6D4'], // 2 colores por defecto
+    primary: '#10B981',
+    secondary: '#06B6D4',
+    bg: '#F0FDF4',
+    cardBg: '#FFFFFF',
+    text: '#064E3B',
+    textSub: '#047857',
+    border: '#A7F3D0',
+    accent: '#10B981',
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk Neón',
+    isDark: true,
+    colors: ['#06B6D4', '#EC4899', '#FACC15', '#A855F7', '#38BDF8'], // 5 colores
+    primary: '#06B6D4',
+    secondary: '#EC4899',
+    bg: '#18181B',
+    cardBg: '#27272A',
+    text: '#FAFAFA',
+    textSub: '#A1A1AA',
+    border: '#3F3F46',
+    accent: '#06B6D4',
+  },
+  {
+    id: 'ocean',
+    name: 'Océano Profundo',
+    isDark: false,
+    colors: ['#3B82F6', '#2DD4BF'], // 2 colores por defecto
+    primary: '#3B82F6',
+    secondary: '#2DD4BF',
+    bg: '#F0F9FF',
+    cardBg: '#FFFFFF',
+    text: '#0C4A6E',
+    textSub: '#0284C7',
+    border: '#BAE6FD',
+    accent: '#3B82F6',
+  },
+  {
+    id: 'crimson',
+    name: 'Fuego Carmesí',
+    isDark: false,
+    colors: ['#DC2626', '#EA580C'], // 2 colores por defecto
+    primary: '#DC2626',
+    secondary: '#EA580C',
+    bg: '#FEF2F2',
+    cardBg: '#FFFFFF',
+    text: '#450A0A',
+    textSub: '#991B1B',
+    border: '#FECACA',
+    accent: '#DC2626',
+  },
+];
+
+export const DEFAULT_TYPOGRAPHY: TypographySettings = {
+  titles: 'system',
+  subtitles: 'system',
+  body: 'system',
+  data: 'system',
+};
+
+export const DEFAULT_HOME_WIDGETS: HomeVisibleWidgets = {
+  profile: true,
+  calories: true,
+  workout: true,
+  supplements: true,
+  health: true,
+  body: true,
+};
+
+export function getFontFamily(fontOption: FontStyleOption): string | undefined {
+  switch (fontOption) {
+    case 'serif':
+      return Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
+    case 'monospace':
+      return Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' });
+    case 'rounded':
+      return Platform.select({ ios: 'Arial Rounded MT Bold', android: 'sans-serif-medium', default: 'sans-serif' });
+    case 'system':
+    default:
+      return Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' });
+  }
+}
+
+export function getActivePalette(state?: { activePaletteId?: string; customPalettes?: ColorPalette[] }): ColorPalette {
+  if (!state) return PRESET_PALETTES[0];
+  const activeId = state.activePaletteId || 'default';
+  const custom = state.customPalettes?.find((p) => p.id === activeId);
+  if (custom) return custom;
+  const preset = PRESET_PALETTES.find((p) => p.id === activeId);
+  return preset || PRESET_PALETTES[0];
+}
+
+
 export const SEED_HEALTH_METRICS: HealthMetricDefinition[] = [
   {
     id: 'presion',
@@ -183,6 +395,142 @@ export const SEED_HEALTH_LOGS: Record<string, Record<string, HealthLogEntry>> = 
     azucar: { value: 94 },
     colesterol: { value: 178 },
     trigliceridos: { value: 138 },
+  },
+};
+
+export const SEED_SLEEP_LOGS: Record<string, SleepLogEntry> = {
+  [genRecentDateKey(0)]: {
+    hours: 7,
+    minutes: 45,
+    bedtime: '23:15',
+    wakeTime: '07:00',
+    deepSleepHours: 1.8,
+    lightSleepHours: 4.4,
+    remSleepHours: 1.5,
+    awakeMinutes: 18,
+    sleepScore: 88,
+    activeCaloriesBurned: 520,
+    steps: 8430,
+    restingHeartRate: 58,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: 'Hoy, 08:30 AM',
+    qualityNote: 'Recuperación física óptima y buen porcentaje de sueño profundo.',
+  },
+  [genRecentDateKey(1)]: {
+    hours: 8,
+    minutes: 10,
+    bedtime: '22:50',
+    wakeTime: '07:00',
+    deepSleepHours: 2.1,
+    lightSleepHours: 4.5,
+    remSleepHours: 1.5,
+    awakeMinutes: 12,
+    sleepScore: 92,
+    activeCaloriesBurned: 610,
+    steps: 10240,
+    restingHeartRate: 56,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: 'Ayer, 08:15 AM',
+    qualityNote: 'Descanso reparador, ciclo circadiano constante.',
+  },
+  [genRecentDateKey(2)]: {
+    hours: 6,
+    minutes: 50,
+    bedtime: '00:10',
+    wakeTime: '07:00',
+    deepSleepHours: 1.3,
+    lightSleepHours: 4.2,
+    remSleepHours: 1.3,
+    awakeMinutes: 25,
+    sleepScore: 76,
+    activeCaloriesBurned: 480,
+    steps: 7120,
+    restingHeartRate: 61,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: 'Hace 2 días, 08:20 AM',
+    qualityNote: 'Ligera privación de sueño, se recomienda acostarse más temprano.',
+  },
+  [genRecentDateKey(3)]: {
+    hours: 7,
+    minutes: 20,
+    bedtime: '23:30',
+    wakeTime: '06:50',
+    deepSleepHours: 1.7,
+    lightSleepHours: 4.2,
+    remSleepHours: 1.4,
+    awakeMinutes: 16,
+    sleepScore: 84,
+    activeCaloriesBurned: 550,
+    steps: 8900,
+    restingHeartRate: 59,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: 'Hace 3 días, 08:10 AM',
+    qualityNote: 'Buen rendimiento cardiovascular y descanso adecuado.',
+  },
+  [genRecentDateKey(4)]: {
+    hours: 7,
+    minutes: 55,
+    bedtime: '23:05',
+    wakeTime: '07:00',
+    deepSleepHours: 1.9,
+    lightSleepHours: 4.5,
+    remSleepHours: 1.6,
+    awakeMinutes: 14,
+    sleepScore: 89,
+    activeCaloriesBurned: 530,
+    steps: 9150,
+    restingHeartRate: 57,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: 'Hace 4 días, 08:25 AM',
+    qualityNote: 'Fases de sueño equilibradas y alta recuperación física.',
+  },
+  [genRecentDateKey(5)]: {
+    hours: 8,
+    minutes: 5,
+    bedtime: '22:45',
+    wakeTime: '06:50',
+    deepSleepHours: 2.0,
+    lightSleepHours: 4.6,
+    remSleepHours: 1.5,
+    awakeMinutes: 11,
+    sleepScore: 91,
+    activeCaloriesBurned: 640,
+    steps: 11020,
+    restingHeartRate: 55,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: 'Hace 5 días, 08:00 AM',
+    qualityNote: 'Excelente descanso profundo y volumen de entrenamiento alto.',
+  },
+  [genRecentDateKey(6)]: {
+    hours: 7,
+    minutes: 15,
+    bedtime: '23:40',
+    wakeTime: '06:55',
+    deepSleepHours: 1.6,
+    lightSleepHours: 4.3,
+    remSleepHours: 1.3,
+    awakeMinutes: 19,
+    sleepScore: 82,
+    activeCaloriesBurned: 490,
+    steps: 7850,
+    restingHeartRate: 60,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: 'Hace 6 días, 08:35 AM',
+    qualityNote: 'Ritmo cardíaco estable durante el descanso.',
   },
 };
 
@@ -303,6 +651,26 @@ type State = {
   setHealthLog: (date: string, metricId: string, entry: HealthLogEntry) => void;
   addHealthMetric: (metric: Omit<HealthMetricDefinition, 'id'>) => void;
   deleteHealthMetric: (id: string) => void;
+
+  // Bienestar: Sueño y Smartband (Xiaomi Band / Apple Health)
+  sleepLogs: Record<string, SleepLogEntry>;
+  setSleepLog: (date: string, entry: SleepLogEntry) => void;
+  syncWatchData: (date: string, customData?: Partial<SleepLogEntry>) => void;
+  // Perfil del Usuario
+  userProfile: UserProfile;
+  setUserProfile: (profile: Partial<UserProfile>) => void;
+
+  // Personalización
+  activePaletteId: string;
+  customPalettes: ColorPalette[];
+  typography: TypographySettings;
+  homeWidgets: HomeVisibleWidgets;
+
+  setActivePalette: (id: string) => void;
+  addCustomPalette: (palette: Omit<ColorPalette, 'id' | 'custom'>) => void;
+  deleteCustomPalette: (id: string) => void;
+  setTypography: (settings: Partial<TypographySettings>) => void;
+  toggleHomeWidget: (widgetKey: keyof HomeVisibleWidgets) => void;
 };
 
 export const useStore = create<State>()(
@@ -704,6 +1072,118 @@ export const useStore = create<State>()(
         set((s) => ({
           healthMetrics: (s.healthMetrics || SEED_HEALTH_METRICS).filter((m) => m.id !== id),
         })),
+
+      // Bienestar: Sueño y Smartband
+      sleepLogs: SEED_SLEEP_LOGS,
+
+      setSleepLog: (date, entry) =>
+        set((s) => ({
+          sleepLogs: {
+            ...(s.sleepLogs || SEED_SLEEP_LOGS),
+            [date]: entry,
+          },
+        })),
+
+      syncWatchData: (date, customData) =>
+        set((s) => {
+          const today = dateKey(new Date());
+          if (date > today) {
+            // No permitir sincronizar fechas futuras
+            return s;
+          }
+          const current = s.sleepLogs?.[date] || SEED_SLEEP_LOGS[date] || {
+            hours: 7,
+            minutes: 35,
+            bedtime: '23:20',
+            wakeTime: '07:10',
+            deepSleepHours: 1.8,
+            lightSleepHours: 4.3,
+            remSleepHours: 1.5,
+            awakeMinutes: 16,
+            sleepScore: 87,
+            activeCaloriesBurned: 535,
+            steps: 8350,
+            restingHeartRate: 58,
+          };
+          const now = new Date();
+          const hours12 = now.getHours() % 12 || 12;
+          const ampm = now.getHours() >= 12 ? 'PM' : 'AM';
+          const timeStr = `Hoy, ${String(hours12).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} ${ampm}`;
+          const updated: SleepLogEntry = {
+            ...current,
+            ...customData,
+            syncedFromDevice: true,
+            deviceName: 'Xiaomi Smart Band (Apple Health)',
+            source: 'apple_health',
+            lastSyncedAt: timeStr,
+          };
+          return {
+            sleepLogs: {
+              ...(s.sleepLogs || SEED_SLEEP_LOGS),
+              [date]: updated,
+            },
+          };
+        }),
+
+      // Perfil del Usuario
+      userProfile: DEFAULT_USER_PROFILE,
+      setUserProfile: (profile) =>
+        set((s) => ({
+          userProfile: { ...(s.userProfile || DEFAULT_USER_PROFILE), ...profile },
+        })),
+
+      // Personalización
+      activePaletteId: 'default',
+      customPalettes: [],
+      typography: DEFAULT_TYPOGRAPHY,
+      homeWidgets: DEFAULT_HOME_WIDGETS,
+
+      setActivePalette: (id) => set({ activePaletteId: id }),
+
+      addCustomPalette: (palette) =>
+        set((s) => {
+          const rawColors =
+            palette.colors && palette.colors.length >= 2
+              ? palette.colors.slice(0, 5)
+              : [palette.primary || '#8B5CF6', palette.secondary || '#F472B6'];
+          const primary = rawColors[0] || palette.primary || '#8B5CF6';
+          const secondary = rawColors[1] || palette.secondary || '#F472B6';
+          const newP: ColorPalette = {
+            ...palette,
+            colors: rawColors,
+            primary,
+            secondary,
+            accent: primary,
+            id: uid(),
+            custom: true,
+          };
+          return {
+            customPalettes: [...(s.customPalettes || []), newP],
+            activePaletteId: newP.id,
+          };
+        }),
+
+      deleteCustomPalette: (id) =>
+        set((s) => ({
+          customPalettes: (s.customPalettes || []).filter((p) => p.id !== id),
+          activePaletteId: s.activePaletteId === id ? 'default' : s.activePaletteId,
+        })),
+
+      setTypography: (settings) =>
+        set((s) => ({
+          typography: { ...(s.typography || DEFAULT_TYPOGRAPHY), ...settings },
+        })),
+
+      toggleHomeWidget: (widgetKey) =>
+        set((s) => {
+          const current = s.homeWidgets || DEFAULT_HOME_WIDGETS;
+          return {
+            homeWidgets: {
+              ...current,
+              [widgetKey]: !current[widgetKey],
+            },
+          };
+        }),
     }),
     {
       name: 'evolve-app-data',
@@ -719,6 +1199,15 @@ export const useStore = create<State>()(
           persistedState && persistedState.healthLogs && Object.keys(persistedState.healthLogs).length > 0
             ? persistedState.healthLogs
             : SEED_HEALTH_LOGS,
+        sleepLogs:
+          persistedState && persistedState.sleepLogs && Object.keys(persistedState.sleepLogs).length > 0
+            ? persistedState.sleepLogs
+            : SEED_SLEEP_LOGS,
+        userProfile: { ...DEFAULT_USER_PROFILE, ...(persistedState?.userProfile || {}) },
+        activePaletteId: persistedState?.activePaletteId || 'default',
+        customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
+        typography: { ...DEFAULT_TYPOGRAPHY, ...(persistedState?.typography || {}) },
+        homeWidgets: { ...DEFAULT_HOME_WIDGETS, ...(persistedState?.homeWidgets || {}) },
       }),
     },
   ),
