@@ -160,8 +160,8 @@ export const BODY_PARTS_INFO: Record<BodyPartKey, BodyPartInfo> = {
   },
   glutes: {
     key: 'glutes',
-    label: 'Nalgas',
-    shortLabel: 'Nalgas',
+    label: 'Glúteos',
+    shortLabel: 'Glúteos',
     category: 'torso',
     interactive: true,
     view: 'back',
@@ -260,6 +260,9 @@ export default function MeasureScreen() {
     deletePartMeasurement,
     setDayWeight,
     deleteDayWeight,
+    bodyFatLogs,
+    setDayBodyFat,
+    deleteDayBodyFat,
     addProgressPhoto,
     deleteProgressPhoto,
   } = useStore();
@@ -268,6 +271,7 @@ export default function MeasureScreen() {
 
   const dayMeasurements = measurementLogs[key] || {};
   const dayWeight = weightLogs[key];
+  const dayBodyFat = bodyFatLogs ? bodyFatLogs[key] : undefined;
   const dayPhotos = photoLogs[key] || [];
 
   // Modelo del croquis: 'male' (Hombre musculoso) vs 'female' (Mujer esbelta/fit)
@@ -382,6 +386,7 @@ export default function MeasureScreen() {
                 onChangeView={setBodyView}
                 measurements={dayMeasurements}
                 weight={dayWeight}
+                bodyFat={dayBodyFat}
                 onOpenWeightModal={() => setWeightModalOpen(true)}
                 onSelectPart={handlePartPress}
               />
@@ -446,14 +451,21 @@ export default function MeasureScreen() {
       <WeightEditModal
         visible={weightModalOpen}
         currentWeight={dayWeight}
+        currentBodyFat={dayBodyFat}
         dateKeyStr={key}
         onClose={() => setWeightModalOpen(false)}
-        onSave={(w) => {
+        onSave={(w, fat) => {
           setDayWeight(key, w);
+          if (fat !== undefined) {
+            setDayBodyFat(key, fat);
+          } else {
+            deleteDayBodyFat(key);
+          }
           setWeightModalOpen(false);
         }}
         onDelete={() => {
           deleteDayWeight(key);
+          deleteDayBodyFat(key);
           setWeightModalOpen(false);
         }}
       />
@@ -493,6 +505,7 @@ function MeasureModeSegmented({
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
 
   const options = [
     { label: 'Medidas', icon: 'body-outline' },
@@ -580,6 +593,7 @@ function AnimeBodyMapCard({
   onChangeView,
   measurements,
   weight,
+  bodyFat,
   onOpenWeightModal,
   onSelectPart,
 }: {
@@ -589,12 +603,14 @@ function AnimeBodyMapCard({
   onChangeView: (v: 'front' | 'back') => void;
   measurements: DayMeasurements;
   weight?: number;
+  bodyFat?: number;
   onOpenWeightModal: () => void;
   onSelectPart: (p: BodyPartKey) => void;
 }) {
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
   const registeredCount = Object.keys(measurements).length;
   const { width: windowWidth } = useWindowDimensions();
   // Escala proporcional exacta al lienzo nativo 516x1024 de las ilustraciones
@@ -822,9 +838,9 @@ function AnimeBodyMapCard({
                     onPress={() => onSelectPart('left_forearm')}
                   />
 
-                  {/* 4. Nalgas (Glúteos) */}
+                  {/* 4. Glúteos */}
                   <BodyMeasureBubble
-                    label="Nalgas"
+                    label="Glúteos"
                     value={measurements.glutes}
                     top={Math.round(canvasHeight * 0.578)}
                     right={6}
@@ -868,9 +884,11 @@ function AnimeBodyMapCard({
                   <Ionicons name="scale-outline" size={14} color="#FFFFFF" />
                 </View>
                 <View>
-                  <Text style={[measureStyles.integratedWeightTag, { color: palette.primary }]}>PESO</Text>
+                  <Text style={[measureStyles.integratedWeightTag, { color: palette.primary }]}>PESO & GRASA</Text>
                   <Text style={[measureStyles.integratedWeightValue, { color: palette.text }]}>
-                    {weight !== undefined && weight > 0 ? `${weight} kg` : '+ Añadir'}
+                    {weight !== undefined && weight > 0
+                      ? `${weight} kg${bodyFat !== undefined && bodyFat > 0 ? ` · ${bodyFat}%` : ''}`
+                      : '+ Añadir'}
                   </Text>
                 </View>
                 <Ionicons name="pencil-outline" size={11} color={palette.primary} style={{ marginLeft: 3 }} />
@@ -920,6 +938,7 @@ function BodyMeasureBubble({
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
   const hasVal = value !== undefined && value > 0;
 
   return (
@@ -992,6 +1011,7 @@ function GenderModelSelectModal({
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
 
   const models: {
     key: GenderModel;
@@ -1107,6 +1127,7 @@ function AnimeBodyVector({
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
 
   const imageSource =
     genderModel === 'male'
@@ -1390,6 +1411,7 @@ function BodyPartGrowthChartCard({
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
   const [timeFilter, setTimeFilter] = useState<TimeFilterRange>('ALL');
   const [timeDropdownOpen, setTimeDropdownOpen] = useState(false);
   const { width: screenWidth } = useWindowDimensions();
@@ -1850,6 +1872,7 @@ function MeasurementsSummaryGrid({
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
 
   const sections: {
     title: string;
@@ -1990,6 +2013,7 @@ function MeasurementEditModal({
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
 
   const info = BODY_PARTS_INFO[partKey];
   const [valStr, setValStr] = useState<string>(
@@ -2128,6 +2152,7 @@ function MeasurementEditModal({
 function WeightEditModal({
   visible,
   currentWeight,
+  currentBodyFat,
   dateKeyStr,
   onClose,
   onSave,
@@ -2135,27 +2160,45 @@ function WeightEditModal({
 }: {
   visible: boolean;
   currentWeight?: number;
+  currentBodyFat?: number;
   dateKeyStr: string;
   onClose: () => void;
-  onSave: (w: number) => void;
+  onSave: (w: number, bodyFat?: number) => void;
   onDelete: () => void;
 }) {
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
 
   const [valStr, setValStr] = useState<string>(
     currentWeight !== undefined ? String(currentWeight) : ''
   );
+  const [fatStr, setFatStr] = useState<string>(
+    currentBodyFat !== undefined ? String(currentBodyFat) : ''
+  );
   const [isSyncingScale, setIsSyncingScale] = useState(false);
   const [scaleSyncStep, setScaleSyncStep] = useState<string>('');
+  const [scaleSynced, setScaleSynced] = useState<boolean>(false);
 
-  const numVal = parseFloat(valStr) || 75.0;
+  useEffect(() => {
+    if (visible) {
+      setValStr(currentWeight !== undefined ? String(currentWeight) : '');
+      setFatStr(currentBodyFat !== undefined ? String(currentBodyFat) : '');
+      setScaleSynced(false);
+    }
+  }, [visible, currentWeight, currentBodyFat]);
 
-  const adjustVal = (delta: number) => {
-    const base = parseFloat(valStr) || 75.0;
+  const adjustWeight = (delta: number) => {
+    const base = parseFloat(valStr.replace(',', '.')) || 75.0;
     const updated = Math.max(20, Math.round((base + delta) * 10) / 10);
     setValStr(String(updated));
+  };
+
+  const adjustFat = (delta: number) => {
+    const base = parseFloat(fatStr.replace(',', '.')) || 15.0;
+    const updated = Math.max(3, Math.min(65, Math.round((base + delta) * 10) / 10));
+    setFatStr(String(updated));
   };
 
   const handleSyncSmartScale = () => {
@@ -2164,32 +2207,44 @@ function WeightEditModal({
 
     setTimeout(() => {
       setScaleSyncStep('Báscula conectada: Smart BodyScale Pro');
-    }, 700);
+    }, 600);
 
     setTimeout(() => {
       setScaleSyncStep('Extrayendo bioimpedancia y peso...');
-    }, 1400);
+    }, 1200);
 
     setTimeout(() => {
       const simulatedWeight = 78.4;
+      const simulatedFat = 14.8;
       setValStr(String(simulatedWeight));
+      setFatStr(String(simulatedFat));
       setIsSyncingScale(false);
       setScaleSyncStep('');
+      setScaleSynced(true);
       Alert.alert(
         'Báscula Sincronizada',
-        `Se extrajeron los datos con éxito:\n\n• Peso: ${simulatedWeight} kg\n• % Grasa Corporal: 14.8%\n• Masa Muscular: 42.1%\n\nSe ha colocado el peso en el campo para confirmar.`
+        `Se extrajeron los datos con éxito desde la báscula:\n\n• Peso: ${simulatedWeight} kg\n• % Grasa Corporal: ${simulatedFat}%\n\nPuedes confirmarlos o editarlos manualmente si lo deseas.`
       );
-    }, 2100);
+    }, 1800);
   };
 
   const handleSave = () => {
     Keyboard.dismiss();
-    const parsed = parseFloat(valStr.replace(',', '.'));
+    const parsed = parseFloat(valStr.trim().replace(',', '.'));
     if (isNaN(parsed) || parsed < 20 || parsed > 350) {
       Alert.alert('Peso inválido', 'Por favor ingresa un peso corporal válido en kg (ej: 75.5).');
       return;
     }
-    onSave(parsed);
+    let parsedFat: number | undefined = undefined;
+    if (fatStr.trim().length > 0) {
+      const f = parseFloat(fatStr.trim().replace(',', '.'));
+      if (isNaN(f) || f < 3 || f > 70) {
+        Alert.alert('% Grasa inválido', 'Por favor ingresa un porcentaje de grasa válido entre 3% y 70% (ej: 14.8).');
+        return;
+      }
+      parsedFat = f;
+    }
+    onSave(parsed, parsedFat);
   };
 
   return (
@@ -2205,7 +2260,17 @@ function WeightEditModal({
             keyboardShouldPersistTaps="handled"
             bounces={false}
           >
-            <Pressable style={measureStyles.modalDialogCard} onPress={(e) => e.stopPropagation()}>
+            <Pressable
+              style={[
+                measureStyles.modalDialogCard,
+                {
+                  backgroundColor: palette.isDark ? '#1E293B' : '#FFFFFF',
+                  borderColor: palette.isDark ? '#334155' : C.borderLight,
+                  borderWidth: palette.isDark ? 1 : 0,
+                },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
               {/* Header */}
               <View style={measureStyles.modalHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
@@ -2213,13 +2278,15 @@ function WeightEditModal({
                     <Ionicons name="scale-outline" size={20} color={palette.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={measureStyles.modalTitle}>Peso Corporal</Text>
+                    <Text style={[measureStyles.modalTitle, { color: palette.isDark ? '#FFFFFF' : C.text }]}>
+                      Composición Corporal
+                    </Text>
                     <Text style={measureStyles.modalSubtitle}>Fecha: {dateKeyStr}</Text>
                   </View>
                 </View>
 
                 <Pressable onPress={onClose} style={measureStyles.modalCloseBtn} hitSlop={10}>
-                  <Ionicons name="close" size={22} color={C.sub} />
+                  <Ionicons name="close" size={22} color={palette.isDark ? '#94A3B8' : C.sub} />
                 </Pressable>
               </View>
 
@@ -2233,13 +2300,13 @@ function WeightEditModal({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
-                    backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.1),
+                    backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.12),
                     borderWidth: 1.5,
                     borderColor: palette.primary,
                     borderRadius: 14,
                     paddingVertical: 11,
                     paddingHorizontal: 12,
-                    marginBottom: 16,
+                    marginBottom: 10,
                   },
                   pressed && { opacity: 0.8 },
                   isSyncingScale && { opacity: 0.7 },
@@ -2262,12 +2329,61 @@ function WeightEditModal({
                 )}
               </Pressable>
 
-              {/* Input */}
-              <View style={measureStyles.numberInputBigContainer}>
+              {scaleSynced && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.14),
+                    borderRadius: 10,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    marginBottom: 10,
+                  }}
+                >
+                  <Ionicons name="checkmark-circle" size={14} color={palette.primary} />
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: palette.primary }}>
+                    Datos sincronizados desde Smart BodyScale Pro
+                  </Text>
+                </View>
+              )}
+
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: palette.isDark ? '#94A3B8' : C.sub,
+                  textAlign: 'center',
+                  marginBottom: 14,
+                  lineHeight: 15,
+                }}
+              >
+                {scaleSynced
+                  ? 'Datos obtenidos automáticamente. Puedes ajustarlos manualmente si lo deseas:'
+                  : 'Sincroniza con tu báscula inteligente o ingresa peso y % de grasa manualmente:'}
+              </Text>
+
+              {/* 1. Input Peso Corporal */}
+              <View
+                style={[
+                  measureStyles.numberInputBigContainer,
+                  {
+                    backgroundColor: palette.isDark ? 'rgba(15, 23, 42, 0.65)' : '#F8FAFF',
+                    borderColor: palette.isDark ? '#334155' : C.borderLight,
+                    marginBottom: 12,
+                  },
+                ]}
+              >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                  <Text style={measureStyles.numberInputHint}>Masa corporal total</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Ionicons name="scale-outline" size={13} color={palette.primary} />
+                    <Text style={[measureStyles.numberInputHint, { color: palette.isDark ? '#CBD5E1' : C.sub }]}>
+                      Peso Corporal
+                    </Text>
+                  </View>
                   <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
-                    <Text style={[measureStyles.hideKeyboardHint, { color: palette.primary }]}>Ocultar teclado ▾</Text>
+                    <Text style={[measureStyles.hideKeyboardHint, { color: palette.primary }]}>Ocultar ▾</Text>
                   </Pressable>
                 </View>
 
@@ -2278,20 +2394,80 @@ function WeightEditModal({
                     keyboardType="decimal-pad"
                     selectTextOnFocus
                     placeholder="75.0"
-                    placeholderTextColor={C.subMuted}
-                    style={measureStyles.numberInputBig}
+                    placeholderTextColor={palette.isDark ? '#64748B' : C.subMuted}
+                    style={[measureStyles.numberInputBig, { color: palette.isDark ? '#FFFFFF' : C.text, fontSize: 32 }]}
                   />
-                  <Text style={[measureStyles.numberUnitBig, { color: palette.primary }]}>kg</Text>
+                  <Text style={[measureStyles.numberUnitBig, { color: palette.primary, fontSize: 20 }]}>kg</Text>
                 </View>
 
-                {/* Steppers */}
+                {/* Steppers Peso */}
                 <View style={measureStyles.stepperRow}>
                   {[-1.0, -0.5, -0.1, +0.1, +0.5, +1.0].map((step) => (
                     <Pressable
                       key={step}
-                      onPress={() => adjustVal(step)}
+                      onPress={() => adjustWeight(step)}
                       style={({ pressed }) => [
                         measureStyles.stepperBtn,
+                        {
+                          backgroundColor: palette.isDark ? 'rgba(51, 65, 85, 0.6)' : '#FFFFFF',
+                          borderColor: palette.isDark ? '#475569' : C.borderLight,
+                        },
+                        pressed && s.btnPressed,
+                      ]}
+                    >
+                      <Text style={[measureStyles.stepperBtnText, { color: palette.primary }]}>
+                        {step > 0 ? `+${step}` : `${step}`}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* 2. Input % Grasa Corporal */}
+              <View
+                style={[
+                  measureStyles.numberInputBigContainer,
+                  {
+                    backgroundColor: palette.isDark ? 'rgba(15, 23, 42, 0.65)' : '#F8FAFF',
+                    borderColor: palette.isDark ? '#334155' : C.borderLight,
+                    marginBottom: 16,
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Ionicons name="water-outline" size={13} color={palette.primary} />
+                    <Text style={[measureStyles.numberInputHint, { color: palette.isDark ? '#CBD5E1' : C.sub }]}>
+                      % Grasa Corporal (opcional)
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
+                  <TextInput
+                    value={fatStr}
+                    onChangeText={setFatStr}
+                    keyboardType="decimal-pad"
+                    selectTextOnFocus
+                    placeholder="14.8"
+                    placeholderTextColor={palette.isDark ? '#64748B' : C.subMuted}
+                    style={[measureStyles.numberInputBig, { color: palette.isDark ? '#FFFFFF' : C.text, fontSize: 32 }]}
+                  />
+                  <Text style={[measureStyles.numberUnitBig, { color: palette.primary, fontSize: 20 }]}>%</Text>
+                </View>
+
+                {/* Steppers Grasa */}
+                <View style={measureStyles.stepperRow}>
+                  {[-1.0, -0.5, -0.1, +0.1, +0.5, +1.0].map((step) => (
+                    <Pressable
+                      key={`fat-${step}`}
+                      onPress={() => adjustFat(step)}
+                      style={({ pressed }) => [
+                        measureStyles.stepperBtn,
+                        {
+                          backgroundColor: palette.isDark ? 'rgba(51, 65, 85, 0.6)' : '#FFFFFF',
+                          borderColor: palette.isDark ? '#475569' : C.borderLight,
+                        },
                         pressed && s.btnPressed,
                       ]}
                     >
@@ -2309,8 +2485,8 @@ function WeightEditModal({
                   <Pressable
                     onPress={() => {
                       Alert.alert(
-                        'Eliminar peso',
-                        `¿Deseas eliminar el registro de peso de este día?`,
+                        'Eliminar registro',
+                        `¿Deseas eliminar el registro de peso y composición de este día?`,
                         [
                           { text: 'Cancelar', style: 'cancel' },
                           { text: 'Eliminar', style: 'destructive', onPress: onDelete },
@@ -2326,7 +2502,7 @@ function WeightEditModal({
                 <View style={{ flex: 1 }}>
                   <PrimaryButton
                     icon="checkmark-circle"
-                    label="Guardar peso"
+                    label="Guardar métricas"
                     onPress={handleSave}
                   />
                 </View>
@@ -3482,6 +3658,7 @@ function ProgressPhotosSection({
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const palette = getActivePalette({ activePaletteId, customPalettes });
+  const bodyFatLogs = useStore((s) => s.bodyFatLogs || {});
 
   const [activeAngleModal, setActiveAngleModal] = useState<'front' | 'side' | 'back' | null>(null);
 
@@ -3514,6 +3691,15 @@ function ProgressPhotosSection({
         icon: 'scale-outline',
         colorHex: '#34D399',
         rgb: [52, 211, 153],
+      },
+      {
+        key: 'body_fat',
+        label: '% Grasa Corporal',
+        shortLabel: '% Grasa',
+        category: 'general',
+        icon: 'water-outline',
+        colorHex: '#38BDF8',
+        rgb: [56, 189, 248],
       },
       {
         key: 'calories',
@@ -3646,6 +3832,18 @@ function ProgressPhotosSection({
             key: mKey,
             label: opt.shortLabel,
             valueText: w !== undefined ? `${w} kg` : '-- kg',
+            colorHex: opt.colorHex,
+            rgb: opt.rgb,
+          });
+        } else if (mKey === 'body_fat') {
+          const sortedFatDates = Object.keys(bodyFatLogs || {}).sort();
+          const f = findLatestOnOrBefore(sortedFatDates, (d) =>
+            bodyFatLogs?.[d] !== undefined && bodyFatLogs[d] > 0 ? bodyFatLogs[d] : undefined
+          );
+          resolved.push({
+            key: mKey,
+            label: opt.shortLabel,
+            valueText: f !== undefined ? `${f}%` : '--%',
             colorHex: opt.colorHex,
             rgb: opt.rgb,
           });

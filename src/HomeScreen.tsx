@@ -14,6 +14,7 @@ import {
   Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { fmt, getPaletteColorWithAlpha } from './theme';
 import {
@@ -76,6 +77,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
     supplementLogs,
     healthLogs,
     weightLogs,
+    bodyFatLogs,
     logout,
     syncStatus,
     lastSyncedAt,
@@ -244,8 +246,17 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   const pressureSec = todayHealth['presion']?.secondaryValue;
   const glucoseVal = todayHealth['azucar']?.value;
 
-  // 5. Peso corporal
-  const currentWeight = weightLogs[todayKeyStr] || Object.values(weightLogs || {}).pop() || null;
+  // 5. Peso corporal y composición
+  const getLatestEntry = (map?: Record<string, number>) => {
+    if (!map) return null;
+    if (map[todayKeyStr] !== undefined) return map[todayKeyStr];
+    const keys = Object.keys(map).sort();
+    if (keys.length === 0) return null;
+    return map[keys[keys.length - 1]];
+  };
+  const currentWeight = getLatestEntry(weightLogs);
+  const currentBodyFat = getLatestEntry(bodyFatLogs);
+  const [stickyHeaderHeight, setStickyHeaderHeight] = useState(Platform.OS === 'android' ? 104 : 96);
 
   // 6. Racha y Nivel RPG
   const totalDaysLogged = Object.keys(logs).length + Object.keys(workoutLogs).length;
@@ -285,14 +296,31 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
           - Al lado derecho: Botón de Ajustes
       ========================================================== */}
       <View
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0 && Math.abs(h - stickyHeaderHeight) > 1) {
+            setStickyHeaderHeight(h);
+          }
+        }}
         style={[
           styles.userHeroSticky,
           {
-            backgroundColor: palette.bg,
+            backgroundColor: 'transparent',
             borderBottomColor: palette.isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.6)',
           },
         ]}
       >
+        <BlurView
+          intensity={50}
+          tint={palette.isDark ? 'dark' : 'light'}
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: getPaletteColorWithAlpha(palette.bg, 0.5),
+            },
+            Platform.OS === 'web' && ({ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' } as any),
+          ]}
+        />
         <View style={styles.userHeroRow}>
           {/* Perfil al lado izquierdo (Avatar + Racha horizontal justo debajo) */}
           <View style={{ alignItems: 'center', marginRight: 12 }}>
@@ -513,7 +541,10 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: stickyHeaderHeight + 8 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
 
@@ -858,25 +889,56 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 )}
               </View>
 
-              <View style={styles.bodyWeightRow}>
-                <Text style={[styles.bodyWeightVal, { color: palette.text, fontFamily: dataFont }]}>
-                  {fmt(parseFloat(String(currentWeight || 74.5)) * growthProgress)}{' '}
-                  <Text style={[styles.bodyWeightUnit, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    kg
-                  </Text>
-                </Text>
+              <View style={styles.bodyCompGrid}>
+                {/* Bloque Peso */}
                 <View
                   style={[
-                    styles.bodyWeightBadge,
+                    styles.bodyCompBox,
                     {
-                      borderColor: c5,
-                      backgroundColor: `${c5}15`,
+                      backgroundColor: palette.isDark ? 'rgba(30, 41, 59, 0.55)' : 'rgba(241, 245, 249, 0.7)',
+                      borderColor: palette.isDark ? 'rgba(51, 65, 85, 0.6)' : 'rgba(226, 232, 240, 0.9)',
                     },
                   ]}
                 >
-                  <Ionicons name="trending-down-outline" size={14} color={c5} />
-                  <Text style={[styles.bodyWeightBadgeText, { color: c5, fontFamily: dataFont }]}>
-                    Estable
+                  <View style={styles.bodyCompBoxHeader}>
+                    <View style={[styles.bodyCompIconCircle, { backgroundColor: `${c5}20` }]}>
+                      <Ionicons name="scale-outline" size={13} color={c5} />
+                    </View>
+                    <Text style={[styles.bodyCompBoxLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      Peso
+                    </Text>
+                  </View>
+                  <Text style={[styles.bodyCompVal, { color: palette.text, fontFamily: dataFont }]}>
+                    {fmt(parseFloat(String(currentWeight || 74.5)) * growthProgress)}{' '}
+                    <Text style={[styles.bodyCompUnit, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      kg
+                    </Text>
+                  </Text>
+                </View>
+
+                {/* Bloque % Grasa */}
+                <View
+                  style={[
+                    styles.bodyCompBox,
+                    {
+                      backgroundColor: palette.isDark ? 'rgba(30, 41, 59, 0.55)' : 'rgba(241, 245, 249, 0.7)',
+                      borderColor: palette.isDark ? 'rgba(51, 65, 85, 0.6)' : 'rgba(226, 232, 240, 0.9)',
+                    },
+                  ]}
+                >
+                  <View style={styles.bodyCompBoxHeader}>
+                    <View style={[styles.bodyCompIconCircle, { backgroundColor: `${c5}20` }]}>
+                      <Ionicons name="water-outline" size={13} color={c5} />
+                    </View>
+                    <Text style={[styles.bodyCompBoxLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      % Grasa
+                    </Text>
+                  </View>
+                  <Text style={[styles.bodyCompVal, { color: palette.text, fontFamily: dataFont }]}>
+                    {fmt(parseFloat(String(currentBodyFat || 14.8)) * growthProgress)}{' '}
+                    <Text style={[styles.bodyCompUnit, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      %
+                    </Text>
                   </Text>
                 </View>
               </View>
@@ -2550,12 +2612,17 @@ const styles = StyleSheet.create({
 
   // Perfil superior sticky fijo
   userHeroSticky: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'android' ? 14 : 10,
     paddingBottom: 12,
     borderBottomWidth: 1,
     zIndex: 20,
-    elevation: 3,
+    elevation: 4,
+    overflow: 'hidden',
   },
   userHeroTransparent: {
     paddingVertical: 4,
@@ -2868,7 +2935,46 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
 
-  // Medidas Mini
+  // Medidas y Composición Corporal
+  bodyCompGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  bodyCompBox: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  bodyCompBoxHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  bodyCompIconCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bodyCompBoxLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  bodyCompVal: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  bodyCompUnit: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   bodyWeightRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -57,7 +57,7 @@ export type BodyPartKey =
   | 'left_thigh'     // Muslo izquierdo
   | 'right_calf'     // Pantorilla derecha
   | 'left_calf'      // Pantorilla izquierda
-  | 'glutes'         // Nalgas
+  | 'glutes'         // Glúteos
   | 'hands'          // Manos (no interactua)
   | 'feet';          // Pies (no interactua)
 
@@ -652,10 +652,13 @@ type State = {
   setPartMeasurement: (date: string, part: BodyPartKey, value: number) => void;
   deletePartMeasurement: (date: string, part: BodyPartKey) => void;
 
-  // Peso Corporal
+  // Peso Corporal y Composición
   weightLogs: Record<string, number>;
   setDayWeight: (date: string, weight: number) => void;
   deleteDayWeight: (date: string) => void;
+  bodyFatLogs: Record<string, number>;
+  setDayBodyFat: (date: string, bodyFat: number) => void;
+  deleteDayBodyFat: (date: string) => void;
 
   // Fotos de Progreso
   photoLogs: Record<string, ProgressPhoto[]>;
@@ -937,6 +940,27 @@ export const useStore = create<State>()(
           const current = { ...s.weightLogs };
           delete current[date];
           return { weightLogs: current };
+        }),
+
+      // Grasa Corporal (% de grasa)
+      bodyFatLogs: {
+        '2026-09-15': 16.2,
+        '2026-10-10': 15.6,
+        '2026-10-24': 15.1,
+        '2026-10-30': 14.8,
+      },
+      setDayBodyFat: (date, bodyFat) =>
+        set((s) => ({
+          bodyFatLogs: {
+            ...s.bodyFatLogs,
+            [date]: bodyFat,
+          },
+        })),
+      deleteDayBodyFat: (date) =>
+        set((s) => {
+          const current = { ...s.bodyFatLogs };
+          delete current[date];
+          return { bodyFatLogs: current };
         }),
 
       // Fotos de Progreso
@@ -1358,6 +1382,7 @@ export const useStore = create<State>()(
           workoutLogs: {},
           measurementLogs: {},
           weightLogs: {},
+          bodyFatLogs: {},
           photoLogs: {},
           supplements: SEED_SUPPLEMENTS,
           supplementLogs: {},
@@ -1395,6 +1420,7 @@ export const useStore = create<State>()(
           if (records.workoutLogs && typeof records.workoutLogs === 'object') updates.workoutLogs = records.workoutLogs;
           if (records.measurementLogs && typeof records.measurementLogs === 'object') updates.measurementLogs = records.measurementLogs;
           if (records.weightLogs && typeof records.weightLogs === 'object') updates.weightLogs = records.weightLogs;
+          if (records.bodyFatLogs && typeof records.bodyFatLogs === 'object') updates.bodyFatLogs = records.bodyFatLogs;
           if (records.photoLogs && typeof records.photoLogs === 'object') updates.photoLogs = records.photoLogs;
           if (records.supplements && Array.isArray(records.supplements)) updates.supplements = records.supplements;
           if (records.supplementLogs && typeof records.supplementLogs === 'object') updates.supplementLogs = records.supplementLogs;
@@ -1418,6 +1444,7 @@ export const useStore = create<State>()(
           workoutLogs: {},
           measurementLogs: {},
           weightLogs: {},
+          bodyFatLogs: {},
           photoLogs: {},
           supplements: SEED_SUPPLEMENTS,
           supplementLogs: {},
@@ -1456,6 +1483,10 @@ export const useStore = create<State>()(
           persistedState && persistedState.sleepLogs && Object.keys(persistedState.sleepLogs).length > 0
             ? persistedState.sleepLogs
             : SEED_SLEEP_LOGS,
+        bodyFatLogs:
+          persistedState && persistedState.bodyFatLogs && Object.keys(persistedState.bodyFatLogs).length > 0
+            ? persistedState.bodyFatLogs
+            : currentState.bodyFatLogs,
         userProfile: { ...DEFAULT_USER_PROFILE, ...(persistedState?.userProfile || {}) },
         activePaletteId: persistedState?.activePaletteId || 'default',
         customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
