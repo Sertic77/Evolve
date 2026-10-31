@@ -168,7 +168,7 @@ export default function FoodScreen() {
               <Ionicons name="sparkles" size={11} color={palette.primary} />
               <Text style={[styles.cyberTagText, { color: palette.primary }]}>✦ EVOLVE // PROTOCOLO ✦</Text>
             </View>
-            <Text style={styles.screenTitle}>Comida</Text>
+            <Text style={[styles.screenTitle, palette.isDark && { color: '#FFFFFF' }]}>Comida</Text>
           </View>
 
           <View style={[styles.dateChipMini, { borderColor: getPaletteColorWithAlpha(palette.primary, 0.25), backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.08) }]}>
@@ -634,7 +634,7 @@ function IngredientsList() {
             style={styles.ingredientCardGradient}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.ingredientCardTitle}>{ing.name}</Text>
+              <Text style={[styles.ingredientCardTitle, palette.isDark && { color: '#FFFFFF' }]}>{ing.name}</Text>
               <View style={styles.servingBadge}>
                 <Ionicons name="scale-outline" size={11} color="#94A3B8" />
                 <Text style={styles.servingBadgeText}>por {ing.servingGrams}{ing.unit || 'g'}</Text>
@@ -685,6 +685,7 @@ function IngredientFormModal({
   onDelete?: () => void;
 }) {
   const palette = getActivePalette(useStore.getState());
+  const homeWidgets = useStore((s) => s.homeWidgets);
   const [unit, setUnit] = useState<FoodUnit>(ing.unit || 'g');
   const [form, setForm] = useState({
     name: ing.name,
@@ -693,6 +694,7 @@ function IngredientFormModal({
     carbs: String(ing.carbs || 0),
     protein: String(ing.protein || 0),
     fat: String(ing.fat || 0),
+    sugar: String(ing.sugar || 0),
   });
 
   const parseNum = (k: keyof typeof form) =>
@@ -807,11 +809,18 @@ function IngredientFormModal({
               </View>
 
               {/* Carbos, Proteína y Grasas */}
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: homeWidgets?.sugar ? 12 : 20 }}>
                 {renderField('carbs', 'Carbos (g)', C.carbs, 'leaf')}
                 {renderField('protein', 'Proteína (g)', C.protein, 'flash')}
                 {renderField('fat', 'Grasas (g)', C.fat, 'water')}
               </View>
+
+              {/* Azúcar (si está habilitado en Home Display) */}
+              {homeWidgets?.sugar && (
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+                  {renderField('sugar', 'Azúcar (g)', palette.accent || palette.primary, 'cube-outline')}
+                </View>
+              )}
 
               {/* Botones de acción */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -835,6 +844,7 @@ function IngredientFormModal({
                       carbs: parseNum('carbs'),
                       protein: parseNum('protein'),
                       fat: parseNum('fat'),
+                      sugar: parseNum('sugar'),
                     });
                   }}
                 />
@@ -944,7 +954,7 @@ function SavedMealsList({
                   style={styles.savedMealCardGradient}
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.savedMealTitle}>{sm.name}</Text>
+                    <Text style={[styles.savedMealTitle, palette.isDark && { color: '#FFFFFF' }]}>{sm.name}</Text>
                     <Pressable
                       hitSlop={10}
                       onPress={() =>
@@ -992,7 +1002,7 @@ const styles = StyleSheet.create({
   stickyTabsContainer: {
     backgroundColor: 'transparent',
     paddingTop: 2,
-    paddingBottom: 8,
+    paddingBottom: 4,
     zIndex: 25,
   },
   topHeader: {
