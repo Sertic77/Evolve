@@ -1460,6 +1460,16 @@ function BodyPartGrowthChartCard({
   const plotMin = maxVal === minVal ? minVal - 1 : minVal;
   const range = maxVal - minVal === 0 ? 2 : maxVal - minVal;
 
+  const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (points.length > 0) {
+      setActivePointIndex(points.length - 1);
+    } else {
+      setActivePointIndex(null);
+    }
+  }, [points.length, selectedPart, timeFilter]);
+
   const coords = points.map((p, idx) => {
     const x =
       points.length === 1
@@ -1478,6 +1488,27 @@ function BodyPartGrowthChartCard({
       })(),
     };
   });
+
+  const safeActiveIdx =
+    activePointIndex !== null && activePointIndex >= 0 && activePointIndex < coords.length
+      ? activePointIndex
+      : coords.length > 0
+      ? coords.length - 1
+      : null;
+
+  // Fechas muestreadas de manera uniforme (máximo 4 a 5 fechas para evitar solapamientos)
+  const sampledDateIndices = React.useMemo(() => {
+    if (coords.length <= 5) {
+      return coords.map((_, i) => i);
+    }
+    const count = 4;
+    const step = (coords.length - 1) / (count - 1);
+    const indices: number[] = [];
+    for (let i = 0; i < count; i++) {
+      indices.push(Math.round(i * step));
+    }
+    return Array.from(new Set(indices));
+  }, [coords.length]);
 
   let curvePathD = '';
   let fillPathD = '';
@@ -1795,61 +1826,110 @@ function BodyPartGrowthChartCard({
                 />
 
                 {/* Puntos y halos de datos */}
-                {coords.map((c, i) => (
-                  <G key={i}>
-                    <Circle
-                      cx={c.x}
-                      cy={c.y}
-                      r={8}
-                      fill={getPaletteColorWithAlpha(palette.primary, 0.2)}
-                    />
-                    <Circle
-                      cx={c.x}
-                      cy={c.y}
-                      r={4.5}
-                      fill="#FFFFFF"
-                      stroke={palette.primary}
-                      strokeWidth={2.4}
-                    />
-                    <Circle cx={c.x} cy={c.y} r={2} fill={palette.primary} />
-                  </G>
-                ))}
+                {coords.map((c, i) => {
+                  const isActive = i === safeActiveIdx;
+                  const isCrowded = coords.length > 14;
+                  return (
+                    <G key={i} onPress={() => setActivePointIndex(i)}>
+                      {/* Zona táctil invisible amplia */}
+                      <Circle cx={c.x} cy={c.y} r={16} fill="transparent" />
+
+                      {isActive && (
+                        <Circle
+                          cx={c.x}
+                          cy={c.y}
+                          r={10}
+                          fill={getPaletteColorWithAlpha(palette.primary, 0.25)}
+                        />
+                      )}
+
+                      <Circle
+                        cx={c.x}
+                        cy={c.y}
+                        r={isActive ? 5.5 : isCrowded ? 2.5 : 4}
+                        fill={isActive ? '#FFFFFF' : palette.primary}
+                        stroke={palette.primary}
+                        strokeWidth={isActive ? 2.5 : 1}
+                      />
+                      {isActive && (
+                        <Circle cx={c.x} cy={c.y} r={2.5} fill={palette.primary} />
+                      )}
+                    </G>
+                  );
+                })}
               </Svg>
 
-              {/* Etiquetas flotantes sobre los puntos (Valores numéricos) */}
+              {/* Etiquetas flotantes sobre los puntos (Valores numéricos sin solapamiento) */}
               <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                {coords.map((c, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      measureStyles.chartPointValueBubble,
-                      {
-                        left: c.x - 22,
-                        top: Math.max(2, c.y - 25),
-                        borderColor: getPaletteColorWithAlpha(palette.primary, 0.45),
-                      },
-                    ]}
-                  >
-                    <Text style={[measureStyles.chartPointValueText, { color: palette.primary }]}>{c.val}</Text>
-                  </View>
-                ))}
+                {coords.map((c, i) => {
+                  const isActive = i === safeActiveIdx;
+                  // Si hay muchos puntos, solo se dibuja la burbuja del punto activo seleccionado
+                  const showBubble = coords.length <= 6 || isActive;
+                  if (!showBubble) return null;
+
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        measureStyles.chartPointValueBubble,
+                        {
+                          left: Math.max(4, Math.min(chartWidth - 54, c.x - 27)),
+                          top: Math.max(2, c.y - 28),
+                          borderColor: isActive
+                            ? palette.primary
+                            : getPaletteColorWithAlpha(palette.primary, 0.45),
+                          backgroundColor: isActive
+                            ? (palette.isDark ? '#0F172A' : '#FFFFFF')
+                            : undefined,
+                          paddingHorizontal: 6,
+                          minWidth: 48,
+                          zIndex: isActive ? 10 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          measureStyles.chartPointValueText,
+                          { color: palette.primary, fontWeight: isActive ? '900' : '700' },
+                        ]}
+                      >
+                        {c.val}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
 
-              {/* Fechas debajo de la gráfica */}
+              {/* Fechas debajo de la gráfica (muestreadas limpiamente sin solapamiento) */}
               <View style={measureStyles.chartDatesRow}>
-                {coords.map((c, i) => (
-                  <View
-                    key={i}
-                    style={{
-                      position: 'absolute',
-                      left: c.x - 25,
-                      width: 50,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={measureStyles.chartDateText}>{c.dateLabel}</Text>
-                  </View>
-                ))}
+                {sampledDateIndices.map((idx) => {
+                  const c = coords[idx];
+                  if (!c) return null;
+                  const isActive = idx === safeActiveIdx;
+                  return (
+                    <View
+                      key={idx}
+                      style={{
+                        position: 'absolute',
+                        left: Math.max(0, Math.min(chartWidth - 50, c.x - 25)),
+                        width: 50,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text
+                        style={[
+                          measureStyles.chartDateText,
+                          isActive && {
+                            color: palette.primary,
+                            fontWeight: '800',
+                          },
+                        ]}
+                      >
+                        {c.dateLabel}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             </View>
           )}

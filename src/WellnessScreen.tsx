@@ -4409,6 +4409,17 @@ function HealthMetricsSVGChart({
     );
   }
 
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (entries.length > 0) {
+      const matchIdx = entries.findIndex((e) => e.dateStr === currentDateKey);
+      setSelectedIdx(matchIdx >= 0 ? matchIdx : entries.length - 1);
+    } else {
+      setSelectedIdx(null);
+    }
+  }, [entries.length, currentDateKey, metric.id]);
+
   const allVals = entries.flatMap((e) => [e.val, e.val2 || e.val]);
   const minVal = Math.max(0, Math.min(...allVals) - 10);
   const maxVal = Math.max(...allVals) + 10;
@@ -4426,6 +4437,27 @@ function HealthMetricsSVGChart({
         : undefined;
     return { x, y, y2, val: e.val, val2: e.val2, dateStr: e.dateStr };
   });
+
+  const activeIdx =
+    selectedIdx !== null && selectedIdx >= 0 && selectedIdx < points.length
+      ? selectedIdx
+      : points.length > 0
+      ? points.length - 1
+      : null;
+
+  // Fechas espaciadas uniformemente para el eje inferior (máximo 4 a 5)
+  const sampledDateIndices = React.useMemo(() => {
+    if (points.length <= 5) {
+      return points.map((_, i) => i);
+    }
+    const count = 4;
+    const step = (points.length - 1) / (count - 1);
+    const indices: number[] = [];
+    for (let i = 0; i < count; i++) {
+      indices.push(Math.round(i * step));
+    }
+    return Array.from(new Set(indices));
+  }, [points.length]);
 
   let pathD = `M ${points[0].x} ${points[0].y}`;
   for (let i = 1; i < points.length; i++) {
@@ -4512,76 +4544,88 @@ function HealthMetricsSVGChart({
 
         {/* Puntos y valores */}
         {points.map((p, idx) => {
-          const isSelectedDate = p.dateStr === currentDateKey;
+          const isActive = idx === activeIdx;
+          const isCrowded = points.length > 12;
+          const showValue = points.length <= 6 || isActive;
+          const showDate = sampledDateIndices.includes(idx);
           const labelDate = p.dateStr.slice(5).replace('-', '/');
+
           return (
-            <React.Fragment key={idx}>
-              {isSelectedDate && (
+            <G key={idx} onPress={() => setSelectedIdx(idx)}>
+              {/* Área táctil amplia invisible */}
+              <Circle cx={p.x} cy={p.y} r={16} fill="transparent" />
+
+              {isActive && (
                 <Circle
                   cx={p.x}
                   cy={p.y}
-                  r={8}
+                  r={9}
                   fill="none"
                   stroke={metric.color}
-                  strokeWidth={1.5}
-                  strokeDasharray="2 2"
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
                 />
               )}
               <Circle
                 cx={p.x}
                 cy={p.y}
-                r={isSelectedDate ? 5 : 4}
-                fill="#FFFFFF"
+                r={isActive ? 5.5 : isCrowded ? 2.5 : 4}
+                fill={isActive ? '#FFFFFF' : metric.color}
                 stroke={metric.color}
-                strokeWidth={2.5}
+                strokeWidth={isActive ? 2.5 : 1}
               />
-              <SvgText
-                x={p.x}
-                y={p.y - 7}
-                fontSize={9.5}
-                fontWeight="bold"
-                fill="#334155"
-                textAnchor="middle"
-              >
-                {p.val}
-              </SvgText>
+
+              {showValue && (
+                <SvgText
+                  x={p.x}
+                  y={p.y - 8}
+                  fontSize={isActive ? 11 : 9.5}
+                  fontWeight={isActive ? '900' : 'bold'}
+                  fill={isActive ? metric.color : '#334155'}
+                  textAnchor="middle"
+                >
+                  {p.val}
+                </SvgText>
+              )}
 
               {p.y2 !== undefined && (
                 <>
                   <Circle
                     cx={p.x}
                     cy={p.y2}
-                    r={isSelectedDate ? 5 : 4}
-                    fill="#FFFFFF"
+                    r={isActive ? 5.5 : isCrowded ? 2.5 : 4}
+                    fill={isActive ? '#FFFFFF' : '#8B5CF6'}
                     stroke="#8B5CF6"
-                    strokeWidth={2.5}
+                    strokeWidth={isActive ? 2.5 : 1}
                   />
-                  <SvgText
-                    x={p.x}
-                    y={p.y2 + 13}
-                    fontSize={9.5}
-                    fontWeight="bold"
-                    fill="#64748B"
-                    textAnchor="middle"
-                  >
-                    {p.val2}
-                  </SvgText>
+                  {showValue && (
+                    <SvgText
+                      x={p.x}
+                      y={p.y2 + 14}
+                      fontSize={isActive ? 11 : 9.5}
+                      fontWeight={isActive ? '900' : 'bold'}
+                      fill={isActive ? '#8B5CF6' : '#64748B'}
+                      textAnchor="middle"
+                    >
+                      {p.val2}
+                    </SvgText>
+                  )}
                 </>
               )}
 
-              {p.y2 === undefined && (
+              {showDate && (
                 <SvgText
                   x={p.x}
                   y={height - 4}
                   fontSize={8.5}
-                  fontWeight="600"
-                  fill="#94A3B8"
+                  fontWeight={isActive ? '800' : '600'}
+                  fill={isActive ? metric.color : '#94A3B8'}
                   textAnchor="middle"
                 >
                   {labelDate}
                 </SvgText>
               )}
-            </React.Fragment>
+            </G>
           );
         })}
       </Svg>

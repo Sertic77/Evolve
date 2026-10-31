@@ -112,19 +112,20 @@ async function main() {
 
     // 2. Medidas Corporales (Registradas semanalmente cada domingo)
     if (dayOfWeek === 0 || i === 0) {
+      const mNoise = ((i % 3) - 1) * 0.15;
       measurementLogs[dateStr] = {
-        chest: Math.round((95.0 + 9.5 * progress) * 10) / 10,       // 95 -> 104.5 cm
-        back: Math.round((103.0 + 8.0 * progress) * 10) / 10,       // 103 -> 111 cm
-        waist: Math.round((87.0 - 8.5 * progress) * 10) / 10,       // 87 -> 78.5 cm (reducción cintura)
-        glutes: Math.round((94.5 + 4.2 * progress) * 10) / 10,      // 94.5 -> 98.7 cm (Glúteos)
-        right_arm: Math.round((34.0 + 4.5 * progress) * 10) / 10,   // 34 -> 38.5 cm
-        left_arm: Math.round((33.7 + 4.5 * progress) * 10) / 10,    // 33.7 -> 38.2 cm
-        right_forearm: Math.round((27.5 + 3.0 * progress) * 10) / 10,
-        left_forearm: Math.round((27.3 + 3.0 * progress) * 10) / 10,
-        right_thigh: Math.round((54.5 + 6.0 * progress) * 10) / 10, // 54.5 -> 60.5 cm
-        left_thigh: Math.round((54.2 + 6.0 * progress) * 10) / 10,
-        right_calf: Math.round((36.5 + 2.0 * progress) * 10) / 10,
-        left_calf: Math.round((36.3 + 2.0 * progress) * 10) / 10,
+        chest: Math.round((95.0 + 9.5 * progress + mNoise) * 10) / 10,       // 95 -> 104.5 cm
+        back: Math.round((103.0 + 8.0 * progress + mNoise) * 10) / 10,       // 103 -> 111 cm
+        waist: Math.round((87.0 - 8.5 * progress - mNoise) * 10) / 10,       // 87 -> 78.5 cm (reducción cintura)
+        glutes: Math.round((94.5 + 4.2 * progress + mNoise) * 10) / 10,      // 94.5 -> 98.7 cm (Glúteos)
+        right_arm: Math.round((34.0 + 4.5 * progress + mNoise * 0.5) * 10) / 10,   // 34 -> 38.5 cm
+        left_arm: Math.round((33.7 + 4.5 * progress + mNoise * 0.5) * 10) / 10,    // 33.7 -> 38.2 cm
+        right_forearm: Math.round((27.5 + 3.0 * progress + mNoise * 0.3) * 10) / 10,
+        left_forearm: Math.round((27.3 + 3.0 * progress + mNoise * 0.3) * 10) / 10,
+        right_thigh: Math.round((54.5 + 6.0 * progress + mNoise * 0.7) * 10) / 10, // 54.5 -> 60.5 cm
+        left_thigh: Math.round((54.2 + 6.0 * progress + mNoise * 0.7) * 10) / 10,
+        right_calf: Math.round((36.5 + 2.0 * progress + mNoise * 0.3) * 10) / 10,
+        left_calf: Math.round((36.3 + 2.0 * progress + mNoise * 0.3) * 10) / 10,
       };
     }
 
@@ -328,13 +329,19 @@ async function main() {
       'supp-whey': [!isMissed],
     };
 
-    // 7. Métricas de Salud / Biomarcadores (Semanal / Quincenal)
+    // 7. Métricas de Salud / Biomarcadores (Semanal / Quincenal con evolución positiva realista)
     if (curDate.getDate() % 14 === 1 || i === 0) {
+      const sys = Math.round(128 - 9 * progress + ((i % 5) - 2));
+      const dia = Math.round(84 - 7 * progress + ((i % 3) - 1));
+      const azucar = Math.round(98 - 8 * progress + ((i % 4) - 2));
+      const colesterol = Math.round(195 - 24 * progress + ((i % 5) - 2) * 2);
+      const trigliceridos = Math.round(156 - 36 * progress + ((i % 4) - 1.5) * 3);
+
       healthLogs[dateStr] = {
-        presion: { value: 119, secondaryValue: 78, notes: 'Presión en reposo óptima' },
-        azucar: { value: 91, notes: 'Glucosa en ayunas' },
-        colesterol: { value: 174, notes: 'Perfil lipídico normal' },
-        trigliceridos: { value: 128, notes: 'Triglicéridos dentro de rango' },
+        presion: { value: sys, secondaryValue: dia, notes: sys <= 120 ? 'Presión en reposo óptima' : 'Ligera elevación por fatiga' },
+        azucar: { value: azucar, notes: 'Glucosa en ayunas' },
+        colesterol: { value: colesterol, notes: 'Perfil lipídico normal' },
+        trigliceridos: { value: trigliceridos, notes: 'Triglicéridos en rango saludable' },
       };
     }
   }
