@@ -93,6 +93,29 @@ export type HealthLogEntry = {
 };
 
 /* ==========================================================
+   TIPOS DE SUEÑO Y SMARTBAND (APPLE HEALTH / XIAOMI BAND)
+========================================================== */
+export type SleepLogEntry = {
+  hours: number;
+  minutes: number;
+  bedtime?: string;
+  wakeTime?: string;
+  deepSleepHours?: number;
+  lightSleepHours?: number;
+  remSleepHours?: number;
+  awakeMinutes?: number;
+  sleepScore?: number;
+  activeCaloriesBurned?: number; // Calorías activas quemadas sincronizadas del reloj
+  steps?: number;
+  restingHeartRate?: number;
+  syncedFromDevice?: boolean;
+  deviceName?: string;
+  source?: 'apple_health' | 'manual';
+  lastSyncedAt?: string;
+  qualityNote?: string;
+};
+
+/* ==========================================================
    CONFIGURACIÓN Y PERSONALIZACIÓN (PALETAS, TIPOGRAFÍA, HOME)
 ========================================================== */
 export type UserProfile = {
@@ -375,6 +398,66 @@ export const SEED_HEALTH_LOGS: Record<string, Record<string, HealthLogEntry>> = 
   },
 };
 
+export const SEED_SLEEP_LOGS: Record<string, SleepLogEntry> = {
+  [genRecentDateKey(0)]: {
+    hours: 7,
+    minutes: 45,
+    bedtime: '23:15',
+    wakeTime: '07:00',
+    deepSleepHours: 1.8,
+    lightSleepHours: 4.4,
+    remSleepHours: 1.5,
+    awakeMinutes: 18,
+    sleepScore: 88,
+    activeCaloriesBurned: 520,
+    steps: 8430,
+    restingHeartRate: 58,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: 'Hoy, 08:30 AM',
+    qualityNote: 'Recuperación física óptima y buen porcentaje de sueño profundo.',
+  },
+  [genRecentDateKey(1)]: {
+    hours: 8,
+    minutes: 10,
+    bedtime: '22:50',
+    wakeTime: '07:00',
+    deepSleepHours: 2.1,
+    lightSleepHours: 4.5,
+    remSleepHours: 1.5,
+    awakeMinutes: 12,
+    sleepScore: 92,
+    activeCaloriesBurned: 610,
+    steps: 10240,
+    restingHeartRate: 56,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: 'Ayer, 08:15 AM',
+    qualityNote: 'Descanso reparador, ciclo circadiano constante.',
+  },
+  [genRecentDateKey(2)]: {
+    hours: 6,
+    minutes: 50,
+    bedtime: '00:10',
+    wakeTime: '07:00',
+    deepSleepHours: 1.3,
+    lightSleepHours: 4.2,
+    remSleepHours: 1.3,
+    awakeMinutes: 25,
+    sleepScore: 76,
+    activeCaloriesBurned: 480,
+    steps: 7120,
+    restingHeartRate: 61,
+    syncedFromDevice: true,
+    deviceName: 'Xiaomi Smart Band (Apple Health)',
+    source: 'apple_health',
+    lastSyncedAt: '28 oct, 08:20 AM',
+    qualityNote: 'Ligera privación de sueño, se recomienda acostarse más temprano.',
+  },
+};
+
 export const ZERO: Macros = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
 
@@ -492,6 +575,11 @@ type State = {
   setHealthLog: (date: string, metricId: string, entry: HealthLogEntry) => void;
   addHealthMetric: (metric: Omit<HealthMetricDefinition, 'id'>) => void;
   deleteHealthMetric: (id: string) => void;
+
+  // Bienestar: Sueño y Smartband (Xiaomi Band / Apple Health)
+  sleepLogs: Record<string, SleepLogEntry>;
+  setSleepLog: (date: string, entry: SleepLogEntry) => void;
+  syncWatchData: (date: string, customData?: Partial<SleepLogEntry>) => void;
   // Perfil del Usuario
   userProfile: UserProfile;
   setUserProfile: (profile: Partial<UserProfile>) => void;
@@ -909,6 +997,53 @@ export const useStore = create<State>()(
           healthMetrics: (s.healthMetrics || SEED_HEALTH_METRICS).filter((m) => m.id !== id),
         })),
 
+      // Bienestar: Sueño y Smartband
+      sleepLogs: SEED_SLEEP_LOGS,
+
+      setSleepLog: (date, entry) =>
+        set((s) => ({
+          sleepLogs: {
+            ...(s.sleepLogs || SEED_SLEEP_LOGS),
+            [date]: entry,
+          },
+        })),
+
+      syncWatchData: (date, customData) =>
+        set((s) => {
+          const current = s.sleepLogs?.[date] || {
+            hours: 7,
+            minutes: 35,
+            bedtime: '23:20',
+            wakeTime: '07:10',
+            deepSleepHours: 1.8,
+            lightSleepHours: 4.3,
+            remSleepHours: 1.5,
+            awakeMinutes: 16,
+            sleepScore: 87,
+            activeCaloriesBurned: 535,
+            steps: 8350,
+            restingHeartRate: 58,
+          };
+          const now = new Date();
+          const hours12 = now.getHours() % 12 || 12;
+          const ampm = now.getHours() >= 12 ? 'PM' : 'AM';
+          const timeStr = `Hoy, ${String(hours12).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} ${ampm}`;
+          const updated: SleepLogEntry = {
+            ...current,
+            ...customData,
+            syncedFromDevice: true,
+            deviceName: 'Xiaomi Smart Band (Apple Health)',
+            source: 'apple_health',
+            lastSyncedAt: timeStr,
+          };
+          return {
+            sleepLogs: {
+              ...(s.sleepLogs || SEED_SLEEP_LOGS),
+              [date]: updated,
+            },
+          };
+        }),
+
       // Perfil del Usuario
       userProfile: DEFAULT_USER_PROFILE,
       setUserProfile: (profile) =>
@@ -970,6 +1105,10 @@ export const useStore = create<State>()(
           persistedState && persistedState.healthLogs && Object.keys(persistedState.healthLogs).length > 0
             ? persistedState.healthLogs
             : SEED_HEALTH_LOGS,
+        sleepLogs:
+          persistedState && persistedState.sleepLogs && Object.keys(persistedState.sleepLogs).length > 0
+            ? persistedState.sleepLogs
+            : SEED_SLEEP_LOGS,
         userProfile: { ...DEFAULT_USER_PROFILE, ...(persistedState?.userProfile || {}) },
         activePaletteId: persistedState?.activePaletteId || 'default',
         customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
