@@ -167,7 +167,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'default',
     name: 'Anime Pastel (Default)',
     isDark: false,
-    colors: ['#8B5CF6', '#F472B6', '#14B8A6'], // 3 colores
+    colors: ['#8B5CF6', '#F472B6'], // 2 colores por defecto
     primary: '#8B5CF6',
     secondary: '#F472B6',
     bg: '#F3F5FA',
@@ -181,7 +181,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'dark',
     name: 'Modo Nocturno (Midnight)',
     isDark: true,
-    colors: ['#818CF8', '#EC4899', '#38BDF8'], // 3 colores
+    colors: ['#818CF8', '#EC4899'], // 2 colores por defecto
     primary: '#818CF8',
     secondary: '#EC4899',
     bg: '#0F172A',
@@ -195,7 +195,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'sunset',
     name: 'Atardecer Cálido',
     isDark: false,
-    colors: ['#FB7185', '#F59E0B', '#EF4444'], // 3 colores
+    colors: ['#FB7185', '#F59E0B'], // 2 colores por defecto
     primary: '#FB7185',
     secondary: '#F59E0B',
     bg: '#FFF7ED',
@@ -209,7 +209,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'emerald',
     name: 'Menta & Esmeralda',
     isDark: false,
-    colors: ['#10B981', '#06B6D4'], // 2 colores
+    colors: ['#10B981', '#06B6D4'], // 2 colores por defecto
     primary: '#10B981',
     secondary: '#06B6D4',
     bg: '#F0FDF4',
@@ -223,7 +223,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'cyberpunk',
     name: 'Cyberpunk Neón',
     isDark: true,
-    colors: ['#06B6D4', '#EC4899', '#FACC15', '#A855F7'], // 4 colores
+    colors: ['#06B6D4', '#EC4899', '#FACC15', '#A855F7', '#38BDF8'], // 5 colores
     primary: '#06B6D4',
     secondary: '#EC4899',
     bg: '#18181B',
@@ -237,7 +237,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'ocean',
     name: 'Océano Profundo',
     isDark: false,
-    colors: ['#3B82F6', '#2DD4BF'], // 2 colores
+    colors: ['#3B82F6', '#2DD4BF'], // 2 colores por defecto
     primary: '#3B82F6',
     secondary: '#2DD4BF',
     bg: '#F0F9FF',
@@ -251,7 +251,7 @@ export const PRESET_PALETTES: ColorPalette[] = [
     id: 'crimson',
     name: 'Fuego Carmesí',
     isDark: false,
-    colors: ['#DC2626', '#EA580C', '#F59E0B'], // 3 colores
+    colors: ['#DC2626', '#EA580C'], // 2 colores por defecto
     primary: '#DC2626',
     secondary: '#EA580C',
     bg: '#FEF2F2',
@@ -1142,8 +1142,21 @@ export const useStore = create<State>()(
 
       addCustomPalette: (palette) =>
         set((s) => {
-          const colors = palette.colors && palette.colors.length >= 2 ? palette.colors : [palette.primary, palette.secondary];
-          const newP: ColorPalette = { ...palette, colors, id: uid(), custom: true };
+          const rawColors =
+            palette.colors && palette.colors.length >= 2
+              ? palette.colors.slice(0, 5)
+              : [palette.primary || '#8B5CF6', palette.secondary || '#F472B6'];
+          const primary = rawColors[0] || palette.primary || '#8B5CF6';
+          const secondary = rawColors[1] || palette.secondary || '#F472B6';
+          const newP: ColorPalette = {
+            ...palette,
+            colors: rawColors,
+            primary,
+            secondary,
+            accent: primary,
+            id: uid(),
+            custom: true,
+          };
           return {
             customPalettes: [...(s.customPalettes || []), newP],
             activePaletteId: newP.id,

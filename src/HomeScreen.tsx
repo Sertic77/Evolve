@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { fmt } from './theme';
+import { fmt, getPaletteColorWithAlpha } from './theme';
 import {
   useStore,
   dateKey,
@@ -673,33 +673,54 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
     setExpandedSection(expandedSection === sec ? null : sec);
   };
 
-  // Creador de paleta nueva
+  // Creador de paleta nueva (mínimo 2 colores, hasta 5 colores, 2 por defecto)
   const [isCreatingPalette, setIsCreatingPalette] = useState(false);
   const [newPaletteName, setNewPaletteName] = useState('');
-  const [newPrimaryColor, setNewPrimaryColor] = useState('#8B5CF6');
-  const [newSecondaryColor, setNewSecondaryColor] = useState('#F472B6');
+  const [newColors, setNewColors] = useState<string[]>(['#8B5CF6', '#F472B6']); // 2 por defecto
   const [newIsDark, setNewIsDark] = useState(false);
+
+  const handleAddColorSlot = () => {
+    if (newColors.length >= 5) return;
+    const fallbackList = ['#10B981', '#06B6D4', '#F59E0B', '#F43F5E', '#A855F7', '#3B82F6'];
+    const nextColor = fallbackList.find((c) => !newColors.includes(c)) || '#10B981';
+    setNewColors([...newColors, nextColor]);
+  };
+
+  const handleRemoveColorSlot = (index: number) => {
+    if (newColors.length <= 2) return; // Mínimo 2 colores
+    setNewColors(newColors.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateColorSlot = (index: number, color: string) => {
+    const updated = [...newColors];
+    updated[index] = color;
+    setNewColors(updated);
+  };
 
   // Perfil
   const [editName, setEditName] = useState(userProfile?.name || 'Sergio Tamayo');
   const [editNick, setEditNick] = useState(userProfile?.nickname || 'Sertic77');
 
   const handleSaveCustomPalette = () => {
-    if (!newPaletteName.trim()) return;
+    if (!newPaletteName.trim() || newColors.length < 2) return;
+    const finalColors = newColors.slice(0, 5);
+    const prim = finalColors[0];
+    const sec = finalColors[1];
     addCustomPalette({
       name: newPaletteName.trim(),
-      colors: [newPrimaryColor, newSecondaryColor],
-      primary: newPrimaryColor,
-      secondary: newSecondaryColor,
+      colors: finalColors,
+      primary: prim,
+      secondary: sec,
       isDark: newIsDark,
       bg: newIsDark ? '#0F172A' : '#F8FAFC',
       cardBg: newIsDark ? '#1E293B' : '#FFFFFF',
       text: newIsDark ? '#F8FAFC' : '#0F172A',
       textSub: newIsDark ? '#94A3B8' : '#64748B',
       border: newIsDark ? '#334155' : '#CBD5E1',
-      accent: newPrimaryColor,
+      accent: prim,
     });
     setNewPaletteName('');
+    setNewColors(['#8B5CF6', '#F472B6']);
     setIsCreatingPalette(false);
   };
 
@@ -839,6 +860,21 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                               ]}
                             />
 
+                            {/* Badge de cantidad de colores */}
+                            <View
+                              style={[
+                                modalStyles.paletteColorsBadge,
+                                {
+                                  backgroundColor: `${p.primary}18`,
+                                  borderColor: `${p.primary}35`,
+                                },
+                              ]}
+                            >
+                              <Text style={[modalStyles.paletteColorsBadgeText, { color: p.primary }]}>
+                                {sampleColors.length === 2 ? '2 colores + opacidades' : `${sampleColors.length} colores`}
+                              </Text>
+                            </View>
+
                             {p.isDark && (
                               <View style={modalStyles.darkTagMini}>
                                 <Ionicons name="moon" size={11} color={palette.textSub} />
@@ -872,21 +908,36 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     >
                       <Ionicons name="add-circle-outline" size={18} color={palette.primary} />
                       <Text style={[modalStyles.createPaletteToggleText, { color: palette.primary }]}>
-                        + Crear Nueva Paleta Personalizada
+                        + Crear Nueva Paleta Personalizada (hasta 5 colores)
                       </Text>
                     </Pressable>
                   ) : (
-                    <View style={[modalStyles.customPaletteForm, { borderColor: palette.border }]}>
+                    <View style={[modalStyles.customPaletteForm, { borderColor: palette.border, backgroundColor: palette.cardBg }]}>
                       <View style={modalStyles.customFormHeader}>
-                        <Text style={[modalStyles.customFormTitle, { color: palette.text }]}>
-                          CREAR COMBINACIÓN DE COLORES
-                        </Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[modalStyles.customFormTitle, { color: palette.text }]}>
+                            CREAR COMBINACIÓN DE COLORES
+                          </Text>
+                          <Text style={[modalStyles.customFormSubtitle, { color: palette.textSub }]}>
+                            {newColors.length} de 5 colores configurados (mínimo 2, por defecto 2)
+                          </Text>
+                        </View>
                         <Pressable onPress={() => setIsCreatingPalette(false)}>
-                          <Ionicons name="close" size={18} color={palette.textSub} />
+                          <Ionicons name="close" size={20} color={palette.textSub} />
                         </Pressable>
                       </View>
 
-                      <Text style={[modalStyles.formLabel, { color: palette.textSub }]}>
+                      {/* Explicación de las opacidades */}
+                      <View style={[modalStyles.paletteOpacityNotice, { backgroundColor: `${palette.primary}12`, borderColor: `${palette.primary}30` }]}>
+                        <Ionicons name="color-filter-outline" size={16} color={palette.primary} />
+                        <Text style={[modalStyles.paletteOpacityNoticeText, { color: palette.text }]}>
+                          {newColors.length === 2
+                            ? 'Con 2 colores, el tema genera automáticamente variaciones de opacidad (15%, 35%, 65%, 85%) para mantener la estética pulida y armónica en toda la app.'
+                            : `Con ${newColors.length} colores, cada color se asigna a botones, gráficos, métricas y acentos, complementándose con opacidades.`}
+                        </Text>
+                      </View>
+
+                      <Text style={[modalStyles.formLabel, { color: palette.textSub, marginTop: 10 }]}>
                         Nombre de la paleta
                       </Text>
                       <TextInput
@@ -904,39 +955,86 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                         onChangeText={setNewPaletteName}
                       />
 
-                      <Text style={[modalStyles.formLabel, { color: palette.textSub }]}>
-                        Color Principal 1 ({newPrimaryColor})
-                      </Text>
-                      <View style={modalStyles.swatchesPickRow}>
-                        {COLOR_SWATCHES.map((color) => (
-                          <Pressable
-                            key={color}
-                            style={[
-                              modalStyles.pickCircle,
-                              { backgroundColor: color },
-                              newPrimaryColor === color && modalStyles.pickCircleActive,
-                            ]}
-                            onPress={() => setNewPrimaryColor(color)}
-                          />
-                        ))}
-                      </View>
+                      {/* Lista dinámica de colores (2 a 5 colores) */}
+                      {newColors.map((color, index) => {
+                        const colorRole =
+                          index === 0
+                            ? 'Color 1 · Primario (Acentos y Títulos)'
+                            : index === 1
+                            ? 'Color 2 · Secundario (Botones y Llamas)'
+                            : index === 2
+                            ? 'Color 3 · Terciario (Métricas y Gráficos)'
+                            : index === 3
+                            ? 'Color 4 · Cuaternario (Destacados y Tarjetas)'
+                            : 'Color 5 · Quinto Color (Detalles y Badges)';
 
-                      <Text style={[modalStyles.formLabel, { color: palette.textSub, marginTop: 10 }]}>
-                        Color Secundario 2 ({newSecondaryColor})
-                      </Text>
-                      <View style={modalStyles.swatchesPickRow}>
-                        {COLOR_SWATCHES.map((color) => (
-                          <Pressable
-                            key={color}
-                            style={[
-                              modalStyles.pickCircle,
-                              { backgroundColor: color },
-                              newSecondaryColor === color && modalStyles.pickCircleActive,
-                            ]}
-                            onPress={() => setNewSecondaryColor(color)}
-                          />
-                        ))}
-                      </View>
+                        return (
+                          <View key={index} style={[modalStyles.colorSlotCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                            <View style={modalStyles.colorSlotHeader}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                                <View style={[modalStyles.colorSlotNumberBadge, { backgroundColor: color }]}>
+                                  <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '900' }}>{index + 1}</Text>
+                                </View>
+                                <Text style={[modalStyles.colorSlotRoleText, { color: palette.text }]}>
+                                  {colorRole}
+                                </Text>
+                              </View>
+
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                {/* Muestra de opacidades en tiempo real */}
+                                <View style={modalStyles.opacityMiniStrip}>
+                                  <View style={[modalStyles.opacityMiniBlock, { backgroundColor: color }]} />
+                                  <View style={[modalStyles.opacityMiniBlock, { backgroundColor: getPaletteColorWithAlpha(color, 0.5) }]} />
+                                  <View style={[modalStyles.opacityMiniBlock, { backgroundColor: getPaletteColorWithAlpha(color, 0.2) }]} />
+                                </View>
+
+                                {/* Botón borrar para colores 3, 4, 5 */}
+                                {index >= 2 && (
+                                  <Pressable
+                                    onPress={() => handleRemoveColorSlot(index)}
+                                    hitSlop={8}
+                                    style={modalStyles.removeColorBtn}
+                                  >
+                                    <Ionicons name="trash-outline" size={15} color={palette.secondary} />
+                                  </Pressable>
+                                )}
+                              </View>
+                            </View>
+
+                            {/* Selector de muestras para este slot */}
+                            <View style={modalStyles.swatchesPickRow}>
+                              {COLOR_SWATCHES.map((swatchColor) => (
+                                <Pressable
+                                  key={swatchColor}
+                                  style={[
+                                    modalStyles.pickCircle,
+                                    { backgroundColor: swatchColor },
+                                    color === swatchColor && [modalStyles.pickCircleActive, { borderColor: palette.text }],
+                                  ]}
+                                  onPress={() => handleUpdateColorSlot(index, swatchColor)}
+                                />
+                              ))}
+                            </View>
+                          </View>
+                        );
+                      })}
+
+                      {/* Botón para añadir hasta 5 colores */}
+                      {newColors.length < 5 && (
+                        <Pressable
+                          style={({ pressed }) => [
+                            modalStyles.addColorSlotBtn,
+                            { borderColor: palette.primary, backgroundColor: `${palette.primary}10` },
+                            pressed && { transform: [{ scale: 0.98 }] },
+                          ]}
+                          onPress={handleAddColorSlot}
+                        >
+                          <Ionicons name="add-circle" size={17} color={palette.primary} />
+                          <Text style={[modalStyles.addColorSlotBtnText, { color: palette.primary }]}>
+                            + Añadir Color {newColors.length + 1} (hasta 5 colores)
+                          </Text>
+                        </Pressable>
+                      )}
 
                       <View style={modalStyles.themeSwitchRow}>
                         <Text style={[modalStyles.formLabel, { color: palette.textSub, marginBottom: 0 }]}>
@@ -959,7 +1057,9 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                         onPress={handleSaveCustomPalette}
                         disabled={!newPaletteName.trim()}
                       >
-                        <Text style={modalStyles.savePaletteBtnText}>Guardar y Activar Paleta</Text>
+                        <Text style={modalStyles.savePaletteBtnText}>
+                          Guardar y Activar Paleta ({newColors.length} colores)
+                        </Text>
                       </Pressable>
                     </View>
                   )}
@@ -1810,6 +1910,17 @@ const modalStyles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
   },
+  paletteColorsBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginLeft: 6,
+  },
+  paletteColorsBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   swatchesRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1872,6 +1983,75 @@ const modalStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  customFormSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  paletteOpacityNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  paletteOpacityNoticeText: {
+    fontSize: 11.5,
+    flex: 1,
+    lineHeight: 16,
+  },
+  colorSlotCard: {
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  colorSlotHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  colorSlotNumberBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorSlotRoleText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  opacityMiniStrip: {
+    flexDirection: 'row',
+    gap: 3,
+    alignItems: 'center',
+  },
+  opacityMiniBlock: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+  },
+  removeColorBtn: {
+    padding: 4,
+  },
+  addColorSlotBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    marginVertical: 8,
+  },
+  addColorSlotBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   formLabel: {
     fontSize: 11,
