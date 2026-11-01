@@ -12,6 +12,7 @@ import {
   Alert,
   Animated,
   Easing,
+  TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -62,6 +63,166 @@ export const FONT_OPTIONS: Array<{
   { key: 'monospace', label: 'Código Monoespaciado', preview: '119/78 mmHg · 77.2 kg', description: 'Precisión técnica y datos puros' },
 ];
 
+export interface XpBreakdown {
+  foodXp: number;
+  foodDays: number;
+  workoutXp: number;
+  workoutDays: number;
+  sleepXp: number;
+  sleepDays: number;
+  supplementsXp: number;
+  supplementDays: number;
+  measurementsXp: number;
+  measurementDays: number;
+  healthXp: number;
+  healthDays: number;
+  totalXp: number;
+  userLevel: number;
+  rankTitle: string;
+  currentLevelXp: number;
+  neededForNextLevel: number;
+  levelProgressPercent: number;
+}
+
+export function calculateUserXpAndLevel(
+  logs: Record<string, any[]> | undefined,
+  workoutLogs: Record<string, any[]> | undefined,
+  sleepLogs: Record<string, any> | undefined,
+  supplementLogs: Record<string, Record<string, boolean[]>> | undefined,
+  measurementLogs: Record<string, any> | undefined,
+  weightLogs: Record<string, number> | undefined,
+  bodyFatLogs: Record<string, number> | undefined,
+  photoLogs: Record<string, any[]> | undefined,
+  healthLogs: Record<string, any> | undefined
+): XpBreakdown {
+  // 1. Comida & Nutrición (Prioridad #1: +25 a +30 XP por día)
+  let foodXp = 0;
+  let foodDays = 0;
+  Object.values(logs || {}).forEach((meals) => {
+    if (Array.isArray(meals) && meals.length > 0) {
+      foodDays++;
+      foodXp += 25;
+      if (meals.length >= 3) foodXp += 5; // Bonus día completo
+    }
+  });
+
+  // 2. Entrenamiento & Fuerza (Prioridad #2: +25 a +30 XP por sesión)
+  let workoutXp = 0;
+  let workoutDays = 0;
+  Object.values(workoutLogs || {}).forEach((exercises) => {
+    if (Array.isArray(exercises) && exercises.length > 0) {
+      workoutDays++;
+      workoutXp += 25;
+      if (exercises.length >= 3) workoutXp += 5; // Bonus sesión completa
+    }
+  });
+
+  // 3. Sueño & Descanso (Prioridad #3: +15 a +20 XP por noche)
+  let sleepXp = 0;
+  let sleepDays = 0;
+  Object.values(sleepLogs || {}).forEach((entry) => {
+    if (entry && (entry.totalSleepHours || entry.sleepScore || entry.deepSleepHours)) {
+      sleepDays++;
+      sleepXp += 15;
+      if ((entry.sleepScore && entry.sleepScore >= 80) || (entry.totalSleepHours && entry.totalSleepHours >= 7)) {
+        sleepXp += 5; // Bonus descanso óptimo
+      }
+    }
+  });
+
+  // 4. Suplementación (Prioridad #4: +8 a +10 XP por día)
+  let supplementsXp = 0;
+  let supplementDays = 0;
+  Object.values(supplementLogs || {}).forEach((dayMap) => {
+    let takenCount = 0;
+    if (dayMap && typeof dayMap === 'object') {
+      Object.values(dayMap).forEach((arr) => {
+        if (Array.isArray(arr)) takenCount += arr.filter(Boolean).length;
+      });
+    }
+    if (takenCount > 0) {
+      supplementDays++;
+      supplementsXp += 8;
+      if (takenCount >= 3) supplementsXp += 2; // Bonus todas las tomas
+    }
+  });
+
+  // 5. Medidas Corporales, Peso & Fotos (Prioridad #5)
+  let measurementsXp = 0;
+  const measurementDates = new Set<string>();
+  Object.entries(measurementLogs || {}).forEach(([d, m]) => {
+    if (m && Object.keys(m).length > 0) {
+      measurementDates.add(d);
+      measurementsXp += 15; // Chequeo antropométrico semanal
+    }
+  });
+  Object.keys(weightLogs || {}).forEach((d) => {
+    if (!measurementDates.has(d)) {
+      measurementsXp += 5; // Registro de peso
+    }
+  });
+  Object.keys(photoLogs || {}).forEach(() => {
+    measurementsXp += 10; // Fotos de progreso
+  });
+  const measurementDays = measurementDates.size + Object.keys(weightLogs || {}).length;
+
+  // 6. Biomarcadores de Salud (+15 XP por chequeo)
+  let healthXp = 0;
+  let healthDays = 0;
+  Object.values(healthLogs || {}).forEach((entry) => {
+    if (entry && Object.keys(entry).length > 0) {
+      healthDays++;
+      healthXp += 15;
+    }
+  });
+
+  const totalXp = foodXp + workoutXp + sleepXp + supplementsXp + measurementsXp + healthXp;
+
+  // Curva de Niveles Progresiva: Nivel L requiere 120 + (L - 1) * 40 XP
+  let level = 1;
+  let remainingXp = totalXp;
+  let neededForCurrent = 120;
+
+  while (remainingXp >= neededForCurrent) {
+    remainingXp -= neededForCurrent;
+    level++;
+    neededForCurrent = 120 + (level - 1) * 40;
+  }
+
+  const currentLevelXp = remainingXp;
+  const neededForNextLevel = neededForCurrent;
+  const levelProgressPercent = Math.min(100, Math.max(0, Math.round((currentLevelXp / neededForNextLevel) * 100)));
+
+  let rankTitle = 'Iniciado Fitness';
+  if (level >= 50) rankTitle = 'Leyenda Evolve';
+  else if (level >= 40) rankTitle = 'Titán del Hierro';
+  else if (level >= 30) rankTitle = 'Atleta Élite';
+  else if (level >= 20) rankTitle = 'Atleta Avanzado';
+  else if (level >= 10) rankTitle = 'Guerrero del Gym';
+  else if (level >= 5) rankTitle = 'Atleta Dedicado';
+
+  return {
+    foodXp,
+    foodDays,
+    workoutXp,
+    workoutDays,
+    sleepXp,
+    sleepDays,
+    supplementsXp,
+    supplementDays,
+    measurementsXp,
+    measurementDays,
+    healthXp,
+    healthDays,
+    totalXp,
+    userLevel: level,
+    rankTitle,
+    currentLevelXp,
+    neededForNextLevel,
+    levelProgressPercent,
+  };
+}
+
 export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const {
     userProfile,
@@ -73,6 +234,9 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
     logs,
     ingredients,
     workoutLogs,
+    measurementLogs,
+    sleepLogs,
+    photoLogs,
     supplements,
     supplementLogs,
     healthLogs,
@@ -258,10 +422,34 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   const currentBodyFat = getLatestEntry(bodyFatLogs);
   const [stickyHeaderHeight, setStickyHeaderHeight] = useState(Platform.OS === 'android' ? 104 : 96);
 
-  // 6. Racha y Nivel RPG
+  // 6. Racha y Sistema Progresivo de Niveles & Puntos XP
+  const xpBreakdown = React.useMemo(() => {
+    return calculateUserXpAndLevel(
+      logs,
+      workoutLogs,
+      sleepLogs,
+      supplementLogs,
+      measurementLogs,
+      weightLogs,
+      bodyFatLogs,
+      photoLogs,
+      healthLogs
+    );
+  }, [
+    logs,
+    workoutLogs,
+    sleepLogs,
+    supplementLogs,
+    measurementLogs,
+    weightLogs,
+    bodyFatLogs,
+    photoLogs,
+    healthLogs,
+  ]);
+
+  const [showXpModal, setShowXpModal] = useState(false);
   const totalDaysLogged = Object.keys(logs).length + Object.keys(workoutLogs).length;
-  const userLevel = Math.max(1, Math.floor(totalDaysLogged / 3) + 1);
-  const xpCurrent = (totalDaysLogged % 3) * 33 + 20;
+  const userLevel = xpBreakdown.userLevel;
 
   // Animación de crecimiento suave para todos los datos métricos de Home
   const growthAnim = useRef(new Animated.Value(0)).current;
@@ -311,14 +499,14 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         ]}
       >
         <BlurView
-          intensity={50}
+          intensity={Platform.OS === 'android' ? 20 : 35}
           tint={palette.isDark ? 'dark' : 'light'}
           style={[
             StyleSheet.absoluteFill,
             {
-              backgroundColor: getPaletteColorWithAlpha(palette.bg, 0.5),
+              backgroundColor: getPaletteColorWithAlpha(palette.bg, 0.2),
             },
-            Platform.OS === 'web' && ({ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' } as any),
+            Platform.OS === 'web' && ({ backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' } as any),
           ]}
         />
         <View style={styles.userHeroRow}>
@@ -381,25 +569,40 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <Text
                 style={[styles.heroRankText, { color: c1, fontFamily: subtitleFont }]}
               >
-                Nivel {userLevel} · Atleta Élite
+                Nivel {xpBreakdown.userLevel} · {xpBreakdown.rankTitle}
               </Text>
             </View>
 
-            {/* Barra XP */}
-            <View
-              style={[
-                styles.heroXpTrack,
-                {
-                  backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.4)',
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={[c1, c2]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.heroXpFill, { width: `${xpCurrent}%` }]}
-              />
+            {/* Barra XP con icono interactivo "i" */}
+            <View style={styles.heroXpRow}>
+              <View
+                style={[
+                  styles.heroXpTrack,
+                  {
+                    backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.4)',
+                  },
+                ]}
+              >
+                <LinearGradient
+                  colors={[c1, c2]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.heroXpFill, { width: `${xpBreakdown.levelProgressPercent}%` }]}
+                />
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowXpModal(true)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.heroXpInfoBtn}
+                accessibilityLabel="Ver sistema de puntos XP"
+              >
+                <Ionicons
+                  name="information-circle"
+                  size={15}
+                  color={palette.isDark ? '#94A3B8' : '#64748B'}
+                />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -986,9 +1189,514 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         visible={settingsModalOpen}
         onClose={() => setSettingsModalOpen(false)}
       />
+
+      {/* Modal Popup Informativo: Sistema de Puntos & Niveles XP */}
+      <XpInfoModal
+        visible={showXpModal}
+        xpBreakdown={xpBreakdown}
+        palette={palette}
+        onClose={() => setShowXpModal(false)}
+      />
     </View>
   );
 }
+
+/* ==========================================================
+   MODAL POPUP INFORMATIVO: SISTEMA DE PUNTOS Y NIVELES XP
+========================================================== */
+function XpInfoModal({
+  visible,
+  xpBreakdown,
+  palette,
+  onClose,
+}: {
+  visible: boolean;
+  xpBreakdown: XpBreakdown;
+  palette: ColorPalette;
+  onClose: () => void;
+}) {
+  if (!visible) return null;
+
+  const c1 = palette.primary;
+  const c2 = palette.secondary;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={modalStyles.backdrop}>
+        <Pressable style={modalStyles.backdropTouchDismiss} onPress={onClose} />
+
+        <View style={[modalStyles.sheetContainer, { backgroundColor: palette.cardBg }]}>
+          <View style={[modalStyles.handleBar, { backgroundColor: palette.border }]} />
+
+          <View style={modalStyles.modalHeader}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={[modalStyles.modalTitle, { color: palette.text }]}>
+                SISTEMA DE PUNTOS & NIVELES XP
+              </Text>
+              <Text style={[modalStyles.modalSubtitle, { color: palette.textSub }]}>
+                Aprende cómo ganar experiencia y evolucionar en el gimnasio
+              </Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={12} style={modalStyles.closeBtn}>
+              <Ionicons name="close-circle" size={26} color={palette.textSub} />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 36 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Tarjeta de Estado Actual del Usuario */}
+            <LinearGradient
+              colors={[palette.isDark ? '#1E293B' : '#F1F5F9', palette.isDark ? '#0F172A' : '#E2E8F0']}
+              style={[xpStyles.heroCard, { borderColor: palette.border }]}
+            >
+              <View style={xpStyles.heroCardTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[xpStyles.heroLevelBadge, { color: c1 }]}>
+                    NIVEL {xpBreakdown.userLevel}
+                  </Text>
+                  <Text style={[xpStyles.heroRankTitle, { color: palette.text }]}>
+                    {xpBreakdown.rankTitle}
+                  </Text>
+                </View>
+                <View style={[xpStyles.totalXpBadge, { backgroundColor: `${c1}18`, borderColor: c1 }]}>
+                  <Ionicons name="sparkles" size={13} color={c1} />
+                  <Text style={[xpStyles.totalXpBadgeText, { color: c1 }]}>
+                    {xpBreakdown.totalXp.toLocaleString()} XP
+                  </Text>
+                </View>
+              </View>
+
+              {/* Barra de progreso hacia el siguiente nivel */}
+              <View style={xpStyles.levelProgressWrap}>
+                <View style={xpStyles.levelProgressTrack}>
+                  <LinearGradient
+                    colors={[c1, c2]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[xpStyles.levelProgressFill, { width: `${xpBreakdown.levelProgressPercent}%` }]}
+                  />
+                </View>
+                <View style={xpStyles.levelProgressLabels}>
+                  <Text style={[xpStyles.progressSubText, { color: palette.textSub }]}>
+                    {xpBreakdown.currentLevelXp} / {xpBreakdown.neededForNextLevel} XP para Nivel {xpBreakdown.userLevel + 1}
+                  </Text>
+                  <Text style={[xpStyles.progressSubPercent, { color: c1 }]}>
+                    {xpBreakdown.levelProgressPercent}%
+                  </Text>
+                </View>
+              </View>
+            </LinearGradient>
+
+            {/* Título de Sección: Prioridad de Puntos */}
+            <View style={xpStyles.sectionHeaderRow}>
+              <Ionicons name="podium" size={18} color={c1} />
+              <Text style={[xpStyles.sectionTitle, { color: palette.text }]}>
+                Prioridad de Puntos por Actividad
+              </Text>
+            </View>
+            <Text style={[xpStyles.sectionDesc, { color: palette.textSub }]}>
+              Los puntos reflejan la importancia real para tu transformación física: la nutrición y el entreno son los pilares fundamentales.
+            </Text>
+
+            {/* 1. Comida & Nutrición */}
+            <View style={[xpStyles.metricCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+              <View style={[xpStyles.metricIconWrap, { backgroundColor: `${c1}20` }]}>
+                <Ionicons name="restaurant" size={20} color={c1} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={xpStyles.metricHeaderRow}>
+                  <Text style={[xpStyles.metricTitle, { color: palette.text }]}>
+                    1. Comida & Nutrición
+                  </Text>
+                  <View style={[xpStyles.priorityBadge, { backgroundColor: `${c1}20` }]}>
+                    <Text style={[xpStyles.priorityBadgeText, { color: c1 }]}>Prioridad #1</Text>
+                  </View>
+                </View>
+                <Text style={[xpStyles.metricPoints, { color: c1 }]}>
+                  +25 a +30 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por día registrado</Text>
+                </Text>
+                <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
+                  La nutrición es la base de tus ganancias. +25 XP base al registrar comidas y +5 XP de bonus por registrar 3+ comidas completas.
+                </Text>
+                <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
+                  Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.foodXp.toLocaleString()} XP</Text> ({xpBreakdown.foodDays} días)
+                </Text>
+              </View>
+            </View>
+
+            {/* 2. Entrenamiento & Fuerza */}
+            <View style={[xpStyles.metricCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+              <View style={[xpStyles.metricIconWrap, { backgroundColor: `${c2}20` }]}>
+                <Ionicons name="barbell" size={20} color={c2} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={xpStyles.metricHeaderRow}>
+                  <Text style={[xpStyles.metricTitle, { color: palette.text }]}>
+                    2. Entrenamiento & Gym
+                  </Text>
+                  <View style={[xpStyles.priorityBadge, { backgroundColor: `${c2}20` }]}>
+                    <Text style={[xpStyles.priorityBadgeText, { color: c2 }]}>Prioridad #2</Text>
+                  </View>
+                </View>
+                <Text style={[xpStyles.metricPoints, { color: c2 }]}>
+                  +25 a +30 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por sesión completada</Text>
+                </Text>
+                <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
+                  El estímulo muscular directo. +25 XP por tu entrenamiento y +5 XP al completar series de 3 o más ejercicios.
+                </Text>
+                <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
+                  Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.workoutXp.toLocaleString()} XP</Text> ({xpBreakdown.workoutDays} entrenos)
+                </Text>
+              </View>
+            </View>
+
+            {/* 3. Sueño & Recuperación */}
+            <View style={[xpStyles.metricCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+              <View style={[xpStyles.metricIconWrap, { backgroundColor: '#38BDF820' }]}>
+                <Ionicons name="moon" size={20} color="#38BDF8" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={xpStyles.metricHeaderRow}>
+                  <Text style={[xpStyles.metricTitle, { color: palette.text }]}>
+                    3. Sueño & Descanso
+                  </Text>
+                  <View style={[xpStyles.priorityBadge, { backgroundColor: '#38BDF820' }]}>
+                    <Text style={[xpStyles.priorityBadgeText, { color: '#38BDF8' }]}>Prioridad #3</Text>
+                  </View>
+                </View>
+                <Text style={[xpStyles.metricPoints, { color: '#38BDF8' }]}>
+                  +15 a +20 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por noche de descanso</Text>
+                </Text>
+                <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
+                  Donde realmente se sintetiza el músculo. +15 XP por noche registrada y +5 XP de bonus por sueño de calidad (Score ≥ 80 o 7h+).
+                </Text>
+                <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
+                  Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.sleepXp.toLocaleString()} XP</Text> ({xpBreakdown.sleepDays} noches)
+                </Text>
+              </View>
+            </View>
+
+            {/* 4. Suplementación */}
+            <View style={[xpStyles.metricCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+              <View style={[xpStyles.metricIconWrap, { backgroundColor: '#F59E0B20' }]}>
+                <Ionicons name="medical" size={20} color="#F59E0B" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={xpStyles.metricHeaderRow}>
+                  <Text style={[xpStyles.metricTitle, { color: palette.text }]}>
+                    4. Suplementación Diaria
+                  </Text>
+                  <View style={[xpStyles.priorityBadge, { backgroundColor: '#F59E0B20' }]}>
+                    <Text style={[xpStyles.priorityBadgeText, { color: '#F59E0B' }]}>Prioridad #4</Text>
+                  </View>
+                </View>
+                <Text style={[xpStyles.metricPoints, { color: '#F59E0B' }]}>
+                  +8 a +10 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por adherencia diaria</Text>
+                </Text>
+                <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
+                  Constancia con creatina, proteínas y micronutrientes. +8 XP base y +2 XP por cumplir todas las dosis del checklist.
+                </Text>
+                <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
+                  Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.supplementsXp.toLocaleString()} XP</Text> ({xpBreakdown.supplementDays} días)
+                </Text>
+              </View>
+            </View>
+
+            {/* 5. Medidas, Peso & Fotos */}
+            <View style={[xpStyles.metricCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+              <View style={[xpStyles.metricIconWrap, { backgroundColor: '#10B98120' }]}>
+                <Ionicons name="body" size={20} color="#10B981" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={xpStyles.metricHeaderRow}>
+                  <Text style={[xpStyles.metricTitle, { color: palette.text }]}>
+                    5. Medidas Corporales & Peso
+                  </Text>
+                  <View style={[xpStyles.priorityBadge, { backgroundColor: '#10B98120' }]}>
+                    <Text style={[xpStyles.priorityBadgeText, { color: '#10B981' }]}>Prioridad #5</Text>
+                  </View>
+                </View>
+                <Text style={[xpStyles.metricPoints, { color: '#10B981' }]}>
+                  +15 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>medidas/fotos · </Text>+5 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>pesaje</Text>
+                </Text>
+                <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
+                  Medición objetiva de recomposición corporal y crecimiento muscular en croquis.
+                </Text>
+                <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
+                  Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.measurementsXp.toLocaleString()} XP</Text>
+                </Text>
+              </View>
+            </View>
+
+            {/* 6. Biomarcadores de Salud */}
+            <View style={[xpStyles.metricCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+              <View style={[xpStyles.metricIconWrap, { backgroundColor: '#EC489920' }]}>
+                <Ionicons name="pulse" size={20} color="#EC4899" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={xpStyles.metricHeaderRow}>
+                  <Text style={[xpStyles.metricTitle, { color: palette.text }]}>
+                    6. Biomarcadores Clínicos
+                  </Text>
+                  <View style={[xpStyles.priorityBadge, { backgroundColor: '#EC489920' }]}>
+                    <Text style={[xpStyles.priorityBadgeText, { color: '#EC4899' }]}>Salud</Text>
+                  </View>
+                </View>
+                <Text style={[xpStyles.metricPoints, { color: '#EC4899' }]}>
+                  +15 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por chequeo de salud</Text>
+                </Text>
+                <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
+                  Control de presión arterial, glucosa, perfil lipídico y bienestar general.
+                </Text>
+                <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
+                  Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.healthXp.toLocaleString()} XP</Text> ({xpBreakdown.healthDays} chequeos)
+                </Text>
+              </View>
+            </View>
+
+            {/* Escalafón de Rangos */}
+            <View style={[xpStyles.ranksCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+              <Text style={[xpStyles.ranksCardTitle, { color: palette.text }]}>
+                Escalafón de Rangos & Títulos
+              </Text>
+              {[
+                { range: 'Niveles 1 - 4', title: 'Iniciado Fitness', icon: 'shield-outline', color: '#94A3B8' },
+                { range: 'Niveles 5 - 9', title: 'Atleta Dedicado', icon: 'ribbon-outline', color: '#38BDF8' },
+                { range: 'Niveles 10 - 19', title: 'Guerrero del Gym', icon: 'flame-outline', color: '#F59E0B' },
+                { range: 'Niveles 20 - 29', title: 'Atleta Avanzado', icon: 'flash-outline', color: '#10B981' },
+                { range: 'Niveles 30 - 39', title: 'Atleta Élite', icon: 'trophy-outline', color: c1 },
+                { range: 'Niveles 40 - 49', title: 'Titán del Hierro', icon: 'diamond-outline', color: '#EC4899' },
+                { range: 'Nivel 50+', title: 'Leyenda Evolve', icon: 'star', color: '#EAB308' },
+              ].map((r, i) => {
+                const isCurrent = xpBreakdown.rankTitle === r.title;
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      xpStyles.rankRow,
+                      isCurrent && {
+                        backgroundColor: `${c1}15`,
+                        borderRadius: 10,
+                        paddingHorizontal: 8,
+                        marginHorizontal: -8,
+                      },
+                    ]}
+                  >
+                    <Ionicons name={r.icon as any} size={16} color={isCurrent ? c1 : r.color} />
+                    <Text style={[xpStyles.rankTitleText, { color: isCurrent ? c1 : palette.text, fontWeight: isCurrent ? '800' : '600' }]}>
+                      {r.title}
+                    </Text>
+                    <Text style={[xpStyles.rankRangeText, { color: isCurrent ? c1 : palette.textSub }]}>
+                      {r.range}
+                    </Text>
+                    {isCurrent && (
+                      <View style={[xpStyles.activePill, { backgroundColor: c1 }]}>
+                        <Text style={xpStyles.activePillText}>Actual</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Botón de cierre */}
+            <Pressable
+              style={[xpStyles.gotItBtn, { backgroundColor: c1 }]}
+              onPress={onClose}
+            >
+              <Text style={xpStyles.gotItBtnText}>¡Entendido, a seguir entrenando!</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const xpStyles = StyleSheet.create({
+  heroCard: {
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  heroCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  heroLevelBadge: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  heroRankTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  totalXpBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  totalXpBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  levelProgressWrap: {
+    marginTop: 4,
+  },
+  levelProgressTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(148, 163, 184, 0.25)',
+    overflow: 'hidden',
+  },
+  levelProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  levelProgressLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  progressSubText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  progressSubPercent: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+    marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  sectionDesc: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  metricCard: {
+    flexDirection: 'row',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  metricIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  metricHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  metricTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  priorityBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  priorityBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  metricPoints: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  metricExpl: {
+    fontSize: 11.5,
+    lineHeight: 15,
+    marginTop: 3,
+  },
+  metricUserStat: {
+    fontSize: 11,
+    marginTop: 5,
+    fontStyle: 'italic',
+  },
+  ranksCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: 8,
+    marginBottom: 18,
+  },
+  ranksCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 10,
+    letterSpacing: 0.3,
+  },
+  rankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    gap: 8,
+  },
+  rankTitleText: {
+    flex: 1,
+    fontSize: 12.5,
+  },
+  rankRangeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  activePill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    marginLeft: 4,
+  },
+  activePillText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  gotItBtn: {
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  gotItBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+});
 
 /* ==========================================================
    MODAL PARA SELECCIONAR COLOR PERSONALIZADO
@@ -2670,15 +3378,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+  heroXpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
   heroXpTrack: {
+    flex: 1,
     height: 5,
     borderRadius: 3,
-    marginTop: 6,
     overflow: 'hidden',
   },
   heroXpFill: {
     height: '100%',
     borderRadius: 3,
+  },
+  heroXpInfoBtn: {
+    marginLeft: 6,
+    padding: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   // Lado derecho del héroe: Menú Hamburguesa con despliegue horizontal

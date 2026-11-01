@@ -1346,7 +1346,7 @@ export function MealBlockCard({
         <View style={{ marginTop: 6 }}>
           {block.items.map((it) => (
             <ItemRow
-              key={it.id}
+              key={it.id || `${block.id}-item-${it.ingredientId}`}
               item={it}
               ingredients={ingredients}
               onChange={setItem}
