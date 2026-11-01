@@ -594,6 +594,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   const [showXpModal, setShowXpModal] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showGoalsModal, setShowGoalsModal] = useState(false);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
   const avatarZoomAnim = useRef(new Animated.Value(0)).current;
 
   // Metas del usuario desde el store
@@ -669,16 +670,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
           {/* Perfil al lado izquierdo: Avatar interactivo con zoom y badge de racha sobrepuesto en la esquina superior izquierda */}
           <TouchableOpacity
             activeOpacity={0.82}
-            onPress={() => {
-              setShowAvatarModal(true);
-              avatarZoomAnim.setValue(0);
-              Animated.spring(avatarZoomAnim, {
-                toValue: 1,
-                tension: 80,
-                friction: 7,
-                useNativeDriver: true,
-              }).start();
-            }}
+            onPress={() => setShowAvatarModal(true)}
             style={styles.heroAvatarWrapper}
             accessibilityLabel="Ver y cambiar foto de perfil"
           >
@@ -699,7 +691,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               </LinearGradient>
             )}
 
-            {/* Racha de entrenamientos como badge sobrepuesto en la esquina superior izquierda */}
+            {/* Racha de entrenamientos como badge sobrepuesto en la esquina inferior izquierda */}
             <View
               style={[
                 styles.heroStreakBadgeOverlay,
@@ -939,6 +931,145 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
       >
 
         {/* ==========================================================
+            FILA SUPERIOR: METAS (COLOR PRIMARIO) & AMIGOS (LADO A LADO)
+        ========================================================== */}
+        <View style={styles.topDualRow}>
+          {/* BLOQUE IZQUIERDO: METAS (MITAD DE ANCHO, FONDO COLOR PRIMARIO) */}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => setShowGoalsModal(true)}
+            style={[
+              styles.topDualCard,
+              {
+                backgroundColor: palette.primary,
+                borderColor: palette.primary,
+              },
+            ]}
+          >
+            <View style={styles.topDualHeader}>
+              <View style={[styles.topDualIconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
+                <Ionicons name="trophy" size={14} color="#FFFFFF" />
+              </View>
+              <View style={[styles.topDualPill, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
+                <Text style={[styles.topDualPillText, { color: '#FFFFFF', fontFamily: subtitleFont }]}>
+                  {activeGoals.length} {activeGoals.length === 1 ? 'meta' : 'metas'}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={[styles.topDualCardTitle, { color: '#FFFFFF', fontFamily: titleFont }]}>
+              Metas
+            </Text>
+
+            {activeGoals.length > 0 ? (
+              <View style={styles.topDualBodyWrap}>
+                <Text
+                  style={[styles.topDualGoalName, { color: '#FFFFFF', fontFamily: subtitleFont }]}
+                  numberOfLines={1}
+                >
+                  {activeGoals[0].title}
+                </Text>
+
+                <View style={styles.topDualProgressBarWrap}>
+                  <View style={[styles.topDualProgressBg, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
+                    <View
+                      style={[
+                        styles.topDualProgressFill,
+                        {
+                          backgroundColor: '#FDE047',
+                          width: `${calculateGoalProgress(activeGoals[0])}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.topDualPercentText, { color: '#FFFFFF', fontFamily: dataFont }]}>
+                    {calculateGoalProgress(activeGoals[0])}%
+                  </Text>
+                </View>
+
+                <Text style={[styles.topDualDateHint, { color: 'rgba(255, 255, 255, 0.9)', fontFamily: bodyFont }]}>
+                  🗓️ {formatGoalDate(activeGoals[0].targetDate)}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.topDualBodyWrap}>
+                <Text style={[styles.topDualEmptyDesc, { color: 'rgba(255, 255, 255, 0.9)', fontFamily: bodyFont }]}>
+                  Define tu meta a fecha
+                </Text>
+                <View style={[styles.topDualEmptyAction, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
+                  <Text style={[styles.topDualEmptyActionText, { color: '#FFFFFF', fontFamily: subtitleFont }]}>
+                    + Establecer
+                  </Text>
+                </View>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* BLOQUE DERECHO: AMIGOS (MITAD DE ANCHO) */}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => setShowFriendsModal(true)}
+            style={[
+              styles.topDualCard,
+              {
+                backgroundColor: palette.cardBg,
+                borderColor: palette.border,
+              },
+            ]}
+          >
+            <View style={styles.topDualHeader}>
+              <View style={[styles.topDualIconCircle, { backgroundColor: `${c2}18` }]}>
+                <Ionicons name="people" size={14} color={c2} />
+              </View>
+              <View style={[styles.topDualPill, { backgroundColor: `${c2}18` }]}>
+                <Text style={[styles.topDualPillText, { color: c2, fontFamily: subtitleFont }]}>
+                  {SEED_FRIENDS.length} amigos
+                </Text>
+              </View>
+            </View>
+
+            <Text style={[styles.topDualCardTitle, { color: palette.text, fontFamily: titleFont }]}>
+              Amigos
+            </Text>
+
+            <View style={styles.topDualBodyWrap}>
+              {/* Mini avatares solapados */}
+              <View style={styles.friendsStackedRow}>
+                {SEED_FRIENDS.slice(0, 3).map((f, i) => (
+                  <View
+                    key={f.id}
+                    style={[
+                      styles.friendMiniDot,
+                      {
+                        backgroundColor: f.color,
+                        marginLeft: i === 0 ? 0 : -8,
+                        borderColor: palette.cardBg,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.friendMiniDotText}>{f.initials}</Text>
+                  </View>
+                ))}
+                <Text style={[styles.friendsActiveText, { color: palette.textSub, fontFamily: bodyFont }]}>
+                  3 activos hoy
+                </Text>
+              </View>
+
+              <Text
+                style={[styles.friendLeadText, { color: palette.text, fontFamily: subtitleFont }]}
+                numberOfLines={1}
+              >
+                🔥 {SEED_FRIENDS[0].name.split(' ')[0]} racha {SEED_FRIENDS[0].streak}d
+              </Text>
+
+              <Text style={[styles.friendActionLink, { color: c2, fontFamily: subtitleFont }]}>
+                Ver ranking ➔
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+                {/* ==========================================================
             WIDGET 1: NUTRICIÓN Y MACROS (COLORES ESTRICTOS DE LA PALETA)
         ========================================================== */}
         {homeWidgets?.calories && (
@@ -1024,178 +1155,6 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               </View>
             </LinearGradient>
           </View>
-        )}
-
-        {/* ==========================================================
-            WIDGET NUEVO: METAS & OBJETIVOS CON FECHAS LÍMITE
-        ========================================================== */}
-        {homeWidgets?.goals !== false && (
-          <TouchableOpacity
-            activeOpacity={0.92}
-            onPress={() => setShowGoalsModal(true)}
-            style={[styles.cardOuter, { borderColor: palette.border }]}
-          >
-            <LinearGradient
-              colors={
-                palette.isDark
-                  ? ['#1E293B', '#0F172A']
-                  : ['#FFFFFF', '#F8FAFF']
-              }
-              style={styles.cardGradient}
-            >
-              {/* Encabezado del bloque Metas */}
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.cardHeaderLeft}>
-                  <LinearGradient
-                    colors={[c1, c2]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.iconBoxMiniGradient}
-                  >
-                    <Ionicons name="trophy" size={16} color="#FFFFFF" />
-                  </LinearGradient>
-                  <View>
-                    <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
-                      Metas & Objetivos
-                    </Text>
-                    <Text style={[styles.cardSubtitle, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                      {activeGoals.length} {activeGoals.length === 1 ? 'meta activa' : 'metas activas'} · {completedGoals.length} cumplidas
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.linkActionBtn}>
-                  <Text style={[styles.linkActionText, { color: c1, fontFamily: subtitleFont }]}>
-                    Configurar
-                  </Text>
-                  <Ionicons name="chevron-forward" size={14} color={c1} />
-                </View>
-              </View>
-
-              {/* Previsualización de Metas Activas */}
-              {activeGoals.length > 0 ? (
-                <View style={{ marginTop: 12, gap: 10 }}>
-                  {activeGoals.slice(0, 2).map((goal) => {
-                    const progress = calculateGoalProgress(goal);
-                    const remaining = getGoalDaysRemaining(goal.targetDate);
-                    return (
-                      <View
-                        key={goal.id}
-                        style={[
-                          styles.homeGoalMiniCard,
-                          {
-                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                            borderColor: palette.border,
-                          },
-                        ]}
-                      >
-                        <View style={styles.homeGoalTopRow}>
-                          <View
-                            style={[
-                              styles.homeGoalTag,
-                              { backgroundColor: `${c1}18`, borderColor: `${c1}35` },
-                            ]}
-                          >
-                            <Text style={[styles.homeGoalTagText, { color: c1 }]}>
-                              {getGoalCategoryIcon(goal.type)} {goal.categoryLabel || getGoalCategoryLabel(goal.type)}
-                            </Text>
-                          </View>
-
-                          <View
-                            style={[
-                              styles.homeGoalDatePill,
-                              {
-                                backgroundColor: remaining.isPast
-                                  ? 'rgba(239, 68, 68, 0.12)'
-                                  : remaining.days <= 14
-                                  ? 'rgba(245, 158, 11, 0.15)'
-                                  : 'rgba(16, 185, 129, 0.12)',
-                              },
-                            ]}
-                          >
-                            <Ionicons
-                              name="calendar-outline"
-                              size={11}
-                              color={remaining.isPast ? '#EF4444' : remaining.days <= 14 ? '#F59E0B' : '#10B981'}
-                            />
-                            <Text
-                              style={[
-                                styles.homeGoalDateText,
-                                {
-                                  color: remaining.isPast ? '#EF4444' : remaining.days <= 14 ? '#F59E0B' : '#10B981',
-                                  fontFamily: subtitleFont,
-                                },
-                              ]}
-                            >
-                              {formatGoalDate(goal.targetDate)} ({remaining.text})
-                            </Text>
-                          </View>
-                        </View>
-
-                        <Text
-                          style={[styles.homeGoalTitle, { color: palette.text, fontFamily: subtitleFont }]}
-                          numberOfLines={1}
-                        >
-                          {goal.title}
-                        </Text>
-
-                        {/* Barra y valores de progreso */}
-                        <View style={styles.homeGoalProgressRow}>
-                          <View style={styles.homeGoalValuesCol}>
-                            <Text style={[styles.homeGoalValCurrent, { color: palette.text, fontFamily: dataFont }]}>
-                              {goal.currentValue !== undefined ? goal.currentValue : '--'} {goal.unit || ''}
-                            </Text>
-                            <Text style={[styles.homeGoalValTarget, { color: palette.textSub, fontFamily: bodyFont }]}>
-                              de {goal.targetValue !== undefined ? goal.targetValue : '--'} {goal.unit || ''}
-                            </Text>
-                          </View>
-
-                          <View style={styles.homeGoalTrackWrap}>
-                            <View
-                              style={[
-                                styles.homeGoalTrack,
-                                {
-                                  backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.5)',
-                                },
-                              ]}
-                            >
-                              <LinearGradient
-                                colors={[c1, c2]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={[styles.homeGoalFill, { width: `${progress}%` }]}
-                              />
-                            </View>
-                            <Text style={[styles.homeGoalPercentText, { color: c1, fontFamily: dataFont }]}>
-                              {progress}%
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  })}
-
-                  <View style={styles.homeGoalsFooterHint}>
-                    <Text style={[styles.homeGoalsFooterText, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                      Toca para gestionar o configurar nuevas metas con fechas límite ➔
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.homeGoalsEmpty}>
-                  <Text style={[styles.homeGoalsEmptyText, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    Define tus metas con fechas límite (ej. subir 10 kg para el 14 de febrero, romper tu PR o mejorar medidas) y mide tu progreso real.
-                  </Text>
-                  <View style={[styles.homeGoalsEmptyBtn, { backgroundColor: `${c1}15`, borderColor: c1 }]}>
-                    <Ionicons name="add-circle-outline" size={16} color={c1} />
-                    <Text style={[styles.homeGoalsEmptyBtnText, { color: c1, fontFamily: subtitleFont }]}>
-                      Establecer Primera Meta
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
         )}
 
                 {/* ==========================================================
@@ -3770,33 +3729,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  heroAvatarWrapper: {
+    heroAvatarWrapper: {
     position: 'relative',
-    marginRight: 8,
+    marginRight: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   heroAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
   },
   heroAvatarImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   heroAvatarText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   heroStreakBadgeOverlay: {
     position: 'absolute',
-    top: -4,
+    bottom: -4,
     left: -4,
     zIndex: 15,
     flexDirection: 'row',
@@ -4090,6 +4049,133 @@ const styles = StyleSheet.create({
   },
 
   // Tarjetas genéricas del Home
+  
+  // Fila superior doble: Metas (mitad) & Amigos (mitad)
+  topDualRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 14,
+  },
+  topDualCard: {
+    flex: 1,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 13,
+    minHeight: 142,
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  topDualHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  topDualIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topDualPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 7,
+  },
+  topDualPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  topDualCardTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  topDualBodyWrap: {
+    marginTop: 2,
+  },
+  topDualGoalName: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  topDualProgressBarWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  topDualProgressBg: {
+    flex: 1,
+    height: 5,
+    borderRadius: 2.5,
+    overflow: 'hidden',
+  },
+  topDualProgressFill: {
+    height: '100%',
+    borderRadius: 2.5,
+  },
+  topDualPercentText: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  topDualDateHint: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  topDualEmptyDesc: {
+    fontSize: 11,
+    marginBottom: 6,
+  },
+  topDualEmptyAction: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  topDualEmptyActionText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+
+  // Estilos de Amigos en Home
+  friendsStackedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  friendMiniDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  friendMiniDotText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  friendsActiveText: {
+    fontSize: 10,
+    marginLeft: 6,
+    fontWeight: '600',
+  },
+  friendLeadText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  friendActionLink: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+
   cardOuter: {
     borderRadius: 20,
     borderWidth: 1,
@@ -5096,92 +5182,188 @@ const renameStyles = StyleSheet.create({
 });
 
 /* ==========================================================
-   HELPERS & PRESETS PARA FOTO DE PERFIL & METAS
+   AMIGOS & COMUNIDAD EVOLVE
+========================================================== */
+export type FriendUser = {
+  id: string;
+  name: string;
+  nickname: string;
+  streak: number;
+  level: number;
+  rank: string;
+  todayWorkout: string;
+  avatarUri?: string;
+  color: string;
+  initials: string;
+  cheeredToday?: boolean;
+};
+
+export const SEED_FRIENDS: FriendUser[] = [
+  {
+    id: 'f-1',
+    name: 'Carlos Mendoza',
+    nickname: '@carlos_fit',
+    streak: 22,
+    level: 28,
+    rank: 'Atleta Avanzado',
+    todayWorkout: 'Pecho & Tríceps (5 series)',
+    color: '#3B82F6',
+    initials: 'CM',
+    cheeredToday: false,
+  },
+  {
+    id: 'f-2',
+    name: 'Valentina Ortiz',
+    nickname: '@valen_lift',
+    streak: 18,
+    level: 32,
+    rank: 'Atleta Élite',
+    todayWorkout: 'Sentadillas & Glúteos (PR 105 kg)',
+    color: '#EC4899',
+    initials: 'VO',
+    cheeredToday: false,
+  },
+  {
+    id: 'f-3',
+    name: 'Mateo Silva',
+    nickname: '@mateo_iron',
+    streak: 14,
+    level: 16,
+    rank: 'Guerrero del Gym',
+    todayWorkout: 'Espalda & Jalones',
+    color: '#8B5CF6',
+    initials: 'MS',
+    cheeredToday: true,
+  },
+  {
+    id: 'f-4',
+    name: 'Laura Ramos',
+    nickname: '@lau_wod',
+    streak: 9,
+    level: 21,
+    rank: 'Atleta Avanzado',
+    todayWorkout: 'CrossFit WOD & Cardio',
+    color: '#10B981',
+    initials: 'LR',
+    cheeredToday: false,
+  },
+];
+
+/* ==========================================================
+   AVATARES ANIMADOS / ESTILO ANIME GYM (HOMBRES & MUJERES)
+   CON POSES Y ACCESORIOS DE ENTRENAMIENTO
 ========================================================== */
 export const PRESET_AVATARS = [
+  // --- HOMBRES ANIME GYM ---
   {
-    id: 'titan_iron',
-    title: 'Titán del Hierro',
-    category: 'gym',
-    uri: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=400&auto=format&fit=crop&q=80',
+    id: 'anime_m_ren',
+    title: 'Ren (Cinturón & Straps)',
+    category: 'hombres',
+    accessory: 'Cinturón de Fuerza & Correas de Agarre',
+    pose: 'Preparación de Peso Muerto',
     emoji: '🏋️‍♂️',
+    uri: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
   },
   {
-    id: 'silverback_gorilla',
-    title: 'Gorila Alfa',
-    category: 'gym',
-    uri: 'https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?w=400&auto=format&fit=crop&q=80',
-    emoji: '🦍',
+    id: 'anime_m_kenji',
+    title: 'Kenji (Audífonos & Shaker)',
+    category: 'hombres',
+    accessory: 'Audífonos Deportivos & Shaker de Proteína',
+    pose: 'Descanso en Banca de Press',
+    emoji: '🎧',
+    uri: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80',
   },
   {
-    id: 'apex_lion',
-    title: 'León Apex',
-    category: 'gym',
-    uri: 'https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=400&auto=format&fit=crop&q=80',
-    emoji: '🦁',
+    id: 'anime_m_daiki',
+    title: 'Daiki (Mancuerna & Flex)',
+    category: 'hombres',
+    accessory: 'Mancuerna Pesada & Straps',
+    pose: 'Curl de Bíceps Potente',
+    emoji: '💪',
+    uri: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=600&auto=format&fit=crop&q=80',
   },
   {
-    id: 'spartan_legend',
-    title: 'Espartano 300',
-    category: 'gym',
-    uri: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop&q=80',
-    emoji: '🛡️',
-  },
-  {
-    id: 'saiyan_warrior',
-    title: 'Saiyan Supremo',
-    category: 'anime',
-    uri: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&auto=format&fit=crop&q=80',
+    id: 'anime_m_ryu',
+    title: 'Ryu (Magnesio & Barra)',
+    category: 'hombres',
+    accessory: 'Magnesio en Manos & Cinturón de Cuero',
+    pose: 'Sentadilla Pesada Olímpica',
     emoji: '⚡',
+    uri: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
   },
   {
-    id: 'samurai_blade',
-    title: 'Samurái Ronin',
-    category: 'anime',
-    uri: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=400&auto=format&fit=crop&q=80',
-    emoji: '⚔️',
+    id: 'anime_m_hiroshi',
+    title: 'Hiroshi (Muñequeras & Dominadas)',
+    category: 'hombres',
+    accessory: 'Muñequeras de Compresión',
+    pose: 'Agarre de Barra & Espalda en V',
+    emoji: '🥋',
+    uri: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=600&auto=format&fit=crop&q=80',
   },
   {
-    id: 'cyber_ninja',
-    title: 'Ciber Gladiador',
-    category: 'anime',
-    uri: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80',
-    emoji: '🤖',
-  },
-  {
-    id: 'baki_ogre',
-    title: 'Bestia Ogre',
-    category: 'anime',
-    uri: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&auto=format&fit=crop&q=80',
-    emoji: '👹',
-  },
-  {
-    id: 'valkyrie_fit',
-    title: 'Valquiria Fitness',
-    category: 'aesthetic',
-    uri: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&auto=format&fit=crop&q=80',
-    emoji: '✨',
-  },
-  {
-    id: 'aesthetic_zyzz',
-    title: 'Aesthetic Legacy',
-    category: 'aesthetic',
-    uri: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&auto=format&fit=crop&q=80',
-    emoji: '🔱',
-  },
-  {
-    id: 'phoenix_resurrect',
-    title: 'Fénix Renacido',
-    category: 'aesthetic',
-    uri: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=400&auto=format&fit=crop&q=80',
+    id: 'anime_m_kaito',
+    title: 'Kaito (Most Muscular)',
+    category: 'hombres',
+    accessory: 'Camiseta de Tirantes & Correas',
+    pose: 'Pose de Fuerza Most Muscular',
     emoji: '🔥',
+    uri: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80',
+  },
+
+  // --- MUJERES ANIME GYM ---
+  {
+    id: 'anime_w_yuki',
+    title: 'Yuki (Audífonos & Shaker)',
+    category: 'mujeres',
+    accessory: 'Audífonos Inalámbricos & Shaker Rosa',
+    pose: 'Pose Fit Atlética',
+    emoji: '🌸',
+    uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
   },
   {
-    id: 'lone_wolf',
-    title: 'Lobo Solitario',
-    category: 'gym',
-    uri: 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=400&auto=format&fit=crop&q=80',
-    emoji: '🐺',
+    id: 'anime_w_aoi',
+    title: 'Aoi (Cinturón & Sentadillas)',
+    category: 'mujeres',
+    accessory: 'Cinturón de Cuero Powerlifting',
+    pose: 'Sentadilla Profunda & Foco',
+    emoji: '⚡',
+    uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'anime_w_sakura',
+    title: 'Sakura (Mancuernas & Straps)',
+    category: 'mujeres',
+    accessory: 'Correas de Agarre & Mancuernas Hex',
+    pose: 'Peso Muerto Rumano',
+    emoji: '💖',
+    uri: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'anime_w_rin',
+    title: 'Rin (Doble Bíceps & Guantes)',
+    category: 'mujeres',
+    accessory: 'Guantes de Gym & Muñequeras',
+    pose: 'Doble Bíceps Frontal',
+    emoji: '✨',
+    uri: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=600&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'anime_w_mei',
+    title: 'Mei (Magnesio & Crop Top)',
+    category: 'mujeres',
+    accessory: 'Nube de Magnesio & Crop Top Deportivo',
+    pose: 'Concentración Máxima Pre-PR',
+    emoji: '💥',
+    uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'anime_w_hana',
+    title: 'Hana (Bandas & Movilidad)',
+    category: 'mujeres',
+    accessory: 'Bandas de Resistencia & Botella de Agua',
+    pose: 'Calentamiento & Activación Muscular',
+    emoji: '🎀',
+    uri: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&auto=format&fit=crop&q=80',
   },
 ];
 
@@ -5269,7 +5451,7 @@ function AvatarZoomModal({
   onUpdateAvatar,
 }: {
   visible: boolean;
-  zoomAnim: Animated.Value;
+  zoomAnim?: Animated.Value;
   userProfile: any;
   initials: string;
   userName: string;
@@ -5285,7 +5467,7 @@ function AvatarZoomModal({
   onClose: () => void;
   onUpdateAvatar: (uri: string) => void;
 }) {
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'gym' | 'anime' | 'aesthetic'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'hombres' | 'mujeres'>('all');
 
   const handlePickCamera = async () => {
     try {
@@ -5342,54 +5524,57 @@ function AvatarZoomModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={avatarStyles.overlay}>
-        <Animated.View
+        <View
           style={[
             avatarStyles.cardContainer,
             {
               backgroundColor: palette.cardBg,
               borderColor: palette.border,
-              transform: [{ scale: zoomAnim }],
             },
           ]}
         >
-          {/* Header con botón cerrar */}
+          {/* Header con título y botón cerrar */}
           <View style={avatarStyles.headerRow}>
             <Text style={[avatarStyles.headerTitle, { color: palette.text, fontFamily: titleFont }]}>
               Foto de Perfil
             </Text>
             <TouchableOpacity onPress={onClose} style={avatarStyles.closeBtn} hitSlop={10}>
-              <Ionicons name="close" size={20} color={palette.textSub} />
+              <Ionicons name="close" size={22} color={palette.textSub} />
             </TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-            {/* Vista con Zoom Ampliado de la Foto */}
-            <View style={avatarStyles.zoomWrap}>
-              <View style={[avatarStyles.avatarZoomRing, { borderColor: c1 }]}>
-                {userProfile?.avatarUri ? (
-                  <Image
-                    source={{ uri: userProfile.avatarUri }}
-                    style={avatarStyles.avatarZoomImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={[c1, c2]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={avatarStyles.avatarZoomGradient}
-                  >
-                    <Text style={avatarStyles.avatarZoomInitials}>{initials}</Text>
-                  </LinearGradient>
-                )}
-              </View>
+            {/* BANNER A TODO LO ANCHO DEL POPUP (NO CIRCULAR) */}
+            <View style={avatarStyles.fullWidthBanner}>
+              {userProfile?.avatarUri ? (
+                <Image
+                  source={{ uri: userProfile.avatarUri }}
+                  style={avatarStyles.bannerImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <LinearGradient
+                  colors={[c1, c2]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={avatarStyles.bannerGradient}
+                >
+                  <Text style={avatarStyles.bannerInitials}>{initials}</Text>
+                </LinearGradient>
+              )}
 
-              <Text style={[avatarStyles.zoomName, { color: palette.text, fontFamily: titleFont }]}>
-                {userName}
-              </Text>
-              <Text style={[avatarStyles.zoomSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                <Text style={{ color: c1, fontWeight: '700' }}>{userNick}</Text> · Nivel {userLevel} ({rankTitle})
-              </Text>
+              {/* Overlay oscuro en la parte inferior para datos legibles */}
+              <LinearGradient
+                colors={['transparent', 'rgba(15, 23, 42, 0.88)']}
+                style={avatarStyles.bannerOverlay}
+              >
+                <Text style={[avatarStyles.bannerName, { fontFamily: titleFont }]}>
+                  {userName}
+                </Text>
+                <Text style={[avatarStyles.bannerSub, { fontFamily: bodyFont }]}>
+                  <Text style={{ color: '#FDE047', fontWeight: '800' }}>{userNick}</Text> · Nivel {userLevel} ({rankTitle})
+                </Text>
+              </LinearGradient>
             </View>
 
             {/* Opciones de Cámara y Galería */}
@@ -5399,7 +5584,7 @@ function AvatarZoomModal({
                 onPress={handlePickCamera}
                 style={[avatarStyles.actionBtn, { backgroundColor: palette.isDark ? '#1E293B' : '#F1F5F9', borderColor: palette.border }]}
               >
-                <Ionicons name="camera-outline" size={20} color={c1} />
+                <Ionicons name="camera-outline" size={18} color={c1} />
                 <Text style={[avatarStyles.actionBtnText, { color: palette.text, fontFamily: subtitleFont }]}>
                   Tomar Foto
                 </Text>
@@ -5410,9 +5595,9 @@ function AvatarZoomModal({
                 onPress={handlePickGallery}
                 style={[avatarStyles.actionBtn, { backgroundColor: palette.isDark ? '#1E293B' : '#F1F5F9', borderColor: palette.border }]}
               >
-                <Ionicons name="images-outline" size={20} color={c2} />
+                <Ionicons name="images-outline" size={18} color={c2} />
                 <Text style={[avatarStyles.actionBtnText, { color: palette.text, fontFamily: subtitleFont }]}>
-                  Elegir de Galería
+                  De Galería
                 </Text>
               </TouchableOpacity>
             </View>
@@ -5430,14 +5615,14 @@ function AvatarZoomModal({
               </TouchableOpacity>
             ) : null}
 
-            {/* Galería de Avatares Ilustrados / Animados (Gym, Anime & Aesthetic) */}
+            {/* Galería de Avatares Anime Gym con Poses y Accesorios */}
             <View style={avatarStyles.presetSection}>
               <View style={avatarStyles.presetHeaderRow}>
                 <Text style={[avatarStyles.presetSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-                  Avatares Animados & Gym
+                  Avatares Anime Gym (Poses & Accesorios)
                 </Text>
                 <Text style={[avatarStyles.presetSectionSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  Selecciona tu personaje
+                  Cinturones, straps, shakers, audífonos, mancuernas y magnesio
                 </Text>
               </View>
 
@@ -5445,9 +5630,8 @@ function AvatarZoomModal({
               <View style={avatarStyles.filterTabsRow}>
                 {[
                   { key: 'all', label: 'Todos' },
-                  { key: 'gym', label: '🏋️ Gym' },
-                  { key: 'anime', label: '⚡ Anime' },
-                  { key: 'aesthetic', label: '✨ Aesthetic' },
+                  { key: 'hombres', label: '🏋️‍♂️ Hombres Anime' },
+                  { key: 'mujeres', label: '🌸 Mujeres Anime' },
                 ].map((cat) => {
                   const active = categoryFilter === cat.key;
                   return (
@@ -5473,7 +5657,7 @@ function AvatarZoomModal({
                 })}
               </View>
 
-              {/* Cuadrícula de Avatares */}
+              {/* Cuadrícula de Avatares Anime */}
               <View style={avatarStyles.presetGrid}>
                 {filteredPresets.map((preset) => {
                   const isSelected = userProfile?.avatarUri === preset.uri;
@@ -5505,6 +5689,16 @@ function AvatarZoomModal({
                       >
                         {preset.emoji} {preset.title}
                       </Text>
+                      <Text
+                        style={[
+                          avatarStyles.presetAccessoryText,
+                          { color: palette.textSub, fontFamily: bodyFont },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {preset.accessory}
+                      </Text>
+
                       {isSelected && (
                         <View style={[avatarStyles.selectedBadge, { backgroundColor: c1 }]}>
                           <Ionicons name="checkmark" size={10} color="#FFFFFF" />
@@ -5523,11 +5717,11 @@ function AvatarZoomModal({
               style={[avatarStyles.doneBtn, { backgroundColor: c1 }]}
             >
               <Text style={[avatarStyles.doneBtnText, { fontFamily: subtitleFont }]}>
-                Guardar y Salir
+                Guardar Foto y Salir
               </Text>
             </TouchableOpacity>
           </ScrollView>
-        </Animated.View>
+        </View>
       </View>
     </Modal>
   );
@@ -5543,10 +5737,10 @@ const avatarStyles = StyleSheet.create({
   },
   cardContainer: {
     width: '100%',
-    maxHeight: '88%',
+    maxHeight: '90%',
     borderRadius: 24,
     borderWidth: 1,
-    padding: 20,
+    padding: 18,
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 20,
@@ -5556,7 +5750,7 @@ const avatarStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   headerTitle: {
     fontSize: 18,
@@ -5565,67 +5759,72 @@ const avatarStyles = StyleSheet.create({
   closeBtn: {
     padding: 4,
   },
-  zoomWrap: {
-    alignItems: 'center',
-    marginBottom: 18,
+
+  // Banner a todo el ancho (no circular)
+  fullWidthBanner: {
+    width: '100%',
+    height: 200,
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0F172A',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  avatarZoomRing: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    borderWidth: 3.5,
-    padding: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  avatarZoomImage: {
+  bannerImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 65,
   },
-  avatarZoomGradient: {
+  bannerGradient: {
     width: '100%',
     height: '100%',
-    borderRadius: 65,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarZoomInitials: {
-    fontSize: 44,
+  bannerInitials: {
+    fontSize: 52,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
-  zoomName: {
-    fontSize: 17,
+  bannerOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 14,
+    paddingTop: 30,
+    paddingBottom: 12,
+  },
+  bannerName: {
+    color: '#FFFFFF',
+    fontSize: 18,
     fontWeight: '900',
-    marginTop: 12,
   },
-  zoomSub: {
+  bannerSub: {
+    color: '#E2E8F0',
     fontSize: 12,
     marginTop: 2,
   },
+
   actionsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 10,
+    gap: 10,
+    marginBottom: 8,
   },
   actionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 14,
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
     borderWidth: 1,
   },
   actionBtnText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '800',
   },
   removeBtn: {
@@ -5633,37 +5832,37 @@ const avatarStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 8,
-    marginBottom: 16,
+    paddingVertical: 6,
+    marginBottom: 12,
   },
   removeBtnText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
   },
   presetSection: {
-    marginTop: 8,
-    marginBottom: 14,
+    marginTop: 6,
+    marginBottom: 12,
   },
   presetHeaderRow: {
-    marginBottom: 10,
+    marginBottom: 8,
   },
   presetSectionTitle: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '900',
   },
   presetSectionSub: {
-    fontSize: 11.5,
+    fontSize: 11,
     marginTop: 1,
   },
   filterTabsRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
+    gap: 6,
+    marginBottom: 12,
   },
   filterTabPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 9,
     borderWidth: 1,
   },
   filterTabText: {
@@ -5673,47 +5872,53 @@ const avatarStyles = StyleSheet.create({
   presetGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
     justifyContent: 'space-between',
   },
   presetItemCard: {
-    width: '31%',
-    borderRadius: 14,
+    width: '31.5%',
+    borderRadius: 13,
     padding: 6,
     alignItems: 'center',
     position: 'relative',
+    marginBottom: 4,
   },
   presetThumbnail: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 10,
-    marginBottom: 6,
+    borderRadius: 9,
+    marginBottom: 5,
   },
   presetTitle: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '800',
+    textAlign: 'center',
+  },
+  presetAccessoryText: {
+    fontSize: 8.5,
+    marginTop: 1,
     textAlign: 'center',
   },
   selectedBadge: {
     position: 'absolute',
     top: 4,
     right: 4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
     justifyContent: 'center',
     alignItems: 'center',
   },
   doneBtn: {
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: 12,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 6,
   },
   doneBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '900',
   },
 });
@@ -6788,5 +6993,479 @@ const goalModalStyles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12.5,
     fontWeight: '900',
+  },
+});
+
+
+/* ==========================================================
+   MODAL DE AMIGOS & COMUNIDAD EVOLVE
+========================================================== */
+function FriendsModal({
+  visible,
+  friends,
+  c1,
+  c2,
+  palette,
+  titleFont,
+  subtitleFont,
+  dataFont,
+  bodyFont,
+  onClose,
+}: {
+  visible: boolean;
+  friends: FriendUser[];
+  c1: string;
+  c2: string;
+  palette: ColorPalette;
+  titleFont?: string;
+  subtitleFont?: string;
+  dataFont?: string;
+  bodyFont?: string;
+  onClose: () => void;
+}) {
+  const [friendsList, setFriendsList] = useState<FriendUser[]>(friends);
+  const [activeTab, setActiveTab] = useState<'activity' | 'ranking' | 'add'>('activity');
+  const [searchNick, setSearchNick] = useState('');
+  const [cheeredMap, setCheeredMap] = useState<Record<string, boolean>>({});
+
+  const handleCheerFriend = (id: string, name: string) => {
+    setCheeredMap((prev) => ({ ...prev, [id]: true }));
+    Alert.alert('¡Ánimo enviado! 👊', `Le chocaste los puños a ${name}. ¡A seguir entrenando juntos!`);
+  };
+
+  const handleAddFriend = () => {
+    if (!searchNick.trim()) {
+      Alert.alert('Ingresa un usuario', 'Por favor escribe el nickname o código del amigo que deseas agregar.');
+      return;
+    }
+    const cleanNick = searchNick.startsWith('@') ? searchNick : `@${searchNick}`;
+    const newFriend: FriendUser = {
+      id: `f-${Date.now()}`,
+      name: cleanNick.replace('@', ''),
+      nickname: cleanNick,
+      streak: 1,
+      level: 1,
+      rank: 'Iniciado Fitness',
+      todayWorkout: 'Sesión iniciada hoy',
+      color: c1,
+      initials: cleanNick.substring(1, 3).toUpperCase(),
+      cheeredToday: false,
+    };
+    setFriendsList([newFriend, ...friendsList]);
+    setSearchNick('');
+    Alert.alert('¡Amigo Agregado!', `Has agregado a ${cleanNick} a tu círculo de entrenamiento.`);
+    setActiveTab('activity');
+  };
+
+  const sortedRanking = [...friendsList].sort((a, b) => b.streak - a.streak);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={friendModalStyles.overlay}>
+        <View style={[friendModalStyles.sheet, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+          {/* Header */}
+          <View style={friendModalStyles.headerRow}>
+            <View>
+              <Text style={[friendModalStyles.headerTitle, { color: palette.text, fontFamily: titleFont }]}>
+                Amigos & Comunidad
+              </Text>
+              <Text style={[friendModalStyles.headerSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                Sigue el progreso y compite saludablemente con tus amigos del gym
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={friendModalStyles.closeBtn} hitSlop={10}>
+              <Ionicons name="close" size={22} color={palette.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Tabs */}
+          <View style={[friendModalStyles.tabBar, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+            <TouchableOpacity
+              onPress={() => setActiveTab('activity')}
+              style={[
+                friendModalStyles.tabItem,
+                activeTab === 'activity' && { backgroundColor: palette.cardBg, borderWidth: 1, borderColor: c2 },
+              ]}
+            >
+              <Text style={[friendModalStyles.tabText, { color: activeTab === 'activity' ? c2 : palette.textSub, fontFamily: subtitleFont }]}>
+                Actividad de Hoy ({friendsList.length})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setActiveTab('ranking')}
+              style={[
+                friendModalStyles.tabItem,
+                activeTab === 'ranking' && { backgroundColor: palette.cardBg, borderWidth: 1, borderColor: c2 },
+              ]}
+            >
+              <Text style={[friendModalStyles.tabText, { color: activeTab === 'ranking' ? c2 : palette.textSub, fontFamily: subtitleFont }]}>
+                🏆 Ranking
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setActiveTab('add')}
+              style={[
+                friendModalStyles.tabItem,
+                activeTab === 'add' && { backgroundColor: c2 },
+              ]}
+            >
+              <Text style={[friendModalStyles.tabText, { color: activeTab === 'add' ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont }]}>
+                + Agregar
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+            {activeTab === 'activity' && (
+              <View style={{ gap: 10, marginTop: 4 }}>
+                {friendsList.map((friend) => {
+                  const hasCheered = cheeredMap[friend.id] || friend.cheeredToday;
+                  return (
+                    <View
+                      key={friend.id}
+                      style={[
+                        friendModalStyles.friendCard,
+                        {
+                          backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                          borderColor: palette.border,
+                        },
+                      ]}
+                    >
+                      <View style={friendModalStyles.friendCardLeft}>
+                        <View style={[friendModalStyles.avatarDot, { backgroundColor: friend.color }]}>
+                          <Text style={friendModalStyles.avatarDotText}>{friend.initials}</Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[friendModalStyles.friendName, { color: palette.text, fontFamily: subtitleFont }]}>
+                              {friend.name}
+                            </Text>
+                            <View style={[friendModalStyles.streakPill, { backgroundColor: `${c2}18` }]}>
+                              <Ionicons name="flame" size={11} color={c2} />
+                              <Text style={[friendModalStyles.streakPillText, { color: c2, fontFamily: dataFont }]}>
+                                {friend.streak}d
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={[friendModalStyles.friendSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                            {friend.nickname} · Nivel {friend.level} ({friend.rank})
+                          </Text>
+                          <Text style={[friendModalStyles.friendWorkoutText, { color: c1, fontFamily: bodyFont }]}>
+                            ⚡ {friend.todayWorkout}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Botón chocar puños */}
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => handleCheerFriend(friend.id, friend.name)}
+                        style={[
+                          friendModalStyles.cheerBtn,
+                          hasCheered
+                            ? { backgroundColor: '#10B98120', borderColor: '#10B981' }
+                            : { backgroundColor: `${c2}15`, borderColor: c2 },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 16 }}>{hasCheered ? '🔥' : '👊'}</Text>
+                        <Text
+                          style={[
+                            friendModalStyles.cheerBtnText,
+                            { color: hasCheered ? '#10B981' : c2, fontFamily: subtitleFont },
+                          ]}
+                        >
+                          {hasCheered ? 'Animado' : 'Chocar'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {activeTab === 'ranking' && (
+              <View style={{ gap: 8, marginTop: 4 }}>
+                <Text style={[friendModalStyles.rankingDesc, { color: palette.textSub, fontFamily: bodyFont }]}>
+                  Clasificación semanal por racha ininterrumpida de entrenamientos:
+                </Text>
+                {sortedRanking.map((item, idx) => (
+                  <View
+                    key={item.id}
+                    style={[
+                      friendModalStyles.rankRowCard,
+                      {
+                        backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                        borderColor: idx === 0 ? '#F59E0B' : palette.border,
+                        borderWidth: idx === 0 ? 2 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={friendModalStyles.medalBadge}>
+                      <Text style={{ fontSize: 18 }}>
+                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                      </Text>
+                    </View>
+                    <View style={[friendModalStyles.avatarDotSmall, { backgroundColor: item.color }]}>
+                      <Text style={friendModalStyles.avatarDotTextSmall}>{item.initials}</Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={[friendModalStyles.friendName, { color: palette.text, fontFamily: subtitleFont }]}>
+                        {item.name}
+                      </Text>
+                      <Text style={[friendModalStyles.friendSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                        {item.nickname} · Nivel {item.level}
+                      </Text>
+                    </View>
+                    <View style={friendModalStyles.rankStreakBox}>
+                      <Ionicons name="flame" size={15} color="#F59E0B" />
+                      <Text style={[friendModalStyles.rankStreakVal, { color: palette.text, fontFamily: dataFont }]}>
+                        {item.streak}
+                      </Text>
+                      <Text style={[friendModalStyles.rankStreakDays, { color: palette.textSub, fontFamily: bodyFont }]}>
+                        días
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {activeTab === 'add' && (
+              <View style={friendModalStyles.addSectionWrap}>
+                <Text style={[friendModalStyles.addSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                  Agregar a un Amigo del Gym
+                </Text>
+                <Text style={[friendModalStyles.addSectionSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                  Escribe el nickname de tu compañero para seguir sus entrenamientos y enviarle ánimos diarios.
+                </Text>
+
+                <TextInput
+                  value={searchNick}
+                  onChangeText={setSearchNick}
+                  placeholder="Ej. @mateo_iron, @carlos_fit..."
+                  placeholderTextColor={palette.textSub}
+                  autoCapitalize="none"
+                  style={[
+                    friendModalStyles.addInput,
+                    {
+                      backgroundColor: palette.bg,
+                      color: palette.text,
+                      borderColor: palette.border,
+                      fontFamily: bodyFont,
+                    },
+                  ]}
+                />
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={handleAddFriend}
+                  style={[friendModalStyles.addConfirmBtn, { backgroundColor: c2 }]}
+                >
+                  <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
+                  <Text style={[friendModalStyles.addConfirmText, { fontFamily: subtitleFont }]}>
+                    Enviar Solicitud / Agregar
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const friendModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    width: '100%',
+    maxHeight: '90%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  headerSub: {
+    fontSize: 11.5,
+    marginTop: 2,
+    maxWidth: 270,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 4,
+    marginBottom: 14,
+    gap: 4,
+  },
+  tabItem: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  friendCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  friendCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarDot: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarDotText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  friendName: {
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  streakPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+  },
+  streakPillText: {
+    fontSize: 10.5,
+    fontWeight: '900',
+  },
+  friendSub: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  friendWorkoutText: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+  cheerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginLeft: 8,
+  },
+  cheerBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  rankingDesc: {
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  rankRowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+  },
+  medalBadge: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarDotSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
+  },
+  avatarDotTextSmall: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  rankStreakBox: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 3,
+  },
+  rankStreakVal: {
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  rankStreakDays: {
+    fontSize: 11,
+  },
+  addSectionWrap: {
+    paddingTop: 8,
+  },
+  addSectionTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  addSectionSub: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  addInput: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 14,
+  },
+  addConfirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  addConfirmText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
   },
 });
