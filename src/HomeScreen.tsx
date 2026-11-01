@@ -322,7 +322,12 @@ export function calculateUserXpAndLevel(
   const levelProgressPercent = Math.min(100, Math.max(0, Math.round((currentLevelXp / neededForNextLevel) * 100)));
 
   let rankTitle = 'Iniciado Fitness';
-  if (level >= 50) rankTitle = 'Leyenda Evolve';
+  if (level >= 100) rankTitle = 'Leyenda Evolve';
+  else if (level >= 90) rankTitle = 'Deidad del Hierro';
+  else if (level >= 80) rankTitle = 'Inmortal de Acero';
+  else if (level >= 70) rankTitle = 'Semidiós del Fitness';
+  else if (level >= 60) rankTitle = 'Coloso Indomable';
+  else if (level >= 50) rankTitle = 'Maestro del Olimpo';
   else if (level >= 40) rankTitle = 'Titán del Hierro';
   else if (level >= 30) rankTitle = 'Atleta Élite';
   else if (level >= 20) rankTitle = 'Atleta Avanzado';
@@ -643,8 +648,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
           ]}
         />
         <View style={styles.userHeroRow}>
-          {/* Perfil al lado izquierdo (Avatar + Racha horizontal justo debajo) */}
-          <View style={{ alignItems: 'center', marginRight: 12 }}>
+          {/* Perfil al lado izquierdo (Avatar + Racha compacta justo debajo) */}
+          <View style={{ alignItems: 'center', marginRight: 8 }}>
             <LinearGradient
               colors={[c1, c2]}
               start={{ x: 0, y: 0 }}
@@ -654,7 +659,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <Text style={styles.heroAvatarText}>{initials}</Text>
             </LinearGradient>
 
-            {/* Racha de entrenamientos justo debajo de la foto de perfil (icono y número arriba, texto debajo) */}
+            {/* Racha de entrenamientos justo debajo de la foto de perfil (icono y número) */}
             <View
               style={[
                 styles.heroStreakStacked,
@@ -682,17 +687,6 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   {Math.round(workoutStreak.currentStreak * growthProgress)}
                 </Text>
               </View>
-              <Text
-                style={[
-                  styles.heroStreakLabelStacked,
-                  {
-                    color: workoutStreak.currentStreak > 0 ? c2 : palette.textSub,
-                    fontFamily: subtitleFont,
-                  },
-                ]}
-              >
-                {workoutStreak.currentStreak === 1 ? 'entreno' : 'entrenos'}
-              </Text>
             </View>
           </View>
 
@@ -719,6 +713,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <Ionicons name="sparkles" size={12} color={c1} />
               <Text
                 style={[styles.heroRankText, { color: c1, fontFamily: subtitleFont }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
               >
                 Nivel {xpBreakdown.userLevel} · {xpBreakdown.rankTitle}
               </Text>
@@ -1633,7 +1629,12 @@ function XpInfoModal({
                 { range: 'Niveles 20 - 29', title: 'Atleta Avanzado', icon: 'flash-outline', color: '#10B981' },
                 { range: 'Niveles 30 - 39', title: 'Atleta Élite', icon: 'trophy-outline', color: c1 },
                 { range: 'Niveles 40 - 49', title: 'Titán del Hierro', icon: 'diamond-outline', color: '#EC4899' },
-                { range: 'Nivel 50+', title: 'Leyenda Evolve', icon: 'star', color: '#EAB308' },
+                { range: 'Niveles 50 - 59', title: 'Maestro del Olimpo', icon: 'medal-outline', color: '#8B5CF6' },
+                { range: 'Niveles 60 - 69', title: 'Coloso Indomable', icon: 'shield-checkmark-outline', color: '#06B6D4' },
+                { range: 'Niveles 70 - 79', title: 'Semidiós del Fitness', icon: 'planet-outline', color: '#F43F5E' },
+                { range: 'Niveles 80 - 89', title: 'Inmortal de Acero', icon: 'skull-outline', color: '#6366F1' },
+                { range: 'Niveles 90 - 99', title: 'Deidad del Hierro', icon: 'sparkles', color: '#E11D48' },
+                { range: 'Nivel 100+', title: 'Leyenda Evolve', icon: 'star', color: '#EAB308' },
               ].map((r, i) => {
                 const isCurrent = xpBreakdown.rankTitle === r.title;
                 return (
@@ -3502,7 +3503,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: Platform.OS === 'android' ? 14 : 10,
     paddingBottom: 12,
     borderBottomWidth: 1,
@@ -3534,8 +3535,8 @@ const styles = StyleSheet.create({
   },
   heroCenterCol: {
     flex: 1,
-    marginLeft: 12,
-    marginRight: 8,
+    marginLeft: 4,
+    marginRight: 6,
   },
   heroName: {
     fontSize: 16,
@@ -3550,20 +3551,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 3,
+    marginTop: 2,
+    flexShrink: 1,
   },
   heroRankText: {
     fontSize: 11,
     fontWeight: '800',
+    flexShrink: 1,
   },
   heroXpRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: 5,
   },
   heroXpTrack: {
     flex: 1,
-    height: 5,
+    height: 6,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -3657,12 +3660,12 @@ const styles = StyleSheet.create({
   heroStreakStacked: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 10,
     borderWidth: 1,
-    marginTop: 5,
-    minWidth: 54,
+    marginTop: 4,
+    minWidth: 36,
   },
   heroStreakTopRow: {
     flexDirection: 'row',

@@ -2368,17 +2368,18 @@ function ExerciseFormModal({
                     ]}
                   >
                     <Ionicons
-                      name="timer-outline"
-                      size={15}
+                      name="fitness-outline"
+                      size={16}
                       color={exerciseType === 'time' ? '#FFFFFF' : C.sub}
                     />
                     <Text
+                      numberOfLines={2}
                       style={[
                         styles.exerciseTypeText,
                         exerciseType === 'time' && styles.exerciseTypeTextActive,
                       ]}
                     >
-                      Tiempo (Deporte / Cardio / CrossFit)
+                      Deporte, Cardio, CrossFit, Calistenia
                     </Text>
                   </Pressable>
                 </View>
@@ -2946,7 +2947,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    minHeight: 50,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
@@ -2962,8 +2965,11 @@ const styles = StyleSheet.create({
   },
   exerciseTypeText: {
     color: C.sub,
-    fontSize: 12,
+    fontSize: 10,
+    lineHeight: 13,
     fontWeight: '700',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   exerciseTypeTextActive: {
     color: '#FFFFFF',
