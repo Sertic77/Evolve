@@ -33,6 +33,10 @@ import {
   GenderOption,
   UserGoal,
   GoalType,
+  DayMeasurements,
+  WorkoutExercise,
+  Exercise,
+  BodyPartKey,
 } from './store';
 import { pushUserDataToDatabase, pullUserDataFromDatabase } from './syncService';
 
@@ -372,6 +376,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
     logs,
     ingredients,
     workoutLogs,
+    exercises,
     measurementLogs,
     sleepLogs,
     photoLogs,
@@ -740,13 +745,14 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <Text style={{ color: c1, fontWeight: '700' }}>{userNick}</Text> - {dayStrClean}
             </Text>
 
-            {/* Rango */}
+            {/* Rango (ancho expandido sin corte de texto) */}
             <View style={styles.heroRankRow}>
-              <Ionicons name="sparkles" size={12} color={c1} />
+              <Ionicons name="sparkles" size={11} color={c1} />
               <Text
                 style={[styles.heroRankText, { color: c1, fontFamily: subtitleFont }]}
                 numberOfLines={1}
-                ellipsizeMode="tail"
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
               >
                 Nivel {xpBreakdown.userLevel} · {xpBreakdown.rankTitle}
               </Text>
@@ -931,145 +937,227 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
       >
 
         {/* ==========================================================
-            FILA SUPERIOR: METAS (COLOR PRIMARIO) & AMIGOS (LADO A LADO)
+            FILA SUPERIOR: METAS (FORMA EN L SI HAY METAS ACTIVAS) & AMIGOS
         ========================================================== */}
-        <View style={styles.topDualRow}>
-          {/* BLOQUE IZQUIERDO: METAS (MITAD DE ANCHO, FONDO COLOR PRIMARIO) */}
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => setShowGoalsModal(true)}
-            style={[
-              styles.topDualCard,
-              {
-                backgroundColor: palette.primary,
-                borderColor: palette.primary,
-              },
-            ]}
-          >
-            <View style={styles.topDualHeader}>
-              <View style={[styles.topDualIconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
-                <Ionicons name="trophy" size={14} color="#FFFFFF" />
+        <View style={styles.goalsAndFriendsContainer}>
+          {/* Fila superior: Cabecera Metas (izquierda) y Tarjeta Amigos (derecha) */}
+          <View style={styles.topDualRow}>
+            {/* Cabecera / Bloque Superior de Metas en la izquierda */}
+            <TouchableOpacity
+              activeOpacity={0.92}
+              onPress={() => setShowGoalsModal(true)}
+              style={[
+                styles.topDualCard,
+                {
+                  backgroundColor: palette.primary,
+                  borderColor: palette.primary,
+                  borderBottomLeftRadius: activeGoals.length > 0 ? 0 : 18,
+                  borderBottomRightRadius: activeGoals.length > 0 ? 0 : 18,
+                  borderBottomWidth: activeGoals.length > 0 ? 0 : 1,
+                },
+              ]}
+            >
+              <View style={styles.topDualHeader}>
+                <View style={[styles.topDualIconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
+                  <Ionicons name="trophy" size={14} color="#FFFFFF" />
+                </View>
+                <View style={[styles.topDualPill, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
+                  <Text style={[styles.topDualPillText, { color: '#FFFFFF', fontFamily: subtitleFont }]}>
+                    {activeGoals.length} {activeGoals.length === 1 ? 'meta' : 'metas'}
+                  </Text>
+                </View>
               </View>
-              <View style={[styles.topDualPill, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
-                <Text style={[styles.topDualPillText, { color: '#FFFFFF', fontFamily: subtitleFont }]}>
-                  {activeGoals.length} {activeGoals.length === 1 ? 'meta' : 'metas'}
-                </Text>
+
+              <Text style={[styles.topDualCardTitle, { color: '#FFFFFF', fontFamily: titleFont }]}>
+                Metas
+              </Text>
+
+              {activeGoals.length > 0 ? (
+                <View style={styles.topDualBodyWrap}>
+                  <Text
+                    style={[styles.topDualGoalName, { color: '#FFFFFF', fontFamily: subtitleFont }]}
+                    numberOfLines={1}
+                  >
+                    {activeGoals[0].title}
+                  </Text>
+
+                  <View style={styles.topDualProgressBarWrap}>
+                    <View style={[styles.topDualProgressBg, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
+                      <View
+                        style={[
+                          styles.topDualProgressFill,
+                          {
+                            backgroundColor: '#FDE047',
+                            width: `${calculateGoalProgress(activeGoals[0])}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={[styles.topDualPercentText, { color: '#FFFFFF', fontFamily: dataFont }]}>
+                      {calculateGoalProgress(activeGoals[0])}%
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.topDualDateHint, { color: 'rgba(255, 255, 255, 0.9)', fontFamily: bodyFont }]}>
+                    🗓️ {formatGoalDate(activeGoals[0].targetDate)}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.topDualBodyWrap}>
+                  <Text style={[styles.topDualEmptyDesc, { color: 'rgba(255, 255, 255, 0.9)', fontFamily: bodyFont }]}>
+                    Define tu meta a fecha
+                  </Text>
+                  <View style={[styles.topDualEmptyAction, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
+                    <Text style={[styles.topDualEmptyActionText, { color: '#FFFFFF', fontFamily: subtitleFont }]}>
+                      + Establecer
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* Bloque Amigos (mitad derecha) */}
+            <TouchableOpacity
+              activeOpacity={0.92}
+              onPress={() => setShowFriendsModal(true)}
+              style={[
+                styles.topDualCard,
+                {
+                  backgroundColor: palette.cardBg,
+                  borderColor: palette.border,
+                },
+              ]}
+            >
+              <View style={styles.topDualHeader}>
+                <View style={[styles.topDualIconCircle, { backgroundColor: `${c2}18` }]}>
+                  <Ionicons name="people" size={14} color={c2} />
+                </View>
+                <View style={[styles.topDualPill, { backgroundColor: `${c2}18` }]}>
+                  <Text style={[styles.topDualPillText, { color: c2, fontFamily: subtitleFont }]}>
+                    {SEED_FRIENDS.length} amigos
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            <Text style={[styles.topDualCardTitle, { color: '#FFFFFF', fontFamily: titleFont }]}>
-              Metas
-            </Text>
+              <Text style={[styles.topDualCardTitle, { color: palette.text, fontFamily: titleFont }]}>
+                Amigos
+              </Text>
 
-            {activeGoals.length > 0 ? (
               <View style={styles.topDualBodyWrap}>
-                <Text
-                  style={[styles.topDualGoalName, { color: '#FFFFFF', fontFamily: subtitleFont }]}
-                  numberOfLines={1}
-                >
-                  {activeGoals[0].title}
-                </Text>
-
-                <View style={styles.topDualProgressBarWrap}>
-                  <View style={[styles.topDualProgressBg, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
+                <View style={styles.friendsStackedRow}>
+                  {SEED_FRIENDS.slice(0, 3).map((f, i) => (
                     <View
+                      key={f.id}
                       style={[
-                        styles.topDualProgressFill,
+                        styles.friendMiniDot,
                         {
-                          backgroundColor: '#FDE047',
-                          width: `${calculateGoalProgress(activeGoals[0])}%`,
+                          backgroundColor: f.color,
+                          marginLeft: i === 0 ? 0 : -8,
+                          borderColor: palette.cardBg,
                         },
                       ]}
-                    />
-                  </View>
-                  <Text style={[styles.topDualPercentText, { color: '#FFFFFF', fontFamily: dataFont }]}>
-                    {calculateGoalProgress(activeGoals[0])}%
+                    >
+                      <Text style={styles.friendMiniDotText}>{f.initials}</Text>
+                    </View>
+                  ))}
+                  <Text style={[styles.friendsActiveText, { color: palette.textSub, fontFamily: bodyFont }]}>
+                    3 activos hoy
                   </Text>
                 </View>
 
-                <Text style={[styles.topDualDateHint, { color: 'rgba(255, 255, 255, 0.9)', fontFamily: bodyFont }]}>
-                  🗓️ {formatGoalDate(activeGoals[0].targetDate)}
+                <Text
+                  style={[styles.friendLeadText, { color: palette.text, fontFamily: subtitleFont }]}
+                  numberOfLines={1}
+                >
+                  🔥 {SEED_FRIENDS[0].name.split(' ')[0]} racha {SEED_FRIENDS[0].streak}d
+                </Text>
+
+                <Text style={[styles.friendActionLink, { color: c2, fontFamily: subtitleFont }]}>
+                  Ver ranking ➔
                 </Text>
               </View>
-            ) : (
-              <View style={styles.topDualBodyWrap}>
-                <Text style={[styles.topDualEmptyDesc, { color: 'rgba(255, 255, 255, 0.9)', fontFamily: bodyFont }]}>
-                  Define tu meta a fecha
-                </Text>
-                <View style={[styles.topDualEmptyAction, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
-                  <Text style={[styles.topDualEmptyActionText, { color: '#FFFFFF', fontFamily: subtitleFont }]}>
-                    + Establecer
+            </TouchableOpacity>
+          </View>
+
+          {/* EXTENSIÓN EN FORMA DE "L" DE METAS HACIA ABAJO Y HACIA LA DERECHA */}
+          {activeGoals.length > 0 && (
+            <TouchableOpacity
+              activeOpacity={0.94}
+              onPress={() => setShowGoalsModal(true)}
+              style={[
+                styles.metasLBaseCard,
+                {
+                  backgroundColor: palette.primary,
+                  borderColor: palette.primary,
+                },
+              ]}
+            >
+              <View style={styles.metasLBaseHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="flag" size={13} color="#FFFFFF" />
+                  <Text style={[styles.metasLBaseTitle, { color: '#FFFFFF', fontFamily: titleFont }]}>
+                    Progreso Detallado de Metas
+                  </Text>
+                </View>
+                <View style={styles.metasLBaseCountBadge}>
+                  <Text style={[styles.metasLBaseCountText, { fontFamily: subtitleFont }]}>
+                    {activeGoals.length} en curso
                   </Text>
                 </View>
               </View>
-            )}
-          </TouchableOpacity>
 
-          {/* BLOQUE DERECHO: AMIGOS (MITAD DE ANCHO) */}
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => setShowFriendsModal(true)}
-            style={[
-              styles.topDualCard,
-              {
-                backgroundColor: palette.cardBg,
-                borderColor: palette.border,
-              },
-            ]}
-          >
-            <View style={styles.topDualHeader}>
-              <View style={[styles.topDualIconCircle, { backgroundColor: `${c2}18` }]}>
-                <Ionicons name="people" size={14} color={c2} />
+              <View style={styles.metasLListWrap}>
+                {activeGoals.map((goal) => {
+                  const progress = calculateGoalProgress(goal);
+                  const remaining = getGoalDaysRemaining(goal.targetDate);
+                  return (
+                    <View key={goal.id} style={styles.metasLItemRow}>
+                      <View style={styles.metasLItemTop}>
+                        <View style={styles.metasLTag}>
+                          <Text style={styles.metasLTagText}>
+                            {getGoalCategoryIcon(goal.type)} {goal.categoryLabel || getGoalCategoryLabel(goal.type)}
+                          </Text>
+                        </View>
+                        <Text style={[styles.metasLDatePill, { fontFamily: subtitleFont }]}>
+                          🗓️ {formatGoalDate(goal.targetDate)} ({remaining.text})
+                        </Text>
+                      </View>
+
+                      <Text style={[styles.metasLGoalTitle, { fontFamily: subtitleFont }]} numberOfLines={1}>
+                        {goal.title}
+                      </Text>
+
+                      <View style={styles.metasLProgressRow}>
+                        <Text style={[styles.metasLValuesText, { fontFamily: dataFont }]}>
+                          {goal.currentValue !== undefined ? goal.currentValue : '--'} / {goal.targetValue !== undefined ? goal.targetValue : '--'} {goal.unit || ''}
+                        </Text>
+                        <View style={styles.metasLTrackBg}>
+                          <View
+                            style={[
+                              styles.metasLTrackFill,
+                              { width: `${progress}%` },
+                            ]}
+                          />
+                        </View>
+                        <Text style={[styles.metasLPctText, { fontFamily: dataFont }]}>
+                          {progress}%
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
-              <View style={[styles.topDualPill, { backgroundColor: `${c2}18` }]}>
-                <Text style={[styles.topDualPillText, { color: c2, fontFamily: subtitleFont }]}>
-                  {SEED_FRIENDS.length} amigos
+
+              <View style={styles.metasLFooter}>
+                <Text style={[styles.metasLFooterText, { fontFamily: subtitleFont }]}>
+                  Toca para gestionar, ajustar o crear nuevas metas ➔
                 </Text>
               </View>
-            </View>
-
-            <Text style={[styles.topDualCardTitle, { color: palette.text, fontFamily: titleFont }]}>
-              Amigos
-            </Text>
-
-            <View style={styles.topDualBodyWrap}>
-              {/* Mini avatares solapados */}
-              <View style={styles.friendsStackedRow}>
-                {SEED_FRIENDS.slice(0, 3).map((f, i) => (
-                  <View
-                    key={f.id}
-                    style={[
-                      styles.friendMiniDot,
-                      {
-                        backgroundColor: f.color,
-                        marginLeft: i === 0 ? 0 : -8,
-                        borderColor: palette.cardBg,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.friendMiniDotText}>{f.initials}</Text>
-                  </View>
-                ))}
-                <Text style={[styles.friendsActiveText, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  3 activos hoy
-                </Text>
-              </View>
-
-              <Text
-                style={[styles.friendLeadText, { color: palette.text, fontFamily: subtitleFont }]}
-                numberOfLines={1}
-              >
-                🔥 {SEED_FRIENDS[0].name.split(' ')[0]} racha {SEED_FRIENDS[0].streak}d
-              </Text>
-
-              <Text style={[styles.friendActionLink, { color: c2, fontFamily: subtitleFont }]}>
-                Ver ranking ➔
-              </Text>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
         </View>
 
-                {/* ==========================================================
+        {/* ==========================================================
             WIDGET 1: NUTRICIÓN Y MACROS (COLORES ESTRICTOS DE LA PALETA)
         ========================================================== */}
         {homeWidgets?.calories && (
@@ -1552,6 +1640,14 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         onUpdateGoal={updateGoal}
         onDeleteGoal={deleteGoal}
         onToggleCompleted={toggleGoalCompleted}
+        weightLogs={weightLogs}
+        currentWeight={currentWeight}
+        measurementLogs={measurementLogs}
+        workoutLogs={workoutLogs}
+        exercises={exercises}
+        totalKcal={totalKcal}
+        targetKcal={targetKcal}
+        currentStreak={workoutStreak.currentStreak}
       />
     </View>
   );
@@ -3712,7 +3808,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingTop: Platform.OS === 'android' ? 14 : 10,
     paddingBottom: 12,
     borderBottomWidth: 1,
@@ -3731,7 +3827,7 @@ const styles = StyleSheet.create({
   },
     heroAvatarWrapper: {
     position: 'relative',
-    marginRight: 10,
+    marginRight: 7,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3898,8 +3994,8 @@ const styles = StyleSheet.create({
   },
   heroCenterCol: {
     flex: 1,
-    marginLeft: 4,
-    marginRight: 6,
+    marginLeft: 2,
+    marginRight: 2,
   },
   heroName: {
     fontSize: 16,
@@ -3907,20 +4003,22 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   heroNickDate: {
-    fontSize: 11,
+    fontSize: 10.5,
     marginTop: 1,
   },
   heroRankRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     marginTop: 2,
-    flexShrink: 1,
+    width: '100%',
+    flexShrink: 0,
   },
   heroRankText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '800',
-    flexShrink: 1,
+    letterSpacing: -0.2,
+    flexShrink: 0,
   },
   heroXpRow: {
     flexDirection: 'row',
@@ -4051,6 +4149,128 @@ const styles = StyleSheet.create({
   // Tarjetas genéricas del Home
   
   // Fila superior doble: Metas (mitad) & Amigos (mitad)
+  
+  // Contenedor general en L de Metas y Amigos
+  goalsAndFriendsContainer: {
+    marginBottom: 14,
+  },
+  metasLBaseCard: {
+    width: '100%',
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 18,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    borderWidth: 1,
+    marginTop: -1,
+    padding: 13,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  metasLBaseHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.18)',
+    paddingBottom: 6,
+  },
+  metasLBaseTitle: {
+    fontSize: 13.5,
+    fontWeight: '900',
+  },
+  metasLBaseCountBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 7,
+  },
+  metasLBaseCountText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  metasLListWrap: {
+    gap: 8,
+  },
+  metasLItemRow: {
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    borderRadius: 12,
+    padding: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  metasLItemTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  metasLTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  metasLTagText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  metasLDatePill: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  metasLGoalTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  metasLProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  metasLValuesText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    minWidth: 70,
+  },
+  metasLTrackBg: {
+    flex: 1,
+    height: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+    borderRadius: 2.5,
+    overflow: 'hidden',
+  },
+  metasLTrackFill: {
+    height: '100%',
+    backgroundColor: '#FDE047',
+    borderRadius: 2.5,
+  },
+  metasLPctText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    minWidth: 32,
+    textAlign: 'right',
+  },
+  metasLFooter: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  metasLFooterText: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+
   topDualRow: {
     flexDirection: 'row',
     gap: 12,
@@ -5941,6 +6161,14 @@ function GoalsModal({
   onUpdateGoal,
   onDeleteGoal,
   onToggleCompleted,
+  weightLogs = {},
+  currentWeight = null,
+  measurementLogs = {},
+  workoutLogs = {},
+  exercises = [],
+  totalKcal = 0,
+  targetKcal = 2000,
+  currentStreak = 0,
 }: {
   visible: boolean;
   goals: UserGoal[];
@@ -5956,12 +6184,21 @@ function GoalsModal({
   onUpdateGoal: (id: string, updates: Partial<UserGoal>) => void;
   onDeleteGoal: (id: string) => void;
   onToggleCompleted: (id: string) => void;
+  weightLogs?: Record<string, number>;
+  currentWeight?: number | null;
+  measurementLogs?: Record<string, DayMeasurements>;
+  workoutLogs?: Record<string, WorkoutExercise[]>;
+  exercises?: Exercise[];
+  totalKcal?: number;
+  targetKcal?: number;
+  currentStreak?: number;
 }) {
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'new'>('active');
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
 
   // Campos del formulario
   const [goalType, setGoalType] = useState<GoalType>('weight');
+  const [selectedVariableKey, setSelectedVariableKey] = useState<string>('weight');
   const [goalTitle, setGoalTitle] = useState('');
   const [targetDate, setTargetDate] = useState('2026-02-14');
   const [startVal, setStartVal] = useState('');
@@ -5969,14 +6206,179 @@ function GoalsModal({
   const [targetVal, setTargetVal] = useState('');
   const [unit, setUnit] = useState('kg');
   const [notes, setNotes] = useState('');
+  const [autoFilledNotice, setAutoFilledNotice] = useState<string | null>(null);
 
   const activeGoals = goals.filter((g) => !g.completed);
   const completedGoals = goals.filter((g) => g.completed);
+
+  // Lista de medidas musculares disponibles
+  const MUSCLE_PARTS: { key: BodyPartKey; label: string }[] = [
+    { key: 'right_arm', label: 'Bíceps / Brazo' },
+    { key: 'chest', label: 'Pecho / Torso' },
+    { key: 'waist', label: 'Cintura' },
+    { key: 'right_thigh', label: 'Cuádriceps / Muslo' },
+    { key: 'back', label: 'Espalda' },
+    { key: 'glutes', label: 'Glúteos' },
+    { key: 'right_calf', label: 'Pantorrilla' },
+    { key: 'right_forearm', label: 'Antebrazo' },
+  ];
+
+  // Lista de ejercicios para PR de fuerza (combina populares y ejercicios de la store)
+  const defaultPopularExercises = [
+    { id: 'bench_press', name: 'Press de Banca Plano' },
+    { id: 'squat', name: 'Sentadilla con Barra' },
+    { id: 'deadlift', name: 'Peso Muerto' },
+    { id: 'military_press', name: 'Press Militar' },
+    { id: 'barbell_row', name: 'Remo con Barra' },
+    { id: 'pull_ups', name: 'Dominadas Lastradas' },
+    { id: 'incline_bench', name: 'Press Inclinado con Mancuernas' },
+    { id: 'biceps_curl', name: 'Curl de Bíceps con Barra' },
+  ];
+
+  const availableExercises = [
+    ...defaultPopularExercises,
+    ...(Array.isArray(exercises)
+      ? exercises
+          .filter((e) => !defaultPopularExercises.some((d) => d.name.toLowerCase() === e.name.toLowerCase()))
+          .map((e) => ({ id: e.id, name: e.name }))
+      : []),
+  ];
+
+  // ==========================================================
+  // FUNCIÓN DE AUTOLLENADO BASADA EN DATOS REALES DE LA VARIABLE
+  // ==========================================================
+  const handleSelectVariable = (type: GoalType, variableKey?: string) => {
+    setGoalType(type);
+    setSelectedVariableKey(variableKey || type);
+
+    if (type === 'weight') {
+      const dates = Object.keys(weightLogs || {}).sort();
+      const earliest = dates.length > 0 ? weightLogs[dates[0]] : currentWeight || 70;
+      const latest = currentWeight || (dates.length > 0 ? weightLogs[dates[dates.length - 1]] : 70);
+      const s = Number(earliest).toFixed(1).replace('.0', '');
+      const c = Number(latest).toFixed(1).replace('.0', '');
+      const targetSuggestion = Math.round(Number(c) + 5);
+
+      setStartVal(s);
+      setCurrentVal(c);
+      setTargetVal(String(targetSuggestion));
+      setUnit('kg');
+      setGoalTitle(`Alcanzar ${targetSuggestion} kg de peso corporal`);
+      setAutoFilledNotice(`✓ Historial cargado: Peso inicial: ${s} kg | Peso actual: ${c} kg`);
+    } else if (type === 'calories') {
+      const start = targetKcal || 2200;
+      const cur = totalKcal || 0;
+      const targetSuggestion = targetKcal || 2500;
+
+      setStartVal(String(start));
+      setCurrentVal(String(cur));
+      setTargetVal(String(targetSuggestion));
+      setUnit('kcal');
+      setGoalTitle(`Meta diaria de ${targetSuggestion} kcal`);
+      setAutoFilledNotice(`✓ Historial cargado: Consumo de hoy: ${cur} kcal | Objetivo base: ${start} kcal`);
+    } else if (type === 'streak') {
+      const cur = currentStreak || 0;
+      const targetSuggestion = Math.max(cur + 15, 30);
+
+      setStartVal('1');
+      setCurrentVal(String(cur));
+      setTargetVal(String(targetSuggestion));
+      setUnit('días');
+      setGoalTitle(`Alcanzar racha de ${targetSuggestion} días de entreno`);
+      setAutoFilledNotice(`✓ Historial cargado: Racha actual: ${cur} días consecutivos`);
+    } else if (type === 'pr') {
+      const exName = variableKey || 'Press de Banca Plano';
+      // Escanear workoutLogs para este ejercicio
+      let firstWeight: number | null = null;
+      let maxWeight = 0;
+      let hasData = false;
+
+      const dates = Object.keys(workoutLogs || {}).sort();
+      dates.forEach((date) => {
+        const dayExercises = workoutLogs[date] || [];
+        dayExercises.forEach((wEx: any) => {
+          const match =
+            wEx.exerciseId === variableKey ||
+            (wEx.name && wEx.name.toLowerCase() === exName.toLowerCase()) ||
+            exercises.find((e) => e.id === wEx.exerciseId)?.name.toLowerCase() === exName.toLowerCase();
+
+          if (match && Array.isArray(wEx.sets)) {
+            wEx.sets.forEach((set: any) => {
+              const w = Number(set.weight);
+              if (!isNaN(w) && w > 0) {
+                hasData = true;
+                if (firstWeight === null) firstWeight = w;
+                if (w > maxWeight) maxWeight = w;
+              }
+            });
+          }
+        });
+      });
+
+      const s = hasData && firstWeight !== null ? String(firstWeight) : '60';
+      const c = hasData && maxWeight > 0 ? String(maxWeight) : s;
+      const targetSuggestion = hasData && maxWeight > 0 ? String(Math.round(maxWeight * 1.1)) : '80';
+
+      setStartVal(s);
+      setCurrentVal(c);
+      setTargetVal(targetSuggestion);
+      setUnit('kg');
+      setGoalTitle(`Superar PR en ${exName} (${targetSuggestion} kg)`);
+      setAutoFilledNotice(
+        hasData
+          ? `✓ Historial cargado: Primer registro: ${s} kg | PR Máximo actual: ${c} kg`
+          : `Configura tu PR para ${exName} (ej. inicio ${s} kg, meta ${targetSuggestion} kg)`
+      );
+    } else if (type === 'muscle') {
+      const partKey = (variableKey || 'right_arm') as BodyPartKey;
+      const partObj = MUSCLE_PARTS.find((p) => p.key === partKey) || MUSCLE_PARTS[0];
+
+      let firstMeasure: number | null = null;
+      let latestMeasure: number | null = null;
+      let hasData = false;
+
+      const dates = Object.keys(measurementLogs || {}).sort();
+      dates.forEach((date) => {
+        const day = measurementLogs[date];
+        if (day && typeof day[partKey] === 'number' && (day[partKey] as number) > 0) {
+          hasData = true;
+          const val = day[partKey] as number;
+          if (firstMeasure === null) firstMeasure = val;
+          latestMeasure = val;
+        }
+      });
+
+      const s = hasData && firstMeasure !== null ? String(firstMeasure) : (partKey === 'waist' ? '82' : '36');
+      const c = hasData && latestMeasure !== null ? String(latestMeasure) : s;
+      const isWaist = partKey === 'waist';
+      const targetSuggestion = isWaist
+        ? String(Math.max(Number(c) - 4, 70))
+        : String(Math.round((Number(c) + 2.5) * 10) / 10);
+
+      setStartVal(s);
+      setCurrentVal(c);
+      setTargetVal(targetSuggestion);
+      setUnit('cm');
+      setGoalTitle(
+        isWaist
+          ? `Reducir cintura a ${targetSuggestion} cm`
+          : `Aumentar ${partObj.label} a ${targetSuggestion} cm`
+      );
+      setAutoFilledNotice(
+        hasData
+          ? `✓ Historial cargado: Medida inicial: ${s} cm | Medida actual: ${c} cm`
+          : `Configura tu objetivo para ${partObj.label} (ej. actual ${c} cm, meta ${targetSuggestion} cm)`
+      );
+    } else {
+      setAutoFilledNotice(null);
+    }
+  };
 
   // Iniciar creación o edición
   const resetForm = () => {
     setEditingGoalId(null);
     setGoalType('weight');
+    setSelectedVariableKey('weight');
     setGoalTitle('');
     setTargetDate('2026-02-14');
     setStartVal('');
@@ -5984,11 +6386,14 @@ function GoalsModal({
     setTargetVal('');
     setUnit('kg');
     setNotes('');
+    setAutoFilledNotice(null);
+    handleSelectVariable('weight');
   };
 
   const handleStartEdit = (g: UserGoal) => {
     setEditingGoalId(g.id);
     setGoalType(g.type);
+    setSelectedVariableKey(g.bodyPart || g.exerciseName || g.type);
     setGoalTitle(g.title);
     setTargetDate(g.targetDate);
     setStartVal(g.startValue !== undefined ? String(g.startValue) : '');
@@ -5996,6 +6401,7 @@ function GoalsModal({
     setTargetVal(g.targetValue !== undefined ? String(g.targetValue) : '');
     setUnit(g.unit || 'kg');
     setNotes(g.notes || '');
+    setAutoFilledNotice(null);
     setActiveTab('new');
   };
 
@@ -6024,6 +6430,8 @@ function GoalsModal({
         unit: unit.trim(),
         categoryLabel: getGoalCategoryLabel(goalType),
         notes: notes.trim(),
+        exerciseName: goalType === 'pr' ? selectedVariableKey : undefined,
+        bodyPart: goalType === 'muscle' ? (selectedVariableKey as BodyPartKey) : undefined,
       });
       Alert.alert('¡Meta Actualizada!', 'Tu meta se ha guardado correctamente.');
     } else {
@@ -6038,6 +6446,8 @@ function GoalsModal({
         categoryLabel: getGoalCategoryLabel(goalType),
         notes: notes.trim(),
         completed: false,
+        exerciseName: goalType === 'pr' ? selectedVariableKey : undefined,
+        bodyPart: goalType === 'muscle' ? (selectedVariableKey as BodyPartKey) : undefined,
       });
       Alert.alert('¡Meta Creada!', 'Tu nuevo objetivo ha sido fijado. ¡A darlo todo!');
     }
@@ -6055,40 +6465,6 @@ function GoalsModal({
         { text: 'Eliminar', style: 'destructive', onPress: () => onDeleteGoal(id) },
       ]
     );
-  };
-
-  // Sugerencias según tipo de meta
-  const suggestions = {
-    weight: [
-      'Subir 10 kg para el 14 de Feb (Volumen)',
-      'Bajar 5 kg para definición',
-      'Alcanzar 80 kg con 12% grasa corporal',
-      'Definir a 75 kg para el verano',
-    ],
-    pr: [
-      'Press de Banca a 100 kg',
-      'Sentadilla profunda a 140 kg',
-      'Peso Muerto a 180 kg (PR)',
-      'Press Militar estricto a 70 kg',
-      'Dominadas con +30 kg de lastre',
-    ],
-    muscle: [
-      'Aumentar Bíceps a 40 cm',
-      'Pecho a 110 cm de contorno',
-      'Cuádriceps a 65 cm',
-      'Reducir cintura a 78 cm',
-      'Pantorrilla a 40 cm',
-    ],
-    streak: [
-      'Entrenar 30 días seguidos',
-      'Completar 100 entrenos este año',
-      'Racha de 50 sesiones sin fallar',
-    ],
-    custom: [
-      'Dormir 8 horas diarias durante 2 meses',
-      'Consumir 180g de proteína todos los días',
-      'Hacer 10,000 pasos diarios',
-    ],
   };
 
   return (
@@ -6170,32 +6546,30 @@ function GoalsModal({
           {/* Contenido según la pestaña */}
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
             {activeTab === 'new' ? (
-              /* FORMULARIO CREAR / EDITAR META */
+              /* FORMULARIO CREAR / EDITAR META CON SELECTOR DE VARIABLE Y AUTOLLENADO */
               <View style={goalModalStyles.formWrap}>
                 <Text style={[goalModalStyles.formSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
                   {editingGoalId ? 'Editar Meta' : 'Configurar Nueva Meta'}
                 </Text>
 
-                {/* Tipo de Meta */}
+                {/* 1. Tipo de Objetivo */}
                 <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                  Tipo de Objetivo
+                  1. Tipo de Objetivo
                 </Text>
                 <View style={goalModalStyles.typeSelectorRow}>
                   {[
-                    { key: 'weight', label: 'Peso', icon: 'scale-outline', u: 'kg' },
-                    { key: 'pr', label: 'Mejorar PR', icon: 'barbell-outline', u: 'kg' },
-                    { key: 'muscle', label: 'Músculo', icon: 'body-outline', u: 'cm' },
-                    { key: 'streak', label: 'Racha', icon: 'flame-outline', u: 'días' },
-                    { key: 'custom', label: 'Otro', icon: 'trophy-outline', u: '' },
+                    { key: 'weight', label: 'Peso Corporal', icon: 'scale-outline' },
+                    { key: 'calories', label: 'Calorías', icon: 'flame-outline' },
+                    { key: 'pr', label: 'Récord / PR', icon: 'barbell-outline' },
+                    { key: 'muscle', label: 'Músculo', icon: 'body-outline' },
+                    { key: 'streak', label: 'Racha', icon: 'flash-outline' },
+                    { key: 'custom', label: 'Otro', icon: 'trophy-outline' },
                   ].map((t) => {
                     const active = goalType === t.key;
                     return (
                       <TouchableOpacity
                         key={t.key}
-                        onPress={() => {
-                          setGoalType(t.key as any);
-                          setUnit(t.u);
-                        }}
+                        onPress={() => handleSelectVariable(t.key as GoalType)}
                         style={[
                           goalModalStyles.typePill,
                           active && { backgroundColor: c1, borderColor: c1 },
@@ -6220,32 +6594,101 @@ function GoalsModal({
                   })}
                 </View>
 
-                {/* Sugerencias Rápidas */}
-                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 12 }]}>
-                  Sugerencias Rápidas
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
-                  {suggestions[goalType].map((sug, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => setGoalTitle(sug)}
-                      style={[goalModalStyles.sugPill, { borderColor: palette.border, backgroundColor: palette.bg }]}
-                    >
-                      <Text style={[goalModalStyles.sugText, { color: palette.text, fontFamily: bodyFont }]}>
-                        {sug}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                {/* 2. Selector de Variable Relacionada */}
+                {goalType === 'pr' && (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      2. Selecciona el Ejercicio a Controlar (PR de Fuerza):
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                      {availableExercises.map((ex) => {
+                        const isSelected = selectedVariableKey === ex.name;
+                        return (
+                          <TouchableOpacity
+                            key={ex.id + ex.name}
+                            onPress={() => handleSelectVariable('pr', ex.name)}
+                            style={[
+                              goalModalStyles.varPill,
+                              isSelected && { backgroundColor: c1, borderColor: c1 },
+                              !isSelected && { backgroundColor: palette.bg, borderColor: palette.border },
+                            ]}
+                          >
+                            <Ionicons
+                              name="barbell"
+                              size={13}
+                              color={isSelected ? '#FFFFFF' : c1}
+                            />
+                            <Text
+                              style={[
+                                goalModalStyles.varPillText,
+                                { color: isSelected ? '#FFFFFF' : palette.text, fontFamily: subtitleFont },
+                              ]}
+                            >
+                              {ex.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {goalType === 'muscle' && (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      2. Selecciona el Músculo / Medida a Controlar:
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                      {MUSCLE_PARTS.map((part) => {
+                        const isSelected = selectedVariableKey === part.key;
+                        return (
+                          <TouchableOpacity
+                            key={part.key}
+                            onPress={() => handleSelectVariable('muscle', part.key)}
+                            style={[
+                              goalModalStyles.varPill,
+                              isSelected && { backgroundColor: c1, borderColor: c1 },
+                              !isSelected && { backgroundColor: palette.bg, borderColor: palette.border },
+                            ]}
+                          >
+                            <Ionicons
+                              name="body"
+                              size={13}
+                              color={isSelected ? '#FFFFFF' : c1}
+                            />
+                            <Text
+                              style={[
+                                goalModalStyles.varPillText,
+                                { color: isSelected ? '#FFFFFF' : palette.text, fontFamily: subtitleFont },
+                              ]}
+                            >
+                              {part.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Banner de Aviso de Autollenado de Datos */}
+                {autoFilledNotice && (
+                  <View style={[goalModalStyles.autoNoticeCard, { backgroundColor: `${c1}15`, borderColor: `${c1}40` }]}>
+                    <Ionicons name="sparkles" size={14} color={c1} />
+                    <Text style={[goalModalStyles.autoNoticeText, { color: palette.text, fontFamily: subtitleFont }]}>
+                      {autoFilledNotice}
+                    </Text>
+                  </View>
+                )}
 
                 {/* Título de la Meta */}
-                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 12 }]}>
-                  Título de la Meta
+                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 10 }]}>
+                  Título o Descripción de la Meta
                 </Text>
                 <TextInput
                   value={goalTitle}
                   onChangeText={setGoalTitle}
-                  placeholder="Ej. Subir 10 kg para el 14 de febrero..."
+                  placeholder="Ej. Subir a 80 kg para el 14 de febrero..."
                   placeholderTextColor={palette.textSub}
                   style={[
                     goalModalStyles.textInput,
@@ -6258,16 +6701,16 @@ function GoalsModal({
                   ]}
                 />
 
-                {/* Valores Numéricos (Inicio, Actual, Objetivo) */}
+                {/* Valores Numéricos (Inicio, Actual, Objetivo) autollenados */}
                 <View style={goalModalStyles.valuesGrid}>
                   <View style={{ flex: 1 }}>
                     <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                      Inicio
+                      Valor Inicio
                     </Text>
                     <TextInput
                       value={startVal}
                       onChangeText={setStartVal}
-                      placeholder="72"
+                      placeholder="Ej. 70"
                       placeholderTextColor={palette.textSub}
                       keyboardType="numeric"
                       style={[
@@ -6284,12 +6727,12 @@ function GoalsModal({
 
                   <View style={{ flex: 1 }}>
                     <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                      Actual
+                      Valor Actual
                     </Text>
                     <TextInput
                       value={currentVal}
                       onChangeText={setCurrentVal}
-                      placeholder="76.5"
+                      placeholder="Ej. 74"
                       placeholderTextColor={palette.textSub}
                       keyboardType="numeric"
                       style={[
@@ -6306,27 +6749,28 @@ function GoalsModal({
 
                   <View style={{ flex: 1 }}>
                     <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                      Meta
+                      Meta Objetivo
                     </Text>
                     <TextInput
                       value={targetVal}
                       onChangeText={setTargetVal}
-                      placeholder="82"
+                      placeholder="Ej. 80"
                       placeholderTextColor={palette.textSub}
                       keyboardType="numeric"
                       style={[
                         goalModalStyles.numInput,
                         {
-                          color: palette.text,
+                          color: c1,
                           backgroundColor: palette.bg,
-                          borderColor: palette.border,
+                          borderColor: c1,
+                          borderWidth: 1.5,
                           fontFamily: dataFont,
                         },
                       ]}
                     />
                   </View>
 
-                  <View style={{ width: 68 }}>
+                  <View style={{ width: 62 }}>
                     <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
                       Unidad
                     </Text>
@@ -6341,16 +6785,16 @@ function GoalsModal({
                           color: palette.text,
                           backgroundColor: palette.bg,
                           borderColor: palette.border,
-                          fontFamily: bodyFont,
+                          fontFamily: dataFont,
                         },
                       ]}
                     />
                   </View>
                 </View>
 
-                {/* Fecha Objetivo / Límite */}
-                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 12 }]}>
-                  Fecha Objetivo / Límite (YYYY-MM-DD)
+                {/* Fecha Límite */}
+                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 14 }]}>
+                  Fecha Objetivo (AAAA-MM-DD)
                 </Text>
                 <TextInput
                   value={targetDate}
@@ -6368,58 +6812,46 @@ function GoalsModal({
                   ]}
                 />
 
-                {/* Botones rápidos de fecha */}
+                {/* Atajos de Fecha */}
                 <View style={goalModalStyles.quickDateRow}>
                   {[
-                    { label: '14 Feb', date: '2026-02-14' },
-                    { label: '+1 mes', days: 30 },
-                    { label: '+3 meses', days: 90 },
-                    { label: '+6 meses', days: 180 },
-                    { label: 'Fin de año', date: '2026-12-31' },
-                  ].map((btn, i) => {
-                    const handleSelectDate = () => {
-                      if (btn.date) {
-                        setTargetDate(btn.date);
-                      } else if (btn.days) {
-                        const d = new Date();
-                        d.setDate(d.getDate() + btn.days);
-                        setTargetDate(d.toISOString().split('T')[0]);
-                      }
-                    };
-                    const isSelected = targetDate === btn.date;
-                    return (
-                      <TouchableOpacity
-                        key={i}
-                        onPress={handleSelectDate}
+                    { label: '14 de Feb (San Valentín)', val: '2026-02-14' },
+                    { label: '1 Mes', val: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0] },
+                    { label: '3 Meses', val: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0] },
+                    { label: 'Fin de Año', val: '2026-12-31' },
+                  ].map((d, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setTargetDate(d.val)}
+                      style={[
+                        goalModalStyles.quickDatePill,
+                        targetDate === d.val && { backgroundColor: c1, borderColor: c1 },
+                        targetDate !== d.val && { backgroundColor: palette.bg, borderColor: palette.border },
+                      ]}
+                    >
+                      <Text
                         style={[
-                          goalModalStyles.quickDatePill,
-                          isSelected && { backgroundColor: c1, borderColor: c1 },
-                          !isSelected && { backgroundColor: palette.bg, borderColor: palette.border },
+                          goalModalStyles.quickDateText,
+                          { color: targetDate === d.val ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont },
                         ]}
                       >
-                        <Text
-                          style={[
-                            goalModalStyles.quickDateText,
-                            { color: isSelected ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont },
-                          ]}
-                        >
-                          {btn.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                        {d.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
 
-                {/* Notas / Estrategia */}
-                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 12 }]}>
-                  Notas o Estrategia (Opcional)
+                {/* Notas / Plan */}
+                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 14 }]}>
+                  Estrategia / Notas (Opcional)
                 </Text>
                 <TextInput
                   value={notes}
                   onChangeText={setNotes}
-                  placeholder="Ej. Comer 3,200 kcal y entrenar 5 días con sobrecarga progresiva..."
+                  placeholder="Ej. Superávit de 300 kcal, subir peso en banca progresivo cada 2 semanas..."
                   placeholderTextColor={palette.textSub}
                   multiline
+                  numberOfLines={2}
                   style={[
                     goalModalStyles.notesInput,
                     {
@@ -6431,229 +6863,163 @@ function GoalsModal({
                   ]}
                 />
 
-                {/* Botones de Acción */}
+                {/* Botón Guardar */}
                 <View style={goalModalStyles.formActionsRow}>
                   <TouchableOpacity
-                    onPress={() => {
-                      resetForm();
-                      setActiveTab('active');
-                    }}
-                    style={[goalModalStyles.formCancelBtn, { borderColor: palette.border }]}
-                  >
-                    <Text style={[goalModalStyles.formCancelText, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                      Cancelar
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
+                    activeOpacity={0.88}
                     onPress={handleSaveGoal}
-                    style={[goalModalStyles.formSaveBtn, { backgroundColor: c1 }]}
+                    style={[goalModalStyles.saveBtn, { backgroundColor: c1 }]}
                   >
-                    <Text style={[goalModalStyles.formSaveText, { fontFamily: subtitleFont }]}>
-                      {editingGoalId ? 'Actualizar Meta' : 'Guardar Meta'}
+                    <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                    <Text style={[goalModalStyles.saveBtnText, { fontFamily: titleFont }]}>
+                      {editingGoalId ? 'Actualizar Meta' : 'Establecer y Fijar Meta'}
                     </Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ) : (
-              /* LISTA DE METAS (ACTIVAS O CUMPLIDAS) */
-              <View style={{ gap: 12, marginTop: 8 }}>
+              /* LISTADO DE METAS ACTIVAS O CUMPLIDAS */
+              <View style={goalModalStyles.listWrap}>
                 {(activeTab === 'active' ? activeGoals : completedGoals).length > 0 ? (
                   (activeTab === 'active' ? activeGoals : completedGoals).map((goal) => {
                     const progress = calculateGoalProgress(goal);
                     const remaining = getGoalDaysRemaining(goal.targetDate);
+
                     return (
                       <View
                         key={goal.id}
                         style={[
                           goalModalStyles.goalCard,
                           {
-                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                            borderColor: goal.completed ? '#10B981' : palette.border,
+                            backgroundColor: palette.bg,
+                            borderColor: goal.completed ? c1 : palette.border,
                           },
                         ]}
                       >
-                        {/* Fila superior: Checkbox + Categoría + Fecha Límite */}
-                        <View style={goalModalStyles.goalCardTop}>
-                          <TouchableOpacity
-                            onPress={() => onToggleCompleted(goal.id)}
-                            style={[
-                              goalModalStyles.checkboxCircle,
-                              goal.completed && { backgroundColor: '#10B981', borderColor: '#10B981' },
-                              !goal.completed && { borderColor: palette.border },
-                            ]}
-                          >
-                            {goal.completed && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-                          </TouchableOpacity>
+                        {/* Cabecera de la meta */}
+                        <View style={goalModalStyles.goalCardHeader}>
+                          <View style={goalModalStyles.categoryBadge}>
+                            <Text style={goalModalStyles.categoryIcon}>{getGoalCategoryIcon(goal.type)}</Text>
+                            <Text style={[goalModalStyles.categoryLabel, { color: palette.text, fontFamily: subtitleFont }]}>
+                              {goal.categoryLabel || getGoalCategoryLabel(goal.type)}
+                            </Text>
+                          </View>
 
-                          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <View
+                          <View style={goalModalStyles.goalHeaderActions}>
+                            <TouchableOpacity
+                              onPress={() => onToggleCompleted(goal.id)}
                               style={[
-                                goalModalStyles.categoryBadge,
-                                { backgroundColor: `${c1}18`, borderColor: `${c1}35` },
-                              ]}
-                            >
-                              <Text style={[goalModalStyles.categoryBadgeText, { color: c1 }]}>
-                                {getGoalCategoryIcon(goal.type)} {goal.categoryLabel || getGoalCategoryLabel(goal.type)}
-                              </Text>
-                            </View>
-
-                            <View
-                              style={[
-                                goalModalStyles.deadlinePill,
-                                {
-                                  backgroundColor: remaining.isPast
-                                    ? 'rgba(239, 68, 68, 0.12)'
-                                    : remaining.days <= 14
-                                    ? 'rgba(245, 158, 11, 0.15)'
-                                    : 'rgba(16, 185, 129, 0.12)',
-                                },
+                                goalModalStyles.completeCheckBtn,
+                                goal.completed && { backgroundColor: c1, borderColor: c1 },
+                                !goal.completed && { borderColor: palette.border },
                               ]}
                             >
                               <Ionicons
-                                name="time-outline"
-                                size={11}
-                                color={remaining.isPast ? '#EF4444' : remaining.days <= 14 ? '#F59E0B' : '#10B981'}
+                                name={goal.completed ? 'checkmark' : 'ellipse-outline'}
+                                size={14}
+                                color={goal.completed ? '#FFFFFF' : palette.textSub}
                               />
-                              <Text
-                                style={[
-                                  goalModalStyles.deadlineText,
-                                  {
-                                    color: remaining.isPast ? '#EF4444' : remaining.days <= 14 ? '#F59E0B' : '#10B981',
-                                    fontFamily: subtitleFont,
-                                  },
-                                ]}
-                              >
-                                {formatGoalDate(goal.targetDate)} ({remaining.text})
-                              </Text>
-                            </View>
-                          </View>
+                            </TouchableOpacity>
 
-                          {/* Acciones Editar y Eliminar */}
-                          <View style={goalModalStyles.actionsMiniRow}>
                             <TouchableOpacity
                               onPress={() => handleStartEdit(goal)}
-                              style={goalModalStyles.actionMiniBtn}
-                              hitSlop={8}
+                              style={goalModalStyles.actionIconBtn}
+                              hitSlop={6}
                             >
-                              <Ionicons name="pencil-outline" size={16} color={palette.textSub} />
+                              <Ionicons name="create-outline" size={17} color={palette.textSub} />
                             </TouchableOpacity>
+
                             <TouchableOpacity
                               onPress={() => handleDelete(goal.id, goal.title)}
-                              style={goalModalStyles.actionMiniBtn}
-                              hitSlop={8}
+                              style={goalModalStyles.actionIconBtn}
+                              hitSlop={6}
                             >
-                              <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                              <Ionicons name="trash-outline" size={17} color="#EF4444" />
                             </TouchableOpacity>
                           </View>
                         </View>
 
-                        {/* Título de la Meta */}
-                        <Text
-                          style={[
-                            goalModalStyles.goalCardTitle,
-                            {
-                              color: palette.text,
-                              fontFamily: titleFont,
-                              textDecorationLine: goal.completed ? 'line-through' : 'none',
-                              opacity: goal.completed ? 0.75 : 1,
-                            },
-                          ]}
-                        >
+                        {/* Título de la meta */}
+                        <Text style={[goalModalStyles.goalCardTitle, { color: palette.text, fontFamily: titleFont }]}>
                           {goal.title}
                         </Text>
 
-                        {/* Notas si existen */}
-                        {goal.notes ? (
+                        {/* Fecha Límite y Días Restantes */}
+                        <View style={goalModalStyles.dateRemainingRow}>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={14}
+                            color={remaining.isPast && !goal.completed ? '#EF4444' : palette.textSub}
+                          />
                           <Text
-                            style={[goalModalStyles.goalCardNotes, { color: palette.textSub, fontFamily: bodyFont }]}
+                            style={[
+                              goalModalStyles.dateRemainingText,
+                              {
+                                color: remaining.isPast && !goal.completed ? '#EF4444' : palette.textSub,
+                                fontFamily: subtitleFont,
+                              },
+                            ]}
                           >
-                            {goal.notes}
+                            Meta: {formatGoalDate(goal.targetDate)} · {remaining.text}
                           </Text>
-                        ) : null}
+                        </View>
 
-                        {/* Barra de Progreso y Valores */}
-                        <View style={goalModalStyles.goalValuesWrap}>
-                          <View style={goalModalStyles.goalNumbersRow}>
-                            <Text style={[goalModalStyles.valMain, { color: palette.text, fontFamily: dataFont }]}>
-                              {goal.currentValue !== undefined ? goal.currentValue : '--'}{' '}
-                              <Text style={{ fontSize: 11, color: palette.textSub }}>{goal.unit || ''}</Text>
+                        {/* Barra de Progreso */}
+                        <View style={goalModalStyles.progressSection}>
+                          <View style={goalModalStyles.progressValuesRow}>
+                            <Text style={[goalModalStyles.progressValueText, { color: palette.textSub, fontFamily: dataFont }]}>
+                              Inicio: {goal.startValue !== undefined ? goal.startValue : '--'} {goal.unit || ''}
                             </Text>
-                            <Text style={[goalModalStyles.valTarget, { color: palette.textSub, fontFamily: bodyFont }]}>
-                              de {goal.targetValue !== undefined ? goal.targetValue : '--'} {goal.unit || ''}
+                            <Text style={[goalModalStyles.progressValueText, { color: c1, fontWeight: '800', fontFamily: dataFont }]}>
+                              Actual: {goal.currentValue !== undefined ? goal.currentValue : '--'} {goal.unit || ''}
+                            </Text>
+                            <Text style={[goalModalStyles.progressValueText, { color: palette.textSub, fontFamily: dataFont }]}>
+                              Objetivo: {goal.targetValue !== undefined ? goal.targetValue : '--'} {goal.unit || ''}
                             </Text>
                           </View>
 
-                          <View style={goalModalStyles.progressTrackContainer}>
+                          <View style={[goalModalStyles.progressTrack, { backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.4)' }]}>
                             <View
                               style={[
-                                goalModalStyles.trackBg,
-                                { backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.5)' },
+                                goalModalStyles.progressFill,
+                                {
+                                  width: `${progress}%`,
+                                  backgroundColor: goal.completed ? c1 : c2,
+                                },
                               ]}
-                            >
-                              <LinearGradient
-                                colors={[c1, c2]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={[goalModalStyles.trackFill, { width: `${progress}%` }]}
-                              />
-                            </View>
-                            <Text style={[goalModalStyles.trackPercent, { color: c1, fontFamily: dataFont }]}>
-                              {progress}%
+                            />
+                          </View>
+
+                          <View style={goalModalStyles.progressPercentRow}>
+                            <Text style={[goalModalStyles.progressPercentText, { color: goal.completed ? c1 : palette.text, fontFamily: dataFont }]}>
+                              {progress}% {goal.completed ? '¡Cumplida! 🏆' : 'completado'}
                             </Text>
                           </View>
                         </View>
 
-                        {/* Ajuste rápido de progreso (+ / -) */}
-                        {!goal.completed && goal.currentValue !== undefined ? (
-                          <View style={goalModalStyles.quickAdjustRow}>
-                            <Text style={[goalModalStyles.quickAdjustLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
-                              Actualizar avance rápido:
+                        {/* Notas si las hay */}
+                        {!!goal.notes && (
+                          <View style={[goalModalStyles.notesBox, { borderColor: palette.border }]}>
+                            <Text style={[goalModalStyles.notesText, { color: palette.textSub, fontFamily: bodyFont }]}>
+                              💡 {goal.notes}
                             </Text>
-                            <View style={goalModalStyles.quickAdjustBtns}>
-                              <TouchableOpacity
-                                onPress={() => {
-                                  const step = goal.type === 'streak' ? 1 : 0.5;
-                                  const nextVal = Math.max(0, Math.round(((goal.currentValue || 0) - step) * 10) / 10);
-                                  onUpdateGoal(goal.id, { currentValue: nextVal });
-                                }}
-                                style={[goalModalStyles.stepBtn, { borderColor: palette.border }]}
-                              >
-                                <Ionicons name="remove" size={14} color={palette.text} />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => {
-                                  const step = goal.type === 'streak' ? 1 : 0.5;
-                                  const nextVal = Math.round(((goal.currentValue || 0) + step) * 10) / 10;
-                                  onUpdateGoal(goal.id, { currentValue: nextVal });
-                                }}
-                                style={[goalModalStyles.stepBtn, { borderColor: palette.border }]}
-                              >
-                                <Ionicons name="add" size={14} color={palette.text} />
-                              </TouchableOpacity>
-                            </View>
                           </View>
-                        ) : null}
+                        )}
                       </View>
                     );
                   })
                 ) : (
-                  <View style={goalModalStyles.emptyTabBox}>
-                    <Ionicons
-                      name={activeTab === 'active' ? 'flag-outline' : 'trophy-outline'}
-                      size={44}
-                      color={palette.textSub}
-                      style={{ opacity: 0.5, marginBottom: 8 }}
-                    />
-                    <Text style={[goalModalStyles.emptyTabTitle, { color: palette.text, fontFamily: titleFont }]}>
-                      {activeTab === 'active' ? 'Sin metas activas' : 'Sin metas cumplidas aún'}
+                  <View style={goalModalStyles.emptyWrap}>
+                    <Ionicons name="trophy-outline" size={44} color={palette.textSub} />
+                    <Text style={[goalModalStyles.emptyTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      {activeTab === 'active' ? 'No tienes metas activas' : 'Aún no has completado metas'}
                     </Text>
-                    <Text style={[goalModalStyles.emptyTabSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                    <Text style={[goalModalStyles.emptyDesc, { color: palette.textSub, fontFamily: bodyFont }]}>
                       {activeTab === 'active'
-                        ? 'Establece objetivos con fechas límite para medir tu verdadera evolución.'
-                        : 'Al completar tus metas activas aparecerán aquí con su medalla de victoria.'}
+                        ? 'Establece un objetivo de peso, récord personal de fuerza o medidas con fecha límite.'
+                        : 'Cuando alcances tus objetivos, márcalos como cumplidos para verlos aquí.'}
                     </Text>
-                    {activeTab === 'active' ? (
+                    {activeTab === 'active' && (
                       <TouchableOpacity
                         onPress={() => {
                           resetForm();
@@ -6661,11 +7027,11 @@ function GoalsModal({
                         }}
                         style={[goalModalStyles.createFirstBtn, { backgroundColor: c1 }]}
                       >
-                        <Text style={[goalModalStyles.createFirstBtnText, { fontFamily: subtitleFont }]}>
-                          + Crear Primera Meta
+                        <Text style={[goalModalStyles.createFirstBtnText, { fontFamily: titleFont }]}>
+                          + Establecer mi primera meta
                         </Text>
                       </TouchableOpacity>
-                    ) : null}
+                    )}
                   </View>
                 )}
               </View>
@@ -6761,15 +7127,35 @@ const goalModalStyles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '800',
   },
-  sugPill: {
+  varPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingVertical: 7,
+    borderRadius: 11,
     borderWidth: 1,
   },
-  sugText: {
-    fontSize: 11,
-    fontWeight: '600',
+  varPillText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  autoNoticeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 11,
+    borderWidth: 1,
+    marginBottom: 10,
+    marginTop: 2,
+  },
+  autoNoticeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    flex: 1,
+    lineHeight: 16,
   },
   textInput: {
     height: 44,
@@ -6820,164 +7206,136 @@ const goalModalStyles = StyleSheet.create({
   },
   formActionsRow: {
     flexDirection: 'row',
-    gap: 12,
     marginTop: 18,
   },
-  formCancelBtn: {
+  saveBtn: {
     flex: 1,
-    paddingVertical: 13,
-    borderRadius: 12,
-    borderWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  formCancelText: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  formSaveBtn: {
-    flex: 2,
+    justifyContent: 'center',
+    gap: 8,
     paddingVertical: 13,
-    borderRadius: 12,
-    alignItems: 'center',
+    borderRadius: 14,
   },
-  formSaveText: {
+  saveBtnText: {
     color: '#FFFFFF',
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: '900',
+  },
+  listWrap: {
+    gap: 12,
+    paddingTop: 4,
   },
   goalCard: {
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
+    marginBottom: 12,
   },
-  goalCardTop: {
+  goalCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.4)',
+  },
+  categoryIcon: {
+    fontSize: 13,
+  },
+  categoryLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  goalHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 8,
   },
-  checkboxCircle: {
+  completeCheckBtn: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: 2,
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  categoryBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  categoryBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  deadlinePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  deadlineText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  actionsMiniRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionMiniBtn: {
-    padding: 2,
+  actionIconBtn: {
+    padding: 4,
   },
   goalCardTitle: {
     fontSize: 15,
     fontWeight: '900',
     marginBottom: 4,
   },
-  goalCardNotes: {
-    fontSize: 11.5,
-    marginBottom: 10,
-    lineHeight: 16,
-  },
-  goalValuesWrap: {
-    marginTop: 4,
-  },
-  goalNumbersRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-    marginBottom: 6,
-  },
-  valMain: {
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  valTarget: {
-    fontSize: 11.5,
-    fontWeight: '600',
-  },
-  progressTrackContainer: {
+  dateRemainingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 5,
+    marginBottom: 10,
   },
-  trackBg: {
-    flex: 1,
+  dateRemainingText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  progressSection: {
+    marginTop: 4,
+  },
+  progressValuesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  progressValueText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  progressTrack: {
     height: 7,
     borderRadius: 4,
     overflow: 'hidden',
+    marginBottom: 5,
   },
-  trackFill: {
+  progressFill: {
     height: '100%',
     borderRadius: 4,
   },
-  trackPercent: {
-    fontSize: 11.5,
-    fontWeight: '900',
-    minWidth: 34,
-    textAlign: 'right',
+  progressPercentRow: {
+    alignItems: 'flex-end',
   },
-  quickAdjustRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(203, 213, 225, 0.25)',
-  },
-  quickAdjustLabel: {
+  progressPercentText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '900',
   },
-  quickAdjustBtns: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  stepBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+  notesBox: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
     borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  emptyTabBox: {
+  notesText: {
+    fontSize: 11,
+  },
+  emptyWrap: {
     alignItems: 'center',
     paddingVertical: 32,
     paddingHorizontal: 20,
   },
-  emptyTabTitle: {
+  emptyTitle: {
     fontSize: 15,
     fontWeight: '900',
+    marginTop: 10,
     marginBottom: 4,
   },
-  emptyTabSub: {
+  emptyDesc: {
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 17,
@@ -6995,287 +7353,6 @@ const goalModalStyles = StyleSheet.create({
     fontWeight: '900',
   },
 });
-
-
-/* ==========================================================
-   MODAL DE AMIGOS & COMUNIDAD EVOLVE
-========================================================== */
-function FriendsModal({
-  visible,
-  friends,
-  c1,
-  c2,
-  palette,
-  titleFont,
-  subtitleFont,
-  dataFont,
-  bodyFont,
-  onClose,
-}: {
-  visible: boolean;
-  friends: FriendUser[];
-  c1: string;
-  c2: string;
-  palette: ColorPalette;
-  titleFont?: string;
-  subtitleFont?: string;
-  dataFont?: string;
-  bodyFont?: string;
-  onClose: () => void;
-}) {
-  const [friendsList, setFriendsList] = useState<FriendUser[]>(friends);
-  const [activeTab, setActiveTab] = useState<'activity' | 'ranking' | 'add'>('activity');
-  const [searchNick, setSearchNick] = useState('');
-  const [cheeredMap, setCheeredMap] = useState<Record<string, boolean>>({});
-
-  const handleCheerFriend = (id: string, name: string) => {
-    setCheeredMap((prev) => ({ ...prev, [id]: true }));
-    Alert.alert('¡Ánimo enviado! 👊', `Le chocaste los puños a ${name}. ¡A seguir entrenando juntos!`);
-  };
-
-  const handleAddFriend = () => {
-    if (!searchNick.trim()) {
-      Alert.alert('Ingresa un usuario', 'Por favor escribe el nickname o código del amigo que deseas agregar.');
-      return;
-    }
-    const cleanNick = searchNick.startsWith('@') ? searchNick : `@${searchNick}`;
-    const newFriend: FriendUser = {
-      id: `f-${Date.now()}`,
-      name: cleanNick.replace('@', ''),
-      nickname: cleanNick,
-      streak: 1,
-      level: 1,
-      rank: 'Iniciado Fitness',
-      todayWorkout: 'Sesión iniciada hoy',
-      color: c1,
-      initials: cleanNick.substring(1, 3).toUpperCase(),
-      cheeredToday: false,
-    };
-    setFriendsList([newFriend, ...friendsList]);
-    setSearchNick('');
-    Alert.alert('¡Amigo Agregado!', `Has agregado a ${cleanNick} a tu círculo de entrenamiento.`);
-    setActiveTab('activity');
-  };
-
-  const sortedRanking = [...friendsList].sort((a, b) => b.streak - a.streak);
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={friendModalStyles.overlay}>
-        <View style={[friendModalStyles.sheet, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
-          {/* Header */}
-          <View style={friendModalStyles.headerRow}>
-            <View>
-              <Text style={[friendModalStyles.headerTitle, { color: palette.text, fontFamily: titleFont }]}>
-                Amigos & Comunidad
-              </Text>
-              <Text style={[friendModalStyles.headerSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                Sigue el progreso y compite saludablemente con tus amigos del gym
-              </Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={friendModalStyles.closeBtn} hitSlop={10}>
-              <Ionicons name="close" size={22} color={palette.textSub} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Tabs */}
-          <View style={[friendModalStyles.tabBar, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-            <TouchableOpacity
-              onPress={() => setActiveTab('activity')}
-              style={[
-                friendModalStyles.tabItem,
-                activeTab === 'activity' && { backgroundColor: palette.cardBg, borderWidth: 1, borderColor: c2 },
-              ]}
-            >
-              <Text style={[friendModalStyles.tabText, { color: activeTab === 'activity' ? c2 : palette.textSub, fontFamily: subtitleFont }]}>
-                Actividad de Hoy ({friendsList.length})
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setActiveTab('ranking')}
-              style={[
-                friendModalStyles.tabItem,
-                activeTab === 'ranking' && { backgroundColor: palette.cardBg, borderWidth: 1, borderColor: c2 },
-              ]}
-            >
-              <Text style={[friendModalStyles.tabText, { color: activeTab === 'ranking' ? c2 : palette.textSub, fontFamily: subtitleFont }]}>
-                🏆 Ranking
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setActiveTab('add')}
-              style={[
-                friendModalStyles.tabItem,
-                activeTab === 'add' && { backgroundColor: c2 },
-              ]}
-            >
-              <Text style={[friendModalStyles.tabText, { color: activeTab === 'add' ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont }]}>
-                + Agregar
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
-            {activeTab === 'activity' && (
-              <View style={{ gap: 10, marginTop: 4 }}>
-                {friendsList.map((friend) => {
-                  const hasCheered = cheeredMap[friend.id] || friend.cheeredToday;
-                  return (
-                    <View
-                      key={friend.id}
-                      style={[
-                        friendModalStyles.friendCard,
-                        {
-                          backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                          borderColor: palette.border,
-                        },
-                      ]}
-                    >
-                      <View style={friendModalStyles.friendCardLeft}>
-                        <View style={[friendModalStyles.avatarDot, { backgroundColor: friend.color }]}>
-                          <Text style={friendModalStyles.avatarDotText}>{friend.initials}</Text>
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 10 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={[friendModalStyles.friendName, { color: palette.text, fontFamily: subtitleFont }]}>
-                              {friend.name}
-                            </Text>
-                            <View style={[friendModalStyles.streakPill, { backgroundColor: `${c2}18` }]}>
-                              <Ionicons name="flame" size={11} color={c2} />
-                              <Text style={[friendModalStyles.streakPillText, { color: c2, fontFamily: dataFont }]}>
-                                {friend.streak}d
-                              </Text>
-                            </View>
-                          </View>
-                          <Text style={[friendModalStyles.friendSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                            {friend.nickname} · Nivel {friend.level} ({friend.rank})
-                          </Text>
-                          <Text style={[friendModalStyles.friendWorkoutText, { color: c1, fontFamily: bodyFont }]}>
-                            ⚡ {friend.todayWorkout}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Botón chocar puños */}
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => handleCheerFriend(friend.id, friend.name)}
-                        style={[
-                          friendModalStyles.cheerBtn,
-                          hasCheered
-                            ? { backgroundColor: '#10B98120', borderColor: '#10B981' }
-                            : { backgroundColor: `${c2}15`, borderColor: c2 },
-                        ]}
-                      >
-                        <Text style={{ fontSize: 16 }}>{hasCheered ? '🔥' : '👊'}</Text>
-                        <Text
-                          style={[
-                            friendModalStyles.cheerBtnText,
-                            { color: hasCheered ? '#10B981' : c2, fontFamily: subtitleFont },
-                          ]}
-                        >
-                          {hasCheered ? 'Animado' : 'Chocar'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {activeTab === 'ranking' && (
-              <View style={{ gap: 8, marginTop: 4 }}>
-                <Text style={[friendModalStyles.rankingDesc, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  Clasificación semanal por racha ininterrumpida de entrenamientos:
-                </Text>
-                {sortedRanking.map((item, idx) => (
-                  <View
-                    key={item.id}
-                    style={[
-                      friendModalStyles.rankRowCard,
-                      {
-                        backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                        borderColor: idx === 0 ? '#F59E0B' : palette.border,
-                        borderWidth: idx === 0 ? 2 : 1,
-                      },
-                    ]}
-                  >
-                    <View style={friendModalStyles.medalBadge}>
-                      <Text style={{ fontSize: 18 }}>
-                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                      </Text>
-                    </View>
-                    <View style={[friendModalStyles.avatarDotSmall, { backgroundColor: item.color }]}>
-                      <Text style={friendModalStyles.avatarDotTextSmall}>{item.initials}</Text>
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={[friendModalStyles.friendName, { color: palette.text, fontFamily: subtitleFont }]}>
-                        {item.name}
-                      </Text>
-                      <Text style={[friendModalStyles.friendSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                        {item.nickname} · Nivel {item.level}
-                      </Text>
-                    </View>
-                    <View style={friendModalStyles.rankStreakBox}>
-                      <Ionicons name="flame" size={15} color="#F59E0B" />
-                      <Text style={[friendModalStyles.rankStreakVal, { color: palette.text, fontFamily: dataFont }]}>
-                        {item.streak}
-                      </Text>
-                      <Text style={[friendModalStyles.rankStreakDays, { color: palette.textSub, fontFamily: bodyFont }]}>
-                        días
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {activeTab === 'add' && (
-              <View style={friendModalStyles.addSectionWrap}>
-                <Text style={[friendModalStyles.addSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-                  Agregar a un Amigo del Gym
-                </Text>
-                <Text style={[friendModalStyles.addSectionSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  Escribe el nickname de tu compañero para seguir sus entrenamientos y enviarle ánimos diarios.
-                </Text>
-
-                <TextInput
-                  value={searchNick}
-                  onChangeText={setSearchNick}
-                  placeholder="Ej. @mateo_iron, @carlos_fit..."
-                  placeholderTextColor={palette.textSub}
-                  autoCapitalize="none"
-                  style={[
-                    friendModalStyles.addInput,
-                    {
-                      backgroundColor: palette.bg,
-                      color: palette.text,
-                      borderColor: palette.border,
-                      fontFamily: bodyFont,
-                    },
-                  ]}
-                />
-
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={handleAddFriend}
-                  style={[friendModalStyles.addConfirmBtn, { backgroundColor: c2 }]}
-                >
-                  <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
-                  <Text style={[friendModalStyles.addConfirmText, { fontFamily: subtitleFont }]}>
-                    Enviar Solicitud / Agregar
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
 const friendModalStyles = StyleSheet.create({
   overlay: {
