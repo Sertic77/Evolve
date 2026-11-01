@@ -84,6 +84,57 @@ export interface XpBreakdown {
   levelProgressPercent: number;
 }
 
+export function calculateWorkoutStreak(
+  workoutLogs: Record<string, any[]> | undefined,
+  todayStr?: string
+): {
+  currentStreak: number;
+  lastWorkoutDate: string | null;
+  daysSinceLastWorkout: number;
+} {
+  if (!workoutLogs) return { currentStreak: 0, lastWorkoutDate: null, daysSinceLastWorkout: 999 };
+
+  // Fechas donde se haya realizado al menos 1 ejercicio
+  const trainedDates = Object.entries(workoutLogs)
+    .filter(([_, exercises]) => Array.isArray(exercises) && exercises.length > 0)
+    .map(([date]) => date)
+    .sort();
+
+  if (trainedDates.length === 0) {
+    return { currentStreak: 0, lastWorkoutDate: null, daysSinceLastWorkout: 999 };
+  }
+
+  const today = todayStr ? new Date(`${todayStr}T12:00:00`) : new Date();
+  today.setHours(12, 0, 0, 0);
+
+  const lastDateStr = trainedDates[trainedDates.length - 1];
+  const lastWorkoutDate = new Date(`${lastDateStr}T12:00:00`);
+
+  const diffMs = today.getTime() - lastWorkoutDate.getTime();
+  const daysSinceLast = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+  // Regla de racha: Si pasan más de 5 días sin entrenar, la racha se corta (0)
+  if (daysSinceLast > 5) {
+    return { currentStreak: 0, lastWorkoutDate: lastDateStr, daysSinceLastWorkout: daysSinceLast };
+  }
+
+  // Contar días de entreno acumulados en esta racha continua (sin pausas > 5 días entre sesiones)
+  let streak = 1;
+  for (let i = trainedDates.length - 1; i > 0; i--) {
+    const cur = new Date(`${trainedDates[i]}T12:00:00`);
+    const prev = new Date(`${trainedDates[i - 1]}T12:00:00`);
+    const gapDays = Math.round((cur.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (gapDays <= 5) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+
+  return { currentStreak: streak, lastWorkoutDate: lastDateStr, daysSinceLastWorkout: daysSinceLast };
+}
+
 export function calculateUserXpAndLevel(
   logs: Record<string, any[]> | undefined,
   workoutLogs: Record<string, any[]> | undefined,
@@ -93,44 +144,114 @@ export function calculateUserXpAndLevel(
   weightLogs: Record<string, number> | undefined,
   bodyFatLogs: Record<string, number> | undefined,
   photoLogs: Record<string, any[]> | undefined,
-  healthLogs: Record<string, any> | undefined
+  healthLogs: Record<string, any> | undefined,
+  ingredients?: any[]
 ): XpBreakdown {
-  // 1. Comida & Nutrición (Prioridad #1: +25 a +30 XP por día)
+  const ingMap = new Map<string, any>();
+  if (Array.isArray(ingredients)) {
+    ingredients.forEach((ing) => ingMap.set(ing.id, ing));
+  }
+
+  // 1. Comida & Nutrición (Prioridad #1: Escala directamente por calorías consumidas)
+  // Base 10 XP + ~1 XP por cada 100 kcal consumidas. ¡3,500 kcal otorga mucho más que 500 kcal!
   let foodXp = 0;
   let foodDays = 0;
   Object.values(logs || {}).forEach((meals) => {
     if (Array.isArray(meals) && meals.length > 0) {
       foodDays++;
-      foodXp += 25;
-      if (meals.length >= 3) foodXp += 5; // Bonus día completo
+      let dayKcal = 0;
+      let dayProtein = 0;
+
+      meals.forEach((block: any) => {
+        if (block && Array.isArray(block.items)) {
+          block.items.forEach((item: any) => {
+            const ing = ingMap.get(item.ingredientId);
+            if (ing) {
+              const m = scaleMacros(ing, item.grams || 0);
+              dayKcal += m.kcal;
+              dayProtein += m.protein;
+            } else if (item.grams) {
+              dayKcal += (item.grams * 1.5);
+            }
+          });
+        }
+      });
+
+      // 10 XP base + 1 XP por cada 100 kcal
+      const calXp = Math.round(dayKcal / 100);
+      let dayPoints = 10 + calXp;
+
+      // Bonus si superó 90g de proteína o completó 3+ comidas
+      if (dayProtein >= 90 || meals.length >= 3) {
+        dayPoints += 5;
+      }
+
+      foodXp += dayPoints;
     }
   });
 
-  // 2. Entrenamiento & Fuerza (Prioridad #2: +25 a +30 XP por sesión)
+  // 2. Entrenamiento & Fuerza (Prioridad #2: Escala con series y tonelaje / peso levantado)
+  // Base 15 XP + 2 XP por serie + Puntos por peso levantado (volumen total = reps * peso)
   let workoutXp = 0;
   let workoutDays = 0;
   Object.values(workoutLogs || {}).forEach((exercises) => {
     if (Array.isArray(exercises) && exercises.length > 0) {
       workoutDays++;
-      workoutXp += 25;
-      if (exercises.length >= 3) workoutXp += 5; // Bonus sesión completa
+      let sessionSets = 0;
+      let sessionTonnage = 0; // Kilos totales movidos
+      let sessionTimeSeconds = 0;
+
+      exercises.forEach((ex: any) => {
+        if (ex && Array.isArray(ex.sets)) {
+          ex.sets.forEach((set: any) => {
+            sessionSets++;
+            const w = Number(set.weight) || 0;
+            const r = Number(set.reps) || 0;
+            if (w > 0 && r > 0) {
+              sessionTonnage += (w * r);
+            }
+            if (set.timeSeconds) {
+              sessionTimeSeconds += Number(set.timeSeconds) || 0;
+            }
+          });
+        }
+      });
+
+      // 15 XP base por registrar la sesión
+      // +2 XP por cada serie completada
+      // + Puntos de fuerza e intensidad según el tonelaje levantado (hasta 30 XP)
+      const setsXp = sessionSets * 2;
+      const tonnageXp = Math.min(30, Math.round(sessionTonnage / 350));
+      const cardioXp = Math.min(15, Math.round(sessionTimeSeconds / 180));
+
+      workoutXp += (15 + setsXp + tonnageXp + cardioXp);
     }
   });
 
-  // 3. Sueño & Descanso (Prioridad #3: +15 a +20 XP por noche)
+  // 3. Sueño & Recuperación (Prioridad #3: Escala con horas y calidad de descanso)
   let sleepXp = 0;
   let sleepDays = 0;
   Object.values(sleepLogs || {}).forEach((entry) => {
     if (entry && (entry.totalSleepHours || entry.sleepScore || entry.deepSleepHours)) {
       sleepDays++;
-      sleepXp += 15;
-      if ((entry.sleepScore && entry.sleepScore >= 80) || (entry.totalSleepHours && entry.totalSleepHours >= 7)) {
-        sleepXp += 5; // Bonus descanso óptimo
+      const hours = Number(entry.totalSleepHours) || 7.5;
+      const score = Number(entry.sleepScore) || 80;
+
+      // Base 8 XP + 2 XP por hora dormida
+      let nightPoints = 8 + Math.round(hours * 2);
+
+      // Calidad de recuperación
+      if (score >= 85 || (entry.deepSleepHours && entry.deepSleepHours >= 1.5)) {
+        nightPoints += 6;
+      } else if (score >= 70) {
+        nightPoints += 3;
       }
+
+      sleepXp += nightPoints;
     }
   });
 
-  // 4. Suplementación (Prioridad #4: +8 a +10 XP por día)
+  // 4. Suplementación (Prioridad #4: Escala directamente por cantidad de suplementos / tomas)
   let supplementsXp = 0;
   let supplementDays = 0;
   Object.values(supplementLogs || {}).forEach((dayMap) => {
@@ -142,18 +263,22 @@ export function calculateUserXpAndLevel(
     }
     if (takenCount > 0) {
       supplementDays++;
-      supplementsXp += 8;
-      if (takenCount >= 3) supplementsXp += 2; // Bonus todas las tomas
+      // +4 XP por cada toma de suplemento realizada (1 toma = 4 XP, 2 = 8 XP, 3 = 12 XP, 4 = 16 XP, etc.)
+      supplementsXp += (takenCount * 4);
     }
   });
 
-  // 5. Medidas Corporales, Peso & Fotos (Prioridad #5)
+  // 5. Medidas Corporales, Peso & Fotos (Prioridad #5: Escala con cantidad de grupos musculares medidos)
   let measurementsXp = 0;
   const measurementDates = new Set<string>();
   Object.entries(measurementLogs || {}).forEach(([d, m]) => {
-    if (m && Object.keys(m).length > 0) {
-      measurementDates.add(d);
-      measurementsXp += 15; // Chequeo antropométrico semanal
+    if (m && typeof m === 'object') {
+      const partsMeasured = Object.keys(m).length;
+      if (partsMeasured > 0) {
+        measurementDates.add(d);
+        // Base 5 XP + 2 XP por cada parte medida del cuerpo
+        measurementsXp += (5 + partsMeasured * 2);
+      }
     }
   });
   Object.keys(weightLogs || {}).forEach((d) => {
@@ -162,31 +287,34 @@ export function calculateUserXpAndLevel(
     }
   });
   Object.keys(photoLogs || {}).forEach(() => {
-    measurementsXp += 10; // Fotos de progreso
+    measurementsXp += 12; // Fotos de evolución física
   });
   const measurementDays = measurementDates.size + Object.keys(weightLogs || {}).length;
 
-  // 6. Biomarcadores de Salud (+15 XP por chequeo)
+  // 6. Biomarcadores de Salud: +5 XP por cada indicador registrado
   let healthXp = 0;
   let healthDays = 0;
   Object.values(healthLogs || {}).forEach((entry) => {
-    if (entry && Object.keys(entry).length > 0) {
-      healthDays++;
-      healthXp += 15;
+    if (entry && typeof entry === 'object') {
+      const indicatorsCount = Object.keys(entry).length;
+      if (indicatorsCount > 0) {
+        healthDays++;
+        healthXp += (indicatorsCount * 5);
+      }
     }
   });
 
   const totalXp = foodXp + workoutXp + sleepXp + supplementsXp + measurementsXp + healthXp;
 
-  // Curva de Niveles Progresiva: Nivel L requiere 120 + (L - 1) * 40 XP
+  // Curva de Niveles Progresiva: Nivel L requiere 140 + (L - 1) * 45 XP
   let level = 1;
   let remainingXp = totalXp;
-  let neededForCurrent = 120;
+  let neededForCurrent = 140;
 
   while (remainingXp >= neededForCurrent) {
     remainingXp -= neededForCurrent;
     level++;
-    neededForCurrent = 120 + (level - 1) * 40;
+    neededForCurrent = 140 + (level - 1) * 45;
   }
 
   const currentLevelXp = remainingXp;
@@ -422,7 +550,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   const currentBodyFat = getLatestEntry(bodyFatLogs);
   const [stickyHeaderHeight, setStickyHeaderHeight] = useState(Platform.OS === 'android' ? 104 : 96);
 
-  // 6. Racha y Sistema Progresivo de Niveles & Puntos XP
+  // 6. Racha de Entrenamientos y Sistema Progresivo de Niveles & Puntos XP
   const xpBreakdown = React.useMemo(() => {
     return calculateUserXpAndLevel(
       logs,
@@ -433,7 +561,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
       weightLogs,
       bodyFatLogs,
       photoLogs,
-      healthLogs
+      healthLogs,
+      ingredients
     );
   }, [
     logs,
@@ -445,10 +574,14 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
     bodyFatLogs,
     photoLogs,
     healthLogs,
+    ingredients,
   ]);
 
+  const workoutStreak = React.useMemo(() => {
+    return calculateWorkoutStreak(workoutLogs, todayKeyStr);
+  }, [workoutLogs, todayKeyStr]);
+
   const [showXpModal, setShowXpModal] = useState(false);
-  const totalDaysLogged = Object.keys(logs).length + Object.keys(workoutLogs).length;
   const userLevel = xpBreakdown.userLevel;
 
   // Animación de crecimiento suave para todos los datos métricos de Home
@@ -521,26 +654,42 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <Text style={styles.heroAvatarText}>{initials}</Text>
             </LinearGradient>
 
-            {/* Racha horizontal justo debajo de la foto de perfil */}
+            {/* Racha horizontal de entrenamientos justo debajo de la foto de perfil */}
             <View
               style={[
                 styles.heroStreakHorizontal,
                 {
-                  borderColor: c2,
-                  backgroundColor: `${c2}18`,
+                  borderColor: workoutStreak.currentStreak > 0 ? c2 : palette.isDark ? '#475569' : '#CBD5E1',
+                  backgroundColor: workoutStreak.currentStreak > 0 ? `${c2}18` : 'transparent',
                 },
               ]}
             >
-              <Ionicons name="flame" size={13} color={c2} />
+              <Ionicons
+                name="flame"
+                size={13}
+                color={workoutStreak.currentStreak > 0 ? c2 : palette.textSub}
+              />
               <Text
-                style={[styles.heroStreakNumHorizontal, { color: c2, fontFamily: dataFont }]}
+                style={[
+                  styles.heroStreakNumHorizontal,
+                  {
+                    color: workoutStreak.currentStreak > 0 ? c2 : palette.textSub,
+                    fontFamily: dataFont,
+                  },
+                ]}
               >
-                {Math.max(1, Math.round(totalDaysLogged * growthProgress))}
+                {Math.round(workoutStreak.currentStreak * growthProgress)}
               </Text>
               <Text
-                style={[styles.heroStreakLabelHorizontal, { color: c2, fontFamily: subtitleFont }]}
+                style={[
+                  styles.heroStreakLabelHorizontal,
+                  {
+                    color: workoutStreak.currentStreak > 0 ? c2 : palette.textSub,
+                    fontFamily: subtitleFont,
+                  },
+                ]}
               >
-                días
+                {workoutStreak.currentStreak === 1 ? 'entreno' : 'entrenos'}
               </Text>
             </View>
           </View>
@@ -1290,15 +1439,28 @@ function XpInfoModal({
               </View>
             </LinearGradient>
 
+            {/* Regla de Racha de Entrenamientos */}
+            <View style={[xpStyles.streakRuleCard, { backgroundColor: `${c2}14`, borderColor: c2 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <Ionicons name="flame" size={17} color={c2} />
+                <Text style={[xpStyles.streakRuleTitle, { color: c2 }]}>
+                  Racha de Entrenamientos
+                </Text>
+              </View>
+              <Text style={[xpStyles.streakRuleDesc, { color: palette.text }]}>
+                Muestra los días de entrenamiento que llevas acumulados. Se mantiene activa mientras entrenes con constancia; si pasan <Text style={{ fontWeight: '800', color: c2 }}>más de 5 días sin entrenar</Text>, la racha se corta y vuelve a 0.
+              </Text>
+            </View>
+
             {/* Título de Sección: Prioridad de Puntos */}
             <View style={xpStyles.sectionHeaderRow}>
               <Ionicons name="podium" size={18} color={c1} />
               <Text style={[xpStyles.sectionTitle, { color: palette.text }]}>
-                Prioridad de Puntos por Actividad
+                Puntos Proporcionales por Cantidad
               </Text>
             </View>
             <Text style={[xpStyles.sectionDesc, { color: palette.textSub }]}>
-              Los puntos reflejan la importancia real para tu transformación física: la nutrición y el entreno son los pilares fundamentales.
+              A mayor cantidad e intensidad de lo que registres, más puntos de XP ganas. No es lo mismo un día ligero que un día de alta exigencia calórica y de levantamiento.
             </Text>
 
             {/* 1. Comida & Nutrición */}
@@ -1316,10 +1478,10 @@ function XpInfoModal({
                   </View>
                 </View>
                 <Text style={[xpStyles.metricPoints, { color: c1 }]}>
-                  +25 a +30 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por día registrado</Text>
+                  10 XP base + ~1 XP por cada 100 kcal
                 </Text>
                 <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
-                  La nutrición es la base de tus ganancias. +25 XP base al registrar comidas y +5 XP de bonus por registrar 3+ comidas completas.
+                  Escala según la cantidad: comer 3,500 kcal otorga ~45-50 XP, mientras que 500 kcal otorga 15 XP. Además, un día alto en proteína (+90g) o con 3+ comidas completas suma +5 XP adicionales.
                 </Text>
                 <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
                   Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.foodXp.toLocaleString()} XP</Text> ({xpBreakdown.foodDays} días)
@@ -1342,10 +1504,10 @@ function XpInfoModal({
                   </View>
                 </View>
                 <Text style={[xpStyles.metricPoints, { color: c2 }]}>
-                  +25 a +30 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por sesión completada</Text>
+                  15 XP base + 2 XP/serie + Tonelaje de Carga
                 </Text>
                 <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
-                  El estímulo muscular directo. +25 XP por tu entrenamiento y +5 XP al completar series de 3 o más ejercicios.
+                  Si entrenas más y más fuerte, ganas más XP. El sistema premia el volumen de series y el tonelaje total levantado (kilos × reps), sumando hasta +30 XP extra por mover cargas pesadas.
                 </Text>
                 <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
                   Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.workoutXp.toLocaleString()} XP</Text> ({xpBreakdown.workoutDays} entrenos)
@@ -1368,10 +1530,10 @@ function XpInfoModal({
                   </View>
                 </View>
                 <Text style={[xpStyles.metricPoints, { color: '#38BDF8' }]}>
-                  +15 a +20 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por noche de descanso</Text>
+                  8 XP base + 2 XP/hora + Calidad (Score)
                 </Text>
                 <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
-                  Donde realmente se sintetiza el músculo. +15 XP por noche registrada y +5 XP de bonus por sueño de calidad (Score ≥ 80 o 7h+).
+                  Dormir 8 horas con descanso profundo suma 30 XP, garantizando que tu cuerpo asimile el estímulo del entrenamiento y la alimentación.
                 </Text>
                 <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
                   Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.sleepXp.toLocaleString()} XP</Text> ({xpBreakdown.sleepDays} noches)
@@ -1394,10 +1556,10 @@ function XpInfoModal({
                   </View>
                 </View>
                 <Text style={[xpStyles.metricPoints, { color: '#F59E0B' }]}>
-                  +8 a +10 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por adherencia diaria</Text>
+                  +4 XP por cada toma de suplemento
                 </Text>
                 <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
-                  Constancia con creatina, proteínas y micronutrientes. +8 XP base y +2 XP por cumplir todas las dosis del checklist.
+                  Aumenta directamente por cantidad de suplementos tomados: 1 suplemento = +4 XP, 2 = +8 XP, 3 = +12 XP, 4 = +16 XP, etc.
                 </Text>
                 <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
                   Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.supplementsXp.toLocaleString()} XP</Text> ({xpBreakdown.supplementDays} días)
@@ -1420,10 +1582,10 @@ function XpInfoModal({
                   </View>
                 </View>
                 <Text style={[xpStyles.metricPoints, { color: '#10B981' }]}>
-                  +15 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>medidas/fotos · </Text>+5 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>pesaje</Text>
+                  5 XP base + 2 XP por músculo medido + 5 XP pesaje
                 </Text>
                 <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
-                  Medición objetiva de recomposición corporal y crecimiento muscular en croquis.
+                  Recompensa el registro detallado en el croquis (pecho, cintura, brazos, muslos...) y el seguimiento fotográfico de tu recomposición.
                 </Text>
                 <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
                   Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.measurementsXp.toLocaleString()} XP</Text>
@@ -1446,10 +1608,10 @@ function XpInfoModal({
                   </View>
                 </View>
                 <Text style={[xpStyles.metricPoints, { color: '#EC4899' }]}>
-                  +15 XP <Text style={{ color: palette.textSub, fontSize: 11.5, fontWeight: 'normal' }}>por chequeo de salud</Text>
+                  +5 XP por cada indicador registrado
                 </Text>
                 <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
-                  Control de presión arterial, glucosa, perfil lipídico y bienestar general.
+                  Control de presión arterial, glucosa, perfil lipídico y triglicéridos.
                 </Text>
                 <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
                   Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.healthXp.toLocaleString()} XP</Text> ({xpBreakdown.healthDays} chequeos)
@@ -1517,6 +1679,20 @@ function XpInfoModal({
 }
 
 const xpStyles = StyleSheet.create({
+  streakRuleCard: {
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  streakRuleTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  streakRuleDesc: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
   heroCard: {
     borderRadius: 20,
     padding: 16,
