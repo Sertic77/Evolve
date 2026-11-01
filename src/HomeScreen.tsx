@@ -84,6 +84,8 @@ export interface XpBreakdown {
   measurementDays: number;
   healthXp: number;
   healthDays: number;
+  goalsXp: number;
+  completedGoalsCount: number;
   totalXp: number;
   userLevel: number;
   rankTitle: string;
@@ -141,6 +143,100 @@ export function calculateWorkoutStreak(
   }
 
   return { currentStreak: streak, lastWorkoutDate: lastDateStr, daysSinceLastWorkout: daysSinceLast };
+}
+
+export function calculateGoalCompletionXp(goal: UserGoal): {
+  totalXp: number;
+  baseXp: number;
+  growthXp: number;
+  timeXp: number;
+  daysTaken: number;
+  growthPercent: number;
+} {
+  // 1. Puntaje Base según dificultad intrínseca del tipo de objetivo
+  let baseXp = 100;
+  switch (goal.type) {
+    case 'pr':
+      baseXp = 150;
+      break;
+    case 'body_fat':
+      baseXp = 140;
+      break;
+    case 'muscle':
+      baseXp = 130;
+      break;
+    case 'weight':
+      baseXp = 120;
+      break;
+    default:
+      baseXp = 100;
+      break;
+  }
+
+  // 2. Porcentaje de Crecimiento / Magnitud del logro (ej. PR 10 -> 12 kg vs 10 -> 90 kg)
+  const start = Number(goal.startValue);
+  const target = Number(goal.targetValue);
+  let growthXp = 40;
+  let growthPercent = 0;
+
+  if (!isNaN(start) && !isNaN(target)) {
+    if (goal.type === 'pr') {
+      if (start > 0 && target > start) {
+        growthPercent = Math.round(((target - start) / start) * 100);
+        // Cada 1% de aumento de fuerza = 2.5 XP (hasta un máximo de 350 XP)
+        growthXp = Math.min(350, Math.round(growthPercent * 2.5));
+      } else {
+        growthXp = 50;
+      }
+    } else if (goal.type === 'weight') {
+      const deltaKg = Math.abs(target - start);
+      growthPercent = start > 0 ? Math.round((deltaKg / start) * 100) : 0;
+      // Cada kg de cambio de peso corporal = 18 XP
+      growthXp = Math.min(300, Math.round(deltaKg * 18));
+    } else if (goal.type === 'body_fat') {
+      const deltaFat = Math.abs(target - start);
+      growthPercent = start > 0 ? Math.round((deltaFat / start) * 100) : 0;
+      // Cada 1% de grasa corporal reducida = 30 XP
+      growthXp = Math.min(300, Math.round(deltaFat * 30));
+    } else if (goal.type === 'muscle') {
+      const deltaCm = Math.abs(target - start);
+      growthPercent = start > 0 ? Math.round((deltaCm / start) * 100) : 0;
+      // Cada 1 cm de perímetro muscular = 35 XP
+      growthXp = Math.min(300, Math.round(deltaCm * 35));
+    } else {
+      growthXp = 50;
+    }
+  }
+
+  // 3. Factor Tiempo: Cumplir la meta en un menor tiempo otorga más puntos (ej. 1 mes vs 3 meses)
+  const createdTime = goal.createdAt ? new Date(goal.createdAt).getTime() : Date.now();
+  const completedTime = goal.completedAt ? new Date(goal.completedAt).getTime() : Date.now();
+  const daysTaken = Math.max(1, Math.round((completedTime - createdTime) / (1000 * 60 * 60 * 24)));
+
+  let timeXp = 15;
+  if (daysTaken <= 30) {
+    timeXp = 150; // ¡Velocidad récord! Cumplido en 1 mes o menos
+  } else if (daysTaken <= 60) {
+    timeXp = 100; // Muy rápido: en 2 meses
+  } else if (daysTaken <= 90) {
+    timeXp = 60;  // Cumplido en 3 meses
+  } else if (daysTaken <= 180) {
+    timeXp = 30;  // Cumplido en 6 meses
+  } else {
+    timeXp = 15;
+  }
+
+  // Bonus extra si se cumplió con anticipación antes de la fecha límite fijada
+  if (goal.targetDate) {
+    const targetLimit = new Date(goal.targetDate + 'T00:00:00').getTime();
+    const daysEarly = Math.max(0, Math.round((targetLimit - completedTime) / (1000 * 60 * 60 * 24)));
+    if (daysEarly > 0) {
+      timeXp += Math.min(80, daysEarly * 2);
+    }
+  }
+
+  const totalXp = baseXp + growthXp + timeXp;
+  return { totalXp, baseXp, growthXp, timeXp, daysTaken, growthPercent };
 }
 
 export function calculateUserXpAndLevel(
@@ -313,30 +409,15 @@ export function calculateUserXpAndLevel(
     }
   });
 
-  // 7. Metas y Objetivos Cumplidos (XP de alto valor según la dificultad de la meta)
+  // 7. Metas y Objetivos Cumplidos (Puntaje base + % de Crecimiento/Magnitud + Factor Tiempo)
   let goalsXp = 0;
   let completedGoalsCount = 0;
   if (Array.isArray(goals)) {
     goals.forEach((g) => {
       if (g.completed) {
         completedGoalsCount++;
-        switch (g.type) {
-          case 'pr':
-            goalsXp += 250; // Romper récord personal de fuerza
-            break;
-          case 'body_fat':
-            goalsXp += 220; // Reducción de % grasa corporal
-            break;
-          case 'muscle':
-            goalsXp += 200; // Ganancia de tamaño muscular / medidas
-            break;
-          case 'weight':
-            goalsXp += 180; // Meta de peso corporal
-            break;
-          default:
-            goalsXp += 150; // Objetivo personalizado
-            break;
-        }
+        const gXp = calculateGoalCompletionXp(g);
+        goalsXp += gXp.totalXp;
       }
     });
   }
@@ -384,6 +465,8 @@ export function calculateUserXpAndLevel(
     measurementDays,
     healthXp,
     healthDays,
+    goalsXp,
+    completedGoalsCount,
     totalXp,
     userLevel: level,
     rankTitle,
@@ -983,7 +1066,11 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   borderColor: palette.primary,
                   borderBottomLeftRadius: activeGoals.length > 0 ? 0 : 18,
                   borderBottomRightRadius: activeGoals.length > 0 ? 0 : 18,
-                  borderBottomWidth: activeGoals.length > 0 ? 0 : 1,
+                  borderBottomWidth: 0,
+                  borderBottomColor: 'transparent',
+                  // Eliminar sombreado inferior en el empalme para que sea un solo bloque
+                  shadowOpacity: activeGoals.length > 0 ? 0 : 0.05,
+                  elevation: activeGoals.length > 0 ? 0 : 2,
                 },
               ]}
             >
@@ -1119,6 +1206,9 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 {
                   backgroundColor: palette.primary,
                   borderColor: palette.primary,
+                  borderTopWidth: 0,
+                  borderTopColor: 'transparent',
+                  marginTop: -2, // Empalme exacto sin línea intermedia
                 },
               ]}
             >
@@ -1946,6 +2036,34 @@ function XpInfoModal({
                 </Text>
                 <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
                   Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.healthXp.toLocaleString()} XP</Text> ({xpBreakdown.healthDays} chequeos)
+                </Text>
+              </View>
+            </View>
+
+            {/* 7. Metas y Retos Cumplidos (Puntaje Dinámico: Base + % Crecimiento + Tiempo) */}
+            <View style={[xpStyles.metricCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+              <View style={[xpStyles.metricIconWrap, { backgroundColor: '#F59E0B20' }]}>
+                <Ionicons name="trophy" size={20} color="#F59E0B" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={xpStyles.metricHeaderRow}>
+                  <Text style={[xpStyles.metricTitle, { color: palette.text }]}>
+                    7. Metas y Retos Cumplidos
+                  </Text>
+                  <View style={[xpStyles.priorityBadge, { backgroundColor: '#F59E0B20' }]}>
+                    <Text style={[xpStyles.priorityBadgeText, { color: '#F59E0B' }]}>Gran Recompensa</Text>
+                  </View>
+                </View>
+                <Text style={[xpStyles.metricPoints, { color: '#F59E0B' }]}>
+                  Puntaje Base + % Crecimiento + Factor Tiempo
+                </Text>
+                <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
+                  • <Text style={{ fontWeight: '800', color: palette.text }}>Puntaje Base: </Text>Récord/PR (150 XP), % Grasa (140 XP), Tamaño (130 XP), Peso (120 XP).{"\n"}
+                  • <Text style={{ fontWeight: '800', color: palette.text }}>% de Crecimiento (+ hasta 350 XP): </Text>A mayor magnitud del logro, más puntos. Pasar de PR 10 a 12 kg (+20%) da menos puntos (+50 XP) que pasar de 10 a 90 kg (+800%, +350 XP).{"\n"}
+                  • <Text style={{ fontWeight: '800', color: palette.text }}>Factor Tiempo & Velocidad (+ hasta 230 XP): </Text>Cumplir tu meta en menor tiempo otorga más puntos. Pasar de 90 a 70 kg en 1 mes da +150 XP de velocidad vs +60 XP en 3 meses, más bonus extra si terminas antes de la fecha límite.
+                </Text>
+                <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
+                  Has acumulado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.goalsXp.toLocaleString()} XP</Text> ({xpBreakdown.completedGoalsCount} metas cumplidas)
                 </Text>
               </View>
             </View>
@@ -4190,12 +4308,13 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 18,
     borderWidth: 1,
     borderTopWidth: 0,
-    marginTop: 0,
+    borderTopColor: 'transparent',
+    marginTop: -2,
     padding: 13,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   metasLBaseHeaderRow: {
     flexDirection: 'row',
@@ -5503,87 +5622,75 @@ export const SEED_FRIENDS: FriendUser[] = [
    CON POSES Y ACCESORIOS DE ENTRENAMIENTO
 ========================================================== */
 export const PRESET_AVATARS = [
-  // --- HOMBRES PIXEL ART & ANIME GYM ---
   {
     id: 'pixel_m_bench',
-    title: 'Bench Press Rain (Pixel Art)',
+    title: 'Bench Press',
     category: 'hombres',
-    accessory: 'Audífonos & Barra Olímpica',
-    pose: 'Press de Banca bajo la Lluvia',
+    accessory: 'Audífonos & Lluvia',
     emoji: '🏋️‍♂️',
     asset: require('../assets/avatars/pixel_bench_press.png'),
   },
   {
     id: 'pixel_m_deadlift',
-    title: 'Ren (Cinturón & Straps)',
+    title: 'Ren (Deadlift)',
     category: 'hombres',
-    accessory: 'Cinturón de Fuerza & Correas',
-    pose: 'Peso Muerto Convencional 16-Bit',
+    accessory: 'Straps & Cinturón',
     emoji: '🔥',
     asset: require('../assets/avatars/pixel_boy_deadlift.jpg'),
   },
   {
     id: 'pixel_m_dumbbell',
-    title: 'Kenji (Audífonos & Curl)',
+    title: 'Kenji (Curl)',
     category: 'hombres',
-    accessory: 'Audífonos & Mancuerna Pesada',
-    pose: 'Curl de Bíceps Potente',
+    accessory: 'Audífonos & Mancuerna',
     emoji: '💪',
     asset: require('../assets/avatars/pixel_boy_dumbbell.jpg'),
   },
   {
     id: 'pixel_m_pullups',
-    title: 'Hiro (Guantes & Dominadas)',
+    title: 'Hiro (Pull-ups)',
     category: 'hombres',
-    accessory: 'Guantes de Agarre & Barra',
-    pose: 'Dominadas Espalda en V',
+    accessory: 'Guantes & Barra',
     emoji: '🥋',
     asset: require('../assets/avatars/pixel_boy_pullups.jpg'),
   },
   {
     id: 'pixel_m_mostmuscular',
-    title: 'Kaito (Most Muscular)',
+    title: 'Kaito (Pose)',
     category: 'hombres',
-    accessory: 'Cinturón & Luces Neón',
-    pose: 'Pose Most Muscular Clásica',
+    accessory: 'Most Muscular',
     emoji: '⚡',
     asset: require('../assets/avatars/pixel_boy_mostmuscular.jpg'),
   },
-
-  // --- MUJERES PIXEL ART & ANIME GYM ---
   {
     id: 'pixel_w_squat',
-    title: 'Aoi (Sentadillas Neón)',
+    title: 'Aoi (Squats)',
     category: 'mujeres',
-    accessory: 'Barra Olímpica & Neón Cyber',
-    pose: 'Sentadilla Profunda 16-Bit',
+    accessory: 'Sentadilla Neón',
     emoji: '⚡',
     asset: require('../assets/avatars/pixel_girl_squat.jpg'),
   },
   {
     id: 'pixel_w_shaker',
-    title: 'Yuki (Shaker & Proteína)',
+    title: 'Yuki (Shaker)',
     category: 'mujeres',
-    accessory: 'Shaker de Proteína & Sonrisa',
-    pose: 'Descanso Post-Entreno Fit',
+    accessory: 'Proteína & Sonrisa',
     emoji: '🌸',
     asset: require('../assets/avatars/pixel_girl_shaker.jpg'),
   },
   {
     id: 'pixel_w_deadlift',
-    title: 'Rin (Straps & Peso Muerto)',
+    title: 'Rin (Deadlift)',
     category: 'mujeres',
-    accessory: 'Cinturón de Cuero & Straps',
-    pose: 'Peso Muerto Pesado',
+    accessory: 'Straps & Cuero',
     emoji: '💖',
     asset: require('../assets/avatars/pixel_girl_deadlift.jpg'),
   },
   {
     id: 'pixel_w_dumbbells',
-    title: 'Mei (Elevaciones Laterales)',
+    title: 'Mei (Laterales)',
     category: 'mujeres',
-    accessory: 'Mancuernas & Cinta Deportiva',
-    pose: 'Hombros & Vuelos Laterales',
+    accessory: 'Hombros & Vuelos',
     emoji: '✨',
     asset: require('../assets/avatars/pixel_girl_dumbbells.jpg'),
   },
@@ -5837,51 +5944,23 @@ function AvatarZoomModal({
               </TouchableOpacity>
             ) : null}
 
-            {/* Galería de Avatares Anime Gym con Poses y Accesorios */}
+            {/* Galería de Avatares Pixel-Art & Anime Gym (Grilla 3x3 - 9 Avatares) */}
             <View style={avatarStyles.presetSection}>
               <View style={avatarStyles.presetHeaderRow}>
-                <Text style={[avatarStyles.presetSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-                  Avatares Anime Gym (Poses & Accesorios)
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="sparkles" size={14} color={c1} />
+                  <Text style={[avatarStyles.presetSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                    Avatares Pixel-Art & Anime (9 Predeterminados)
+                  </Text>
+                </View>
                 <Text style={[avatarStyles.presetSectionSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  Cinturones, straps, shakers, audífonos, mancuernas y magnesio
+                  Toca para seleccionar tu personaje de entrenamiento favorito
                 </Text>
               </View>
 
-              {/* Categorías de Filtro */}
-              <View style={avatarStyles.filterTabsRow}>
-                {[
-                  { key: 'all', label: 'Todos' },
-                  { key: 'hombres', label: '🏋️‍♂️ Hombres Anime' },
-                  { key: 'mujeres', label: '🌸 Mujeres Anime' },
-                ].map((cat) => {
-                  const active = categoryFilter === cat.key;
-                  return (
-                    <TouchableOpacity
-                      key={cat.key}
-                      onPress={() => setCategoryFilter(cat.key as any)}
-                      style={[
-                        avatarStyles.filterTabPill,
-                        active && { backgroundColor: c1, borderColor: c1 },
-                        !active && { borderColor: palette.border, backgroundColor: palette.bg },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          avatarStyles.filterTabText,
-                          { color: active ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont },
-                        ]}
-                      >
-                        {cat.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Cuadrícula de Avatares Anime */}
+              {/* Cuadrícula 3x3 de Avatares */}
               <View style={avatarStyles.presetGrid}>
-                {filteredPresets.map((preset) => {
+                {PRESET_AVATARS.map((preset) => {
                   const presetUri = preset.asset ? Image.resolveAssetSource(preset.asset)?.uri : (preset as any).uri;
                   const isSelected = userProfile?.avatarUri === presetUri;
                   return (
@@ -5913,7 +5992,7 @@ function AvatarZoomModal({
                         ]}
                         numberOfLines={1}
                       >
-                        {preset.emoji} {preset.title}
+                        {preset.title}
                       </Text>
                       <Text
                         style={[
@@ -5922,7 +6001,7 @@ function AvatarZoomModal({
                         ]}
                         numberOfLines={1}
                       >
-                        {preset.accessory}
+                        {preset.emoji} {preset.accessory}
                       </Text>
 
                       {isSelected && (
@@ -5989,7 +6068,7 @@ const avatarStyles = StyleSheet.create({
   // Banner a todo el ancho (no circular)
   fullWidthBanner: {
     width: '100%',
-    height: 200,
+    height: 125,
     borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',
@@ -6098,22 +6177,21 @@ const avatarStyles = StyleSheet.create({
   presetGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
     justifyContent: 'space-between',
+    rowGap: 8,
   },
   presetItemCard: {
-    width: '31.5%',
-    borderRadius: 13,
-    padding: 6,
+    width: '31%',
+    borderRadius: 12,
+    padding: 4,
     alignItems: 'center',
     position: 'relative',
-    marginBottom: 4,
   },
   presetThumbnail: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 9,
-    marginBottom: 5,
+    borderRadius: 8,
+    marginBottom: 3,
   },
   presetTitle: {
     fontSize: 9.5,
@@ -6121,7 +6199,7 @@ const avatarStyles = StyleSheet.create({
     textAlign: 'center',
   },
   presetAccessoryText: {
-    fontSize: 8.5,
+    fontSize: 8,
     marginTop: 1,
     textAlign: 'center',
   },
