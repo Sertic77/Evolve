@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   Pressable,
   StyleSheet,
@@ -17,6 +18,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { fmt, getPaletteColorWithAlpha } from './theme';
 import {
   useStore,
@@ -29,6 +31,8 @@ import {
   ColorPalette,
   FontStyleOption,
   GenderOption,
+  UserGoal,
+  GoalType,
 } from './store';
 import { pushUserDataToDatabase, pullUserDataFromDatabase } from './syncService';
 
@@ -359,6 +363,7 @@ export function calculateUserXpAndLevel(
 export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const {
     userProfile,
+    setUserProfile,
     activePaletteId,
     customPalettes,
     deletedPaletteIds,
@@ -587,6 +592,19 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   }, [workoutLogs, todayKeyStr]);
 
   const [showXpModal, setShowXpModal] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [showGoalsModal, setShowGoalsModal] = useState(false);
+  const avatarZoomAnim = useRef(new Animated.Value(0)).current;
+
+  // Metas del usuario desde el store
+  const goals = useStore((s) => s.goals) || [];
+  const addGoal = useStore((s) => s.addGoal);
+  const updateGoal = useStore((s) => s.updateGoal);
+  const deleteGoal = useStore((s) => s.deleteGoal);
+  const toggleGoalCompleted = useStore((s) => s.toggleGoalCompleted);
+
+  const activeGoals = goals.filter((g) => !g.completed);
+  const completedGoals = goals.filter((g) => g.completed);
   const userLevel = xpBreakdown.userLevel;
 
   // Animación de crecimiento suave para todos los datos métricos de Home
@@ -648,47 +666,69 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
           ]}
         />
         <View style={styles.userHeroRow}>
-          {/* Perfil al lado izquierdo (Avatar + Racha compacta justo debajo) */}
-          <View style={{ alignItems: 'center', marginRight: 8 }}>
-            <LinearGradient
-              colors={[c1, c2]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroAvatar}
-            >
-              <Text style={styles.heroAvatarText}>{initials}</Text>
-            </LinearGradient>
+          {/* Perfil al lado izquierdo: Avatar interactivo con zoom y badge de racha sobrepuesto en la esquina superior izquierda */}
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={() => {
+              setShowAvatarModal(true);
+              avatarZoomAnim.setValue(0);
+              Animated.spring(avatarZoomAnim, {
+                toValue: 1,
+                tension: 80,
+                friction: 7,
+                useNativeDriver: true,
+              }).start();
+            }}
+            style={styles.heroAvatarWrapper}
+            accessibilityLabel="Ver y cambiar foto de perfil"
+          >
+            {userProfile?.avatarUri ? (
+              <Image
+                source={{ uri: userProfile.avatarUri }}
+                style={styles.heroAvatarImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <LinearGradient
+                colors={[c1, c2]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroAvatar}
+              >
+                <Text style={styles.heroAvatarText}>{initials}</Text>
+              </LinearGradient>
+            )}
 
-            {/* Racha de entrenamientos justo debajo de la foto de perfil (icono y número) */}
+            {/* Racha de entrenamientos como badge sobrepuesto en la esquina superior izquierda */}
             <View
               style={[
-                styles.heroStreakStacked,
+                styles.heroStreakBadgeOverlay,
                 {
                   borderColor: workoutStreak.currentStreak > 0 ? c2 : palette.isDark ? '#475569' : '#CBD5E1',
-                  backgroundColor: workoutStreak.currentStreak > 0 ? `${c2}18` : 'transparent',
+                  backgroundColor: workoutStreak.currentStreak > 0
+                    ? (palette.isDark ? '#0F172A' : '#FFFFFF')
+                    : (palette.isDark ? '#1E293B' : '#F8FAFC'),
                 },
               ]}
             >
-              <View style={styles.heroStreakTopRow}>
-                <Ionicons
-                  name="flame"
-                  size={12}
-                  color={workoutStreak.currentStreak > 0 ? c2 : palette.textSub}
-                />
-                <Text
-                  style={[
-                    styles.heroStreakNumStacked,
-                    {
-                      color: workoutStreak.currentStreak > 0 ? c2 : palette.textSub,
-                      fontFamily: dataFont,
-                    },
-                  ]}
-                >
-                  {Math.round(workoutStreak.currentStreak * growthProgress)}
-                </Text>
-              </View>
+              <Ionicons
+                name="flame"
+                size={11}
+                color={workoutStreak.currentStreak > 0 ? c2 : palette.textSub}
+              />
+              <Text
+                style={[
+                  styles.heroStreakBadgeOverlayText,
+                  {
+                    color: workoutStreak.currentStreak > 0 ? c2 : palette.textSub,
+                    fontFamily: dataFont,
+                  },
+                ]}
+              >
+                {Math.round(workoutStreak.currentStreak * growthProgress)}
+              </Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* Bloque Central de Datos */}
           <View style={styles.heroCenterCol}>
@@ -987,6 +1027,178 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         )}
 
         {/* ==========================================================
+            WIDGET NUEVO: METAS & OBJETIVOS CON FECHAS LÍMITE
+        ========================================================== */}
+        {homeWidgets?.goals !== false && (
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => setShowGoalsModal(true)}
+            style={[styles.cardOuter, { borderColor: palette.border }]}
+          >
+            <LinearGradient
+              colors={
+                palette.isDark
+                  ? ['#1E293B', '#0F172A']
+                  : ['#FFFFFF', '#F8FAFF']
+              }
+              style={styles.cardGradient}
+            >
+              {/* Encabezado del bloque Metas */}
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardHeaderLeft}>
+                  <LinearGradient
+                    colors={[c1, c2]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.iconBoxMiniGradient}
+                  >
+                    <Ionicons name="trophy" size={16} color="#FFFFFF" />
+                  </LinearGradient>
+                  <View>
+                    <Text style={[styles.cardTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Metas & Objetivos
+                    </Text>
+                    <Text style={[styles.cardSubtitle, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      {activeGoals.length} {activeGoals.length === 1 ? 'meta activa' : 'metas activas'} · {completedGoals.length} cumplidas
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.linkActionBtn}>
+                  <Text style={[styles.linkActionText, { color: c1, fontFamily: subtitleFont }]}>
+                    Configurar
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={c1} />
+                </View>
+              </View>
+
+              {/* Previsualización de Metas Activas */}
+              {activeGoals.length > 0 ? (
+                <View style={{ marginTop: 12, gap: 10 }}>
+                  {activeGoals.slice(0, 2).map((goal) => {
+                    const progress = calculateGoalProgress(goal);
+                    const remaining = getGoalDaysRemaining(goal.targetDate);
+                    return (
+                      <View
+                        key={goal.id}
+                        style={[
+                          styles.homeGoalMiniCard,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <View style={styles.homeGoalTopRow}>
+                          <View
+                            style={[
+                              styles.homeGoalTag,
+                              { backgroundColor: `${c1}18`, borderColor: `${c1}35` },
+                            ]}
+                          >
+                            <Text style={[styles.homeGoalTagText, { color: c1 }]}>
+                              {getGoalCategoryIcon(goal.type)} {goal.categoryLabel || getGoalCategoryLabel(goal.type)}
+                            </Text>
+                          </View>
+
+                          <View
+                            style={[
+                              styles.homeGoalDatePill,
+                              {
+                                backgroundColor: remaining.isPast
+                                  ? 'rgba(239, 68, 68, 0.12)'
+                                  : remaining.days <= 14
+                                  ? 'rgba(245, 158, 11, 0.15)'
+                                  : 'rgba(16, 185, 129, 0.12)',
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="calendar-outline"
+                              size={11}
+                              color={remaining.isPast ? '#EF4444' : remaining.days <= 14 ? '#F59E0B' : '#10B981'}
+                            />
+                            <Text
+                              style={[
+                                styles.homeGoalDateText,
+                                {
+                                  color: remaining.isPast ? '#EF4444' : remaining.days <= 14 ? '#F59E0B' : '#10B981',
+                                  fontFamily: subtitleFont,
+                                },
+                              ]}
+                            >
+                              {formatGoalDate(goal.targetDate)} ({remaining.text})
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Text
+                          style={[styles.homeGoalTitle, { color: palette.text, fontFamily: subtitleFont }]}
+                          numberOfLines={1}
+                        >
+                          {goal.title}
+                        </Text>
+
+                        {/* Barra y valores de progreso */}
+                        <View style={styles.homeGoalProgressRow}>
+                          <View style={styles.homeGoalValuesCol}>
+                            <Text style={[styles.homeGoalValCurrent, { color: palette.text, fontFamily: dataFont }]}>
+                              {goal.currentValue !== undefined ? goal.currentValue : '--'} {goal.unit || ''}
+                            </Text>
+                            <Text style={[styles.homeGoalValTarget, { color: palette.textSub, fontFamily: bodyFont }]}>
+                              de {goal.targetValue !== undefined ? goal.targetValue : '--'} {goal.unit || ''}
+                            </Text>
+                          </View>
+
+                          <View style={styles.homeGoalTrackWrap}>
+                            <View
+                              style={[
+                                styles.homeGoalTrack,
+                                {
+                                  backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.5)',
+                                },
+                              ]}
+                            >
+                              <LinearGradient
+                                colors={[c1, c2]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={[styles.homeGoalFill, { width: `${progress}%` }]}
+                              />
+                            </View>
+                            <Text style={[styles.homeGoalPercentText, { color: c1, fontFamily: dataFont }]}>
+                              {progress}%
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+
+                  <View style={styles.homeGoalsFooterHint}>
+                    <Text style={[styles.homeGoalsFooterText, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      Toca para gestionar o configurar nuevas metas con fechas límite ➔
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.homeGoalsEmpty}>
+                  <Text style={[styles.homeGoalsEmptyText, { color: palette.textSub, fontFamily: bodyFont }]}>
+                    Define tus metas con fechas límite (ej. subir 10 kg para el 14 de febrero, romper tu PR o mejorar medidas) y mide tu progreso real.
+                  </Text>
+                  <View style={[styles.homeGoalsEmptyBtn, { backgroundColor: `${c1}15`, borderColor: c1 }]}>
+                    <Ionicons name="add-circle-outline" size={16} color={c1} />
+                    <Text style={[styles.homeGoalsEmptyBtnText, { color: c1, fontFamily: subtitleFont }]}>
+                      Establecer Primera Meta
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+                {/* ==========================================================
             WIDGET 2: ENTRENAMIENTO DEL DÍA
         ========================================================== */}
         {homeWidgets?.workout && (
@@ -1343,6 +1555,44 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         xpBreakdown={xpBreakdown}
         palette={palette}
         onClose={() => setShowXpModal(false)}
+      />
+
+      {/* Modal Zoom y Cambio de Foto de Perfil */}
+      <AvatarZoomModal
+        visible={showAvatarModal}
+        zoomAnim={avatarZoomAnim}
+        userProfile={userProfile}
+        initials={initials}
+        userName={userName}
+        userNick={userNick}
+        userLevel={xpBreakdown.userLevel}
+        rankTitle={xpBreakdown.rankTitle}
+        c1={c1}
+        c2={c2}
+        palette={palette}
+        titleFont={titleFont}
+        subtitleFont={subtitleFont}
+        bodyFont={bodyFont}
+        onClose={() => setShowAvatarModal(false)}
+        onUpdateAvatar={(uri) => setUserProfile({ avatarUri: uri })}
+      />
+
+      {/* Modal de Configuración y Gestión de Metas con Fechas Límite */}
+      <GoalsModal
+        visible={showGoalsModal}
+        goals={goals}
+        c1={c1}
+        c2={c2}
+        palette={palette}
+        titleFont={titleFont}
+        subtitleFont={subtitleFont}
+        dataFont={dataFont}
+        bodyFont={bodyFont}
+        onClose={() => setShowGoalsModal(false)}
+        onAddGoal={addGoal}
+        onUpdateGoal={updateGoal}
+        onDeleteGoal={deleteGoal}
+        onToggleCompleted={toggleGoalCompleted}
       />
     </View>
   );
@@ -3520,18 +3770,172 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  heroAvatarWrapper: {
+    position: 'relative',
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   heroAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  heroAvatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
   heroAvatarText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+  },
+  heroStreakBadgeOverlay: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    zIndex: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  heroStreakBadgeOverlayText: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    lineHeight: 12,
+  },
+
+  // Widgets Metas en Home
+  iconBoxMiniGradient: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  homeGoalMiniCard: {
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+  },
+  homeGoalTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  homeGoalTag: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  homeGoalTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  homeGoalDatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  homeGoalDateText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  homeGoalTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  homeGoalProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  homeGoalValuesCol: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  homeGoalValCurrent: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  homeGoalValTarget: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  homeGoalTrackWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  homeGoalTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  homeGoalFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  homeGoalPercentText: {
+    fontSize: 11,
+    fontWeight: '900',
+    minWidth: 32,
+    textAlign: 'right',
+  },
+  homeGoalsFooterHint: {
+    marginTop: 2,
+    alignItems: 'center',
+  },
+  homeGoalsFooterText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  homeGoalsEmpty: {
+    marginTop: 10,
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  homeGoalsEmptyText: {
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  homeGoalsEmptyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  homeGoalsEmptyBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
   },
   heroCenterCol: {
     flex: 1,
@@ -4688,5 +5092,1701 @@ const renameStyles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12.5,
     fontWeight: '800',
+  },
+});
+
+/* ==========================================================
+   HELPERS & PRESETS PARA FOTO DE PERFIL & METAS
+========================================================== */
+export const PRESET_AVATARS = [
+  {
+    id: 'titan_iron',
+    title: 'Titán del Hierro',
+    category: 'gym',
+    uri: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=400&auto=format&fit=crop&q=80',
+    emoji: '🏋️‍♂️',
+  },
+  {
+    id: 'silverback_gorilla',
+    title: 'Gorila Alfa',
+    category: 'gym',
+    uri: 'https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?w=400&auto=format&fit=crop&q=80',
+    emoji: '🦍',
+  },
+  {
+    id: 'apex_lion',
+    title: 'León Apex',
+    category: 'gym',
+    uri: 'https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=400&auto=format&fit=crop&q=80',
+    emoji: '🦁',
+  },
+  {
+    id: 'spartan_legend',
+    title: 'Espartano 300',
+    category: 'gym',
+    uri: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop&q=80',
+    emoji: '🛡️',
+  },
+  {
+    id: 'saiyan_warrior',
+    title: 'Saiyan Supremo',
+    category: 'anime',
+    uri: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&auto=format&fit=crop&q=80',
+    emoji: '⚡',
+  },
+  {
+    id: 'samurai_blade',
+    title: 'Samurái Ronin',
+    category: 'anime',
+    uri: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=400&auto=format&fit=crop&q=80',
+    emoji: '⚔️',
+  },
+  {
+    id: 'cyber_ninja',
+    title: 'Ciber Gladiador',
+    category: 'anime',
+    uri: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80',
+    emoji: '🤖',
+  },
+  {
+    id: 'baki_ogre',
+    title: 'Bestia Ogre',
+    category: 'anime',
+    uri: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&auto=format&fit=crop&q=80',
+    emoji: '👹',
+  },
+  {
+    id: 'valkyrie_fit',
+    title: 'Valquiria Fitness',
+    category: 'aesthetic',
+    uri: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&auto=format&fit=crop&q=80',
+    emoji: '✨',
+  },
+  {
+    id: 'aesthetic_zyzz',
+    title: 'Aesthetic Legacy',
+    category: 'aesthetic',
+    uri: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&auto=format&fit=crop&q=80',
+    emoji: '🔱',
+  },
+  {
+    id: 'phoenix_resurrect',
+    title: 'Fénix Renacido',
+    category: 'aesthetic',
+    uri: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=400&auto=format&fit=crop&q=80',
+    emoji: '🔥',
+  },
+  {
+    id: 'lone_wolf',
+    title: 'Lobo Solitario',
+    category: 'gym',
+    uri: 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=400&auto=format&fit=crop&q=80',
+    emoji: '🐺',
+  },
+];
+
+export function formatGoalDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  return `${parseInt(parts[2], 10)} ${months[monthIdx] || parts[1]} ${parts[0]}`;
+}
+
+export function getGoalDaysRemaining(targetDateStr: string): { days: number; text: string; isPast: boolean } {
+  if (!targetDateStr) return { days: 0, text: '', isPast: false };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(targetDateStr + 'T00:00:00');
+  const diffTime = target.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  if (diffDays > 0) return { days: diffDays, text: `Faltan ${diffDays} días`, isPast: false };
+  if (diffDays === 0) return { days: 0, text: '¡Hoy es el día!', isPast: false };
+  return { days: diffDays, text: `Venció hace ${Math.abs(diffDays)}d`, isPast: true };
+}
+
+export function calculateGoalProgress(goal: UserGoal): number {
+  const cur = Number(goal.currentValue);
+  const start = Number(goal.startValue);
+  const target = Number(goal.targetValue);
+  if (isNaN(cur) || isNaN(target)) return goal.completed ? 100 : 0;
+  if (goal.completed) return 100;
+  if (!isNaN(start) && target !== start) {
+    if (target > start) {
+      const p = Math.round(((cur - start) / (target - start)) * 100);
+      return Math.min(100, Math.max(0, p));
+    } else {
+      const p = Math.round(((start - cur) / (start - target)) * 100);
+      return Math.min(100, Math.max(0, p));
+    }
+  }
+  if (target > 0) {
+    return Math.min(100, Math.max(0, Math.round((cur / target) * 100)));
+  }
+  return 0;
+}
+
+export function getGoalCategoryIcon(type: GoalType): string {
+  switch (type) {
+    case 'weight': return '⚖️';
+    case 'pr': return '🏋️';
+    case 'muscle': return '💪';
+    case 'streak': return '🔥';
+    default: return '🎯';
+  }
+}
+
+export function getGoalCategoryLabel(type: GoalType): string {
+  switch (type) {
+    case 'weight': return 'Peso Corporal';
+    case 'pr': return 'Mejorar PR';
+    case 'muscle': return 'Medidas de Músculo';
+    case 'streak': return 'Racha / Hábito';
+    default: return 'Objetivo Personal';
+  }
+}
+
+/* ==========================================================
+   MODAL: ZOOM & CAMBIO DE FOTO DE PERFIL (CÁMARA, GALERÍA, PRESETS)
+========================================================== */
+function AvatarZoomModal({
+  visible,
+  zoomAnim,
+  userProfile,
+  initials,
+  userName,
+  userNick,
+  userLevel,
+  rankTitle,
+  c1,
+  c2,
+  palette,
+  titleFont,
+  subtitleFont,
+  bodyFont,
+  onClose,
+  onUpdateAvatar,
+}: {
+  visible: boolean;
+  zoomAnim: Animated.Value;
+  userProfile: any;
+  initials: string;
+  userName: string;
+  userNick: string;
+  userLevel: number;
+  rankTitle: string;
+  c1: string;
+  c2: string;
+  palette: ColorPalette;
+  titleFont?: string;
+  subtitleFont?: string;
+  bodyFont?: string;
+  onClose: () => void;
+  onUpdateAvatar: (uri: string) => void;
+}) {
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'gym' | 'anime' | 'aesthetic'>('all');
+
+  const handlePickCamera = async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permiso de cámara requerido',
+          'Por favor autoriza el acceso a la cámara en los ajustes de tu dispositivo para capturar tu foto.'
+        );
+        return;
+      }
+      const res = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (!res.canceled && res.assets && res.assets.length > 0) {
+        onUpdateAvatar(res.assets[0].uri);
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo abrir la cámara.');
+    }
+  };
+
+  const handlePickGallery = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permiso de galería requerido',
+          'Por favor autoriza el acceso a la galería de fotos en los ajustes de tu dispositivo.'
+        );
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (!res.canceled && res.assets && res.assets.length > 0) {
+        onUpdateAvatar(res.assets[0].uri);
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo abrir la galería.');
+    }
+  };
+
+  const filteredPresets = PRESET_AVATARS.filter((p) =>
+    categoryFilter === 'all' ? true : p.category === categoryFilter
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={avatarStyles.overlay}>
+        <Animated.View
+          style={[
+            avatarStyles.cardContainer,
+            {
+              backgroundColor: palette.cardBg,
+              borderColor: palette.border,
+              transform: [{ scale: zoomAnim }],
+            },
+          ]}
+        >
+          {/* Header con botón cerrar */}
+          <View style={avatarStyles.headerRow}>
+            <Text style={[avatarStyles.headerTitle, { color: palette.text, fontFamily: titleFont }]}>
+              Foto de Perfil
+            </Text>
+            <TouchableOpacity onPress={onClose} style={avatarStyles.closeBtn} hitSlop={10}>
+              <Ionicons name="close" size={20} color={palette.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+            {/* Vista con Zoom Ampliado de la Foto */}
+            <View style={avatarStyles.zoomWrap}>
+              <View style={[avatarStyles.avatarZoomRing, { borderColor: c1 }]}>
+                {userProfile?.avatarUri ? (
+                  <Image
+                    source={{ uri: userProfile.avatarUri }}
+                    style={avatarStyles.avatarZoomImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={[c1, c2]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={avatarStyles.avatarZoomGradient}
+                  >
+                    <Text style={avatarStyles.avatarZoomInitials}>{initials}</Text>
+                  </LinearGradient>
+                )}
+              </View>
+
+              <Text style={[avatarStyles.zoomName, { color: palette.text, fontFamily: titleFont }]}>
+                {userName}
+              </Text>
+              <Text style={[avatarStyles.zoomSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                <Text style={{ color: c1, fontWeight: '700' }}>{userNick}</Text> · Nivel {userLevel} ({rankTitle})
+              </Text>
+            </View>
+
+            {/* Opciones de Cámara y Galería */}
+            <View style={avatarStyles.actionsRow}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={handlePickCamera}
+                style={[avatarStyles.actionBtn, { backgroundColor: palette.isDark ? '#1E293B' : '#F1F5F9', borderColor: palette.border }]}
+              >
+                <Ionicons name="camera-outline" size={20} color={c1} />
+                <Text style={[avatarStyles.actionBtnText, { color: palette.text, fontFamily: subtitleFont }]}>
+                  Tomar Foto
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={handlePickGallery}
+                style={[avatarStyles.actionBtn, { backgroundColor: palette.isDark ? '#1E293B' : '#F1F5F9', borderColor: palette.border }]}
+              >
+                <Ionicons name="images-outline" size={20} color={c2} />
+                <Text style={[avatarStyles.actionBtnText, { color: palette.text, fontFamily: subtitleFont }]}>
+                  Elegir de Galería
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {userProfile?.avatarUri ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => onUpdateAvatar('')}
+                style={avatarStyles.removeBtn}
+              >
+                <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                <Text style={[avatarStyles.removeBtnText, { color: '#EF4444', fontFamily: subtitleFont }]}>
+                  Restaurar Iniciales Predeterminadas
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Galería de Avatares Ilustrados / Animados (Gym, Anime & Aesthetic) */}
+            <View style={avatarStyles.presetSection}>
+              <View style={avatarStyles.presetHeaderRow}>
+                <Text style={[avatarStyles.presetSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                  Avatares Animados & Gym
+                </Text>
+                <Text style={[avatarStyles.presetSectionSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                  Selecciona tu personaje
+                </Text>
+              </View>
+
+              {/* Categorías de Filtro */}
+              <View style={avatarStyles.filterTabsRow}>
+                {[
+                  { key: 'all', label: 'Todos' },
+                  { key: 'gym', label: '🏋️ Gym' },
+                  { key: 'anime', label: '⚡ Anime' },
+                  { key: 'aesthetic', label: '✨ Aesthetic' },
+                ].map((cat) => {
+                  const active = categoryFilter === cat.key;
+                  return (
+                    <TouchableOpacity
+                      key={cat.key}
+                      onPress={() => setCategoryFilter(cat.key as any)}
+                      style={[
+                        avatarStyles.filterTabPill,
+                        active && { backgroundColor: c1, borderColor: c1 },
+                        !active && { borderColor: palette.border, backgroundColor: palette.bg },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          avatarStyles.filterTabText,
+                          { color: active ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont },
+                        ]}
+                      >
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Cuadrícula de Avatares */}
+              <View style={avatarStyles.presetGrid}>
+                {filteredPresets.map((preset) => {
+                  const isSelected = userProfile?.avatarUri === preset.uri;
+                  return (
+                    <TouchableOpacity
+                      key={preset.id}
+                      activeOpacity={0.8}
+                      onPress={() => onUpdateAvatar(preset.uri)}
+                      style={[
+                        avatarStyles.presetItemCard,
+                        {
+                          backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                          borderColor: isSelected ? c1 : palette.border,
+                          borderWidth: isSelected ? 2.5 : 1,
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: preset.uri }}
+                        style={avatarStyles.presetThumbnail}
+                        resizeMode="cover"
+                      />
+                      <Text
+                        style={[
+                          avatarStyles.presetTitle,
+                          { color: isSelected ? c1 : palette.text, fontFamily: subtitleFont },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {preset.emoji} {preset.title}
+                      </Text>
+                      {isSelected && (
+                        <View style={[avatarStyles.selectedBadge, { backgroundColor: c1 }]}>
+                          <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Botón Listo */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={onClose}
+              style={[avatarStyles.doneBtn, { backgroundColor: c1 }]}
+            >
+              <Text style={[avatarStyles.doneBtnText, { fontFamily: subtitleFont }]}>
+                Guardar y Salir
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+const avatarStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 18,
+  },
+  cardContainer: {
+    width: '100%',
+    maxHeight: '88%',
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  zoomWrap: {
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  avatarZoomRing: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 3.5,
+    padding: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  avatarZoomImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 65,
+  },
+  avatarZoomGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 65,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarZoomInitials: {
+    fontSize: 44,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  zoomName: {
+    fontSize: 17,
+    fontWeight: '900',
+    marginTop: 12,
+  },
+  zoomSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 10,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  actionBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  removeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  removeBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  presetSection: {
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  presetHeaderRow: {
+    marginBottom: 10,
+  },
+  presetSectionTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  presetSectionSub: {
+    fontSize: 11.5,
+    marginTop: 1,
+  },
+  filterTabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  filterTabPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  filterTabText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  presetGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+  presetItemCard: {
+    width: '31%',
+    borderRadius: 14,
+    padding: 6,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  presetThumbnail: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    marginBottom: 6,
+  },
+  presetTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  selectedBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  doneBtn: {
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  doneBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+});
+
+/* ==========================================================
+   MODAL: CONFIGURACIÓN & GESTIÓN DE METAS CON FECHAS LÍMITE
+========================================================== */
+function GoalsModal({
+  visible,
+  goals,
+  c1,
+  c2,
+  palette,
+  titleFont,
+  subtitleFont,
+  dataFont,
+  bodyFont,
+  onClose,
+  onAddGoal,
+  onUpdateGoal,
+  onDeleteGoal,
+  onToggleCompleted,
+}: {
+  visible: boolean;
+  goals: UserGoal[];
+  c1: string;
+  c2: string;
+  palette: ColorPalette;
+  titleFont?: string;
+  subtitleFont?: string;
+  dataFont?: string;
+  bodyFont?: string;
+  onClose: () => void;
+  onAddGoal: (g: Omit<UserGoal, 'id' | 'createdAt'>) => void;
+  onUpdateGoal: (id: string, updates: Partial<UserGoal>) => void;
+  onDeleteGoal: (id: string) => void;
+  onToggleCompleted: (id: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'new'>('active');
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+
+  // Campos del formulario
+  const [goalType, setGoalType] = useState<GoalType>('weight');
+  const [goalTitle, setGoalTitle] = useState('');
+  const [targetDate, setTargetDate] = useState('2026-02-14');
+  const [startVal, setStartVal] = useState('');
+  const [currentVal, setCurrentVal] = useState('');
+  const [targetVal, setTargetVal] = useState('');
+  const [unit, setUnit] = useState('kg');
+  const [notes, setNotes] = useState('');
+
+  const activeGoals = goals.filter((g) => !g.completed);
+  const completedGoals = goals.filter((g) => g.completed);
+
+  // Iniciar creación o edición
+  const resetForm = () => {
+    setEditingGoalId(null);
+    setGoalType('weight');
+    setGoalTitle('');
+    setTargetDate('2026-02-14');
+    setStartVal('');
+    setCurrentVal('');
+    setTargetVal('');
+    setUnit('kg');
+    setNotes('');
+  };
+
+  const handleStartEdit = (g: UserGoal) => {
+    setEditingGoalId(g.id);
+    setGoalType(g.type);
+    setGoalTitle(g.title);
+    setTargetDate(g.targetDate);
+    setStartVal(g.startValue !== undefined ? String(g.startValue) : '');
+    setCurrentVal(g.currentValue !== undefined ? String(g.currentValue) : '');
+    setTargetVal(g.targetValue !== undefined ? String(g.targetValue) : '');
+    setUnit(g.unit || 'kg');
+    setNotes(g.notes || '');
+    setActiveTab('new');
+  };
+
+  const handleSaveGoal = () => {
+    if (!goalTitle.trim()) {
+      Alert.alert('Falta información', 'Por favor ingresa un título o descripción para tu meta.');
+      return;
+    }
+    if (!targetDate.trim()) {
+      Alert.alert('Falta fecha límite', 'Por favor define una fecha objetivo (ej. 2026-02-14).');
+      return;
+    }
+
+    const sNum = startVal ? parseFloat(startVal.replace(',', '.')) : undefined;
+    const cNum = currentVal ? parseFloat(currentVal.replace(',', '.')) : sNum;
+    const tNum = targetVal ? parseFloat(targetVal.replace(',', '.')) : undefined;
+
+    if (editingGoalId) {
+      onUpdateGoal(editingGoalId, {
+        title: goalTitle.trim(),
+        type: goalType,
+        targetDate: targetDate.trim(),
+        startValue: sNum,
+        currentValue: cNum,
+        targetValue: tNum,
+        unit: unit.trim(),
+        categoryLabel: getGoalCategoryLabel(goalType),
+        notes: notes.trim(),
+      });
+      Alert.alert('¡Meta Actualizada!', 'Tu meta se ha guardado correctamente.');
+    } else {
+      onAddGoal({
+        title: goalTitle.trim(),
+        type: goalType,
+        targetDate: targetDate.trim(),
+        startValue: sNum,
+        currentValue: cNum,
+        targetValue: tNum,
+        unit: unit.trim(),
+        categoryLabel: getGoalCategoryLabel(goalType),
+        notes: notes.trim(),
+        completed: false,
+      });
+      Alert.alert('¡Meta Creada!', 'Tu nuevo objetivo ha sido fijado. ¡A darlo todo!');
+    }
+
+    resetForm();
+    setActiveTab('active');
+  };
+
+  const handleDelete = (id: string, title: string) => {
+    Alert.alert(
+      'Eliminar Meta',
+      `¿Estás seguro de que deseas eliminar la meta "${title}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => onDeleteGoal(id) },
+      ]
+    );
+  };
+
+  // Sugerencias según tipo de meta
+  const suggestions = {
+    weight: [
+      'Subir 10 kg para el 14 de Feb (Volumen)',
+      'Bajar 5 kg para definición',
+      'Alcanzar 80 kg con 12% grasa corporal',
+      'Definir a 75 kg para el verano',
+    ],
+    pr: [
+      'Press de Banca a 100 kg',
+      'Sentadilla profunda a 140 kg',
+      'Peso Muerto a 180 kg (PR)',
+      'Press Militar estricto a 70 kg',
+      'Dominadas con +30 kg de lastre',
+    ],
+    muscle: [
+      'Aumentar Bíceps a 40 cm',
+      'Pecho a 110 cm de contorno',
+      'Cuádriceps a 65 cm',
+      'Reducir cintura a 78 cm',
+      'Pantorrilla a 40 cm',
+    ],
+    streak: [
+      'Entrenar 30 días seguidos',
+      'Completar 100 entrenos este año',
+      'Racha de 50 sesiones sin fallar',
+    ],
+    custom: [
+      'Dormir 8 horas diarias durante 2 meses',
+      'Consumir 180g de proteína todos los días',
+      'Hacer 10,000 pasos diarios',
+    ],
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={goalModalStyles.overlay}>
+        <View style={[goalModalStyles.sheet, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+          {/* Header */}
+          <View style={goalModalStyles.headerRow}>
+            <View>
+              <Text style={[goalModalStyles.headerTitle, { color: palette.text, fontFamily: titleFont }]}>
+                Metas & Objetivos
+              </Text>
+              <Text style={[goalModalStyles.headerSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                Define fechas límite y haz seguimiento a tu evolución física
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={goalModalStyles.closeBtn} hitSlop={10}>
+              <Ionicons name="close" size={22} color={palette.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Pestañas de Navegación */}
+          <View style={[goalModalStyles.tabBar, { borderColor: palette.border, backgroundColor: palette.bg }]}>
+            <TouchableOpacity
+              onPress={() => setActiveTab('active')}
+              style={[
+                goalModalStyles.tabItem,
+                activeTab === 'active' && { backgroundColor: palette.cardBg, borderColor: c1, borderWidth: 1 },
+              ]}
+            >
+              <Text
+                style={[
+                  goalModalStyles.tabText,
+                  { color: activeTab === 'active' ? c1 : palette.textSub, fontFamily: subtitleFont },
+                ]}
+              >
+                Activas ({activeGoals.length})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setActiveTab('completed')}
+              style={[
+                goalModalStyles.tabItem,
+                activeTab === 'completed' && { backgroundColor: palette.cardBg, borderColor: c1, borderWidth: 1 },
+              ]}
+            >
+              <Text
+                style={[
+                  goalModalStyles.tabText,
+                  { color: activeTab === 'completed' ? c1 : palette.textSub, fontFamily: subtitleFont },
+                ]}
+              >
+                Cumplidas ({completedGoals.length})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                resetForm();
+                setActiveTab('new');
+              }}
+              style={[
+                goalModalStyles.tabItem,
+                activeTab === 'new' && { backgroundColor: c1 },
+              ]}
+            >
+              <Text
+                style={[
+                  goalModalStyles.tabText,
+                  { color: activeTab === 'new' ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont },
+                ]}
+              >
+                {editingGoalId ? 'Editar' : '+ Nueva'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Contenido según la pestaña */}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+            {activeTab === 'new' ? (
+              /* FORMULARIO CREAR / EDITAR META */
+              <View style={goalModalStyles.formWrap}>
+                <Text style={[goalModalStyles.formSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                  {editingGoalId ? 'Editar Meta' : 'Configurar Nueva Meta'}
+                </Text>
+
+                {/* Tipo de Meta */}
+                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                  Tipo de Objetivo
+                </Text>
+                <View style={goalModalStyles.typeSelectorRow}>
+                  {[
+                    { key: 'weight', label: 'Peso', icon: 'scale-outline', u: 'kg' },
+                    { key: 'pr', label: 'Mejorar PR', icon: 'barbell-outline', u: 'kg' },
+                    { key: 'muscle', label: 'Músculo', icon: 'body-outline', u: 'cm' },
+                    { key: 'streak', label: 'Racha', icon: 'flame-outline', u: 'días' },
+                    { key: 'custom', label: 'Otro', icon: 'trophy-outline', u: '' },
+                  ].map((t) => {
+                    const active = goalType === t.key;
+                    return (
+                      <TouchableOpacity
+                        key={t.key}
+                        onPress={() => {
+                          setGoalType(t.key as any);
+                          setUnit(t.u);
+                        }}
+                        style={[
+                          goalModalStyles.typePill,
+                          active && { backgroundColor: c1, borderColor: c1 },
+                          !active && { backgroundColor: palette.bg, borderColor: palette.border },
+                        ]}
+                      >
+                        <Ionicons
+                          name={t.icon as any}
+                          size={14}
+                          color={active ? '#FFFFFF' : palette.textSub}
+                        />
+                        <Text
+                          style={[
+                            goalModalStyles.typePillText,
+                            { color: active ? '#FFFFFF' : palette.text, fontFamily: subtitleFont },
+                          ]}
+                        >
+                          {t.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Sugerencias Rápidas */}
+                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 12 }]}>
+                  Sugerencias Rápidas
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                  {suggestions[goalType].map((sug, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setGoalTitle(sug)}
+                      style={[goalModalStyles.sugPill, { borderColor: palette.border, backgroundColor: palette.bg }]}
+                    >
+                      <Text style={[goalModalStyles.sugText, { color: palette.text, fontFamily: bodyFont }]}>
+                        {sug}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* Título de la Meta */}
+                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 12 }]}>
+                  Título de la Meta
+                </Text>
+                <TextInput
+                  value={goalTitle}
+                  onChangeText={setGoalTitle}
+                  placeholder="Ej. Subir 10 kg para el 14 de febrero..."
+                  placeholderTextColor={palette.textSub}
+                  style={[
+                    goalModalStyles.textInput,
+                    {
+                      color: palette.text,
+                      backgroundColor: palette.bg,
+                      borderColor: palette.border,
+                      fontFamily: bodyFont,
+                    },
+                  ]}
+                />
+
+                {/* Valores Numéricos (Inicio, Actual, Objetivo) */}
+                <View style={goalModalStyles.valuesGrid}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      Inicio
+                    </Text>
+                    <TextInput
+                      value={startVal}
+                      onChangeText={setStartVal}
+                      placeholder="72"
+                      placeholderTextColor={palette.textSub}
+                      keyboardType="numeric"
+                      style={[
+                        goalModalStyles.numInput,
+                        {
+                          color: palette.text,
+                          backgroundColor: palette.bg,
+                          borderColor: palette.border,
+                          fontFamily: dataFont,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      Actual
+                    </Text>
+                    <TextInput
+                      value={currentVal}
+                      onChangeText={setCurrentVal}
+                      placeholder="76.5"
+                      placeholderTextColor={palette.textSub}
+                      keyboardType="numeric"
+                      style={[
+                        goalModalStyles.numInput,
+                        {
+                          color: palette.text,
+                          backgroundColor: palette.bg,
+                          borderColor: palette.border,
+                          fontFamily: dataFont,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      Meta
+                    </Text>
+                    <TextInput
+                      value={targetVal}
+                      onChangeText={setTargetVal}
+                      placeholder="82"
+                      placeholderTextColor={palette.textSub}
+                      keyboardType="numeric"
+                      style={[
+                        goalModalStyles.numInput,
+                        {
+                          color: palette.text,
+                          backgroundColor: palette.bg,
+                          borderColor: palette.border,
+                          fontFamily: dataFont,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={{ width: 68 }}>
+                    <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      Unidad
+                    </Text>
+                    <TextInput
+                      value={unit}
+                      onChangeText={setUnit}
+                      placeholder="kg"
+                      placeholderTextColor={palette.textSub}
+                      style={[
+                        goalModalStyles.numInput,
+                        {
+                          color: palette.text,
+                          backgroundColor: palette.bg,
+                          borderColor: palette.border,
+                          fontFamily: bodyFont,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+
+                {/* Fecha Objetivo / Límite */}
+                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 12 }]}>
+                  Fecha Objetivo / Límite (YYYY-MM-DD)
+                </Text>
+                <TextInput
+                  value={targetDate}
+                  onChangeText={setTargetDate}
+                  placeholder="2026-02-14"
+                  placeholderTextColor={palette.textSub}
+                  style={[
+                    goalModalStyles.textInput,
+                    {
+                      color: palette.text,
+                      backgroundColor: palette.bg,
+                      borderColor: palette.border,
+                      fontFamily: dataFont,
+                    },
+                  ]}
+                />
+
+                {/* Botones rápidos de fecha */}
+                <View style={goalModalStyles.quickDateRow}>
+                  {[
+                    { label: '14 Feb', date: '2026-02-14' },
+                    { label: '+1 mes', days: 30 },
+                    { label: '+3 meses', days: 90 },
+                    { label: '+6 meses', days: 180 },
+                    { label: 'Fin de año', date: '2026-12-31' },
+                  ].map((btn, i) => {
+                    const handleSelectDate = () => {
+                      if (btn.date) {
+                        setTargetDate(btn.date);
+                      } else if (btn.days) {
+                        const d = new Date();
+                        d.setDate(d.getDate() + btn.days);
+                        setTargetDate(d.toISOString().split('T')[0]);
+                      }
+                    };
+                    const isSelected = targetDate === btn.date;
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={handleSelectDate}
+                        style={[
+                          goalModalStyles.quickDatePill,
+                          isSelected && { backgroundColor: c1, borderColor: c1 },
+                          !isSelected && { backgroundColor: palette.bg, borderColor: palette.border },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            goalModalStyles.quickDateText,
+                            { color: isSelected ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont },
+                          ]}
+                        >
+                          {btn.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Notas / Estrategia */}
+                <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 12 }]}>
+                  Notas o Estrategia (Opcional)
+                </Text>
+                <TextInput
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Ej. Comer 3,200 kcal y entrenar 5 días con sobrecarga progresiva..."
+                  placeholderTextColor={palette.textSub}
+                  multiline
+                  style={[
+                    goalModalStyles.notesInput,
+                    {
+                      color: palette.text,
+                      backgroundColor: palette.bg,
+                      borderColor: palette.border,
+                      fontFamily: bodyFont,
+                    },
+                  ]}
+                />
+
+                {/* Botones de Acción */}
+                <View style={goalModalStyles.formActionsRow}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      resetForm();
+                      setActiveTab('active');
+                    }}
+                    style={[goalModalStyles.formCancelBtn, { borderColor: palette.border }]}
+                  >
+                    <Text style={[goalModalStyles.formCancelText, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                      Cancelar
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSaveGoal}
+                    style={[goalModalStyles.formSaveBtn, { backgroundColor: c1 }]}
+                  >
+                    <Text style={[goalModalStyles.formSaveText, { fontFamily: subtitleFont }]}>
+                      {editingGoalId ? 'Actualizar Meta' : 'Guardar Meta'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              /* LISTA DE METAS (ACTIVAS O CUMPLIDAS) */
+              <View style={{ gap: 12, marginTop: 8 }}>
+                {(activeTab === 'active' ? activeGoals : completedGoals).length > 0 ? (
+                  (activeTab === 'active' ? activeGoals : completedGoals).map((goal) => {
+                    const progress = calculateGoalProgress(goal);
+                    const remaining = getGoalDaysRemaining(goal.targetDate);
+                    return (
+                      <View
+                        key={goal.id}
+                        style={[
+                          goalModalStyles.goalCard,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: goal.completed ? '#10B981' : palette.border,
+                          },
+                        ]}
+                      >
+                        {/* Fila superior: Checkbox + Categoría + Fecha Límite */}
+                        <View style={goalModalStyles.goalCardTop}>
+                          <TouchableOpacity
+                            onPress={() => onToggleCompleted(goal.id)}
+                            style={[
+                              goalModalStyles.checkboxCircle,
+                              goal.completed && { backgroundColor: '#10B981', borderColor: '#10B981' },
+                              !goal.completed && { borderColor: palette.border },
+                            ]}
+                          >
+                            {goal.completed && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                          </TouchableOpacity>
+
+                          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View
+                              style={[
+                                goalModalStyles.categoryBadge,
+                                { backgroundColor: `${c1}18`, borderColor: `${c1}35` },
+                              ]}
+                            >
+                              <Text style={[goalModalStyles.categoryBadgeText, { color: c1 }]}>
+                                {getGoalCategoryIcon(goal.type)} {goal.categoryLabel || getGoalCategoryLabel(goal.type)}
+                              </Text>
+                            </View>
+
+                            <View
+                              style={[
+                                goalModalStyles.deadlinePill,
+                                {
+                                  backgroundColor: remaining.isPast
+                                    ? 'rgba(239, 68, 68, 0.12)'
+                                    : remaining.days <= 14
+                                    ? 'rgba(245, 158, 11, 0.15)'
+                                    : 'rgba(16, 185, 129, 0.12)',
+                                },
+                              ]}
+                            >
+                              <Ionicons
+                                name="time-outline"
+                                size={11}
+                                color={remaining.isPast ? '#EF4444' : remaining.days <= 14 ? '#F59E0B' : '#10B981'}
+                              />
+                              <Text
+                                style={[
+                                  goalModalStyles.deadlineText,
+                                  {
+                                    color: remaining.isPast ? '#EF4444' : remaining.days <= 14 ? '#F59E0B' : '#10B981',
+                                    fontFamily: subtitleFont,
+                                  },
+                                ]}
+                              >
+                                {formatGoalDate(goal.targetDate)} ({remaining.text})
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Acciones Editar y Eliminar */}
+                          <View style={goalModalStyles.actionsMiniRow}>
+                            <TouchableOpacity
+                              onPress={() => handleStartEdit(goal)}
+                              style={goalModalStyles.actionMiniBtn}
+                              hitSlop={8}
+                            >
+                              <Ionicons name="pencil-outline" size={16} color={palette.textSub} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleDelete(goal.id, goal.title)}
+                              style={goalModalStyles.actionMiniBtn}
+                              hitSlop={8}
+                            >
+                              <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        {/* Título de la Meta */}
+                        <Text
+                          style={[
+                            goalModalStyles.goalCardTitle,
+                            {
+                              color: palette.text,
+                              fontFamily: titleFont,
+                              textDecorationLine: goal.completed ? 'line-through' : 'none',
+                              opacity: goal.completed ? 0.75 : 1,
+                            },
+                          ]}
+                        >
+                          {goal.title}
+                        </Text>
+
+                        {/* Notas si existen */}
+                        {goal.notes ? (
+                          <Text
+                            style={[goalModalStyles.goalCardNotes, { color: palette.textSub, fontFamily: bodyFont }]}
+                          >
+                            {goal.notes}
+                          </Text>
+                        ) : null}
+
+                        {/* Barra de Progreso y Valores */}
+                        <View style={goalModalStyles.goalValuesWrap}>
+                          <View style={goalModalStyles.goalNumbersRow}>
+                            <Text style={[goalModalStyles.valMain, { color: palette.text, fontFamily: dataFont }]}>
+                              {goal.currentValue !== undefined ? goal.currentValue : '--'}{' '}
+                              <Text style={{ fontSize: 11, color: palette.textSub }}>{goal.unit || ''}</Text>
+                            </Text>
+                            <Text style={[goalModalStyles.valTarget, { color: palette.textSub, fontFamily: bodyFont }]}>
+                              de {goal.targetValue !== undefined ? goal.targetValue : '--'} {goal.unit || ''}
+                            </Text>
+                          </View>
+
+                          <View style={goalModalStyles.progressTrackContainer}>
+                            <View
+                              style={[
+                                goalModalStyles.trackBg,
+                                { backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.5)' },
+                              ]}
+                            >
+                              <LinearGradient
+                                colors={[c1, c2]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={[goalModalStyles.trackFill, { width: `${progress}%` }]}
+                              />
+                            </View>
+                            <Text style={[goalModalStyles.trackPercent, { color: c1, fontFamily: dataFont }]}>
+                              {progress}%
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Ajuste rápido de progreso (+ / -) */}
+                        {!goal.completed && goal.currentValue !== undefined ? (
+                          <View style={goalModalStyles.quickAdjustRow}>
+                            <Text style={[goalModalStyles.quickAdjustLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
+                              Actualizar avance rápido:
+                            </Text>
+                            <View style={goalModalStyles.quickAdjustBtns}>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  const step = goal.type === 'streak' ? 1 : 0.5;
+                                  const nextVal = Math.max(0, Math.round(((goal.currentValue || 0) - step) * 10) / 10);
+                                  onUpdateGoal(goal.id, { currentValue: nextVal });
+                                }}
+                                style={[goalModalStyles.stepBtn, { borderColor: palette.border }]}
+                              >
+                                <Ionicons name="remove" size={14} color={palette.text} />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  const step = goal.type === 'streak' ? 1 : 0.5;
+                                  const nextVal = Math.round(((goal.currentValue || 0) + step) * 10) / 10;
+                                  onUpdateGoal(goal.id, { currentValue: nextVal });
+                                }}
+                                style={[goalModalStyles.stepBtn, { borderColor: palette.border }]}
+                              >
+                                <Ionicons name="add" size={14} color={palette.text} />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={goalModalStyles.emptyTabBox}>
+                    <Ionicons
+                      name={activeTab === 'active' ? 'flag-outline' : 'trophy-outline'}
+                      size={44}
+                      color={palette.textSub}
+                      style={{ opacity: 0.5, marginBottom: 8 }}
+                    />
+                    <Text style={[goalModalStyles.emptyTabTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      {activeTab === 'active' ? 'Sin metas activas' : 'Sin metas cumplidas aún'}
+                    </Text>
+                    <Text style={[goalModalStyles.emptyTabSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      {activeTab === 'active'
+                        ? 'Establece objetivos con fechas límite para medir tu verdadera evolución.'
+                        : 'Al completar tus metas activas aparecerán aquí con su medalla de victoria.'}
+                    </Text>
+                    {activeTab === 'active' ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          resetForm();
+                          setActiveTab('new');
+                        }}
+                        style={[goalModalStyles.createFirstBtn, { backgroundColor: c1 }]}
+                      >
+                        <Text style={[goalModalStyles.createFirstBtnText, { fontFamily: subtitleFont }]}>
+                          + Crear Primera Meta
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const goalModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    width: '100%',
+    maxHeight: '90%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  headerSub: {
+    fontSize: 11.5,
+    marginTop: 2,
+    maxWidth: 270,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 4,
+    marginBottom: 14,
+    gap: 4,
+  },
+  tabItem: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  formWrap: {
+    paddingTop: 6,
+  },
+  formSectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  typeSelectorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  typePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 11,
+    borderWidth: 1,
+  },
+  typePillText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  sugPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  sugText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  textInput: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  valuesGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  numInput: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    fontSize: 13.5,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  quickDateRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  quickDatePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  quickDateText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  notesInput: {
+    minHeight: 58,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 12.5,
+    textAlignVertical: 'top',
+  },
+  formActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 18,
+  },
+  formCancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  formCancelText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  formSaveBtn: {
+    flex: 2,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  formSaveText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '900',
+  },
+  goalCard: {
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+  },
+  goalCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  checkboxCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  categoryBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  deadlinePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  deadlineText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  actionsMiniRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionMiniBtn: {
+    padding: 2,
+  },
+  goalCardTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  goalCardNotes: {
+    fontSize: 11.5,
+    marginBottom: 10,
+    lineHeight: 16,
+  },
+  goalValuesWrap: {
+    marginTop: 4,
+  },
+  goalNumbersRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginBottom: 6,
+  },
+  valMain: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  valTarget: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  progressTrackContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  trackBg: {
+    flex: 1,
+    height: 7,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  trackFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  trackPercent: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    minWidth: 34,
+    textAlign: 'right',
+  },
+  quickAdjustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(203, 213, 225, 0.25)',
+  },
+  quickAdjustLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  quickAdjustBtns: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  stepBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyTabBox: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  emptyTabTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  emptyTabSub: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 17,
+    marginBottom: 16,
+    maxWidth: 260,
+  },
+  createFirstBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  createFirstBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '900',
   },
 });

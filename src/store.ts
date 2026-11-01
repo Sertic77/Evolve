@@ -125,6 +125,7 @@ export type UserProfile = {
   nickname: string;
   height?: number; // en cm
   gender?: GenderOption;
+  avatarUri?: string;
 };
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
@@ -132,7 +133,78 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   nickname: 'Sertic77',
   height: 178,
   gender: 'Masculino',
+  avatarUri: '',
 };
+
+/* ==========================================================
+   METAS & OBJETIVOS CON FECHAS LÍMITE
+========================================================== */
+export type GoalType = 'weight' | 'pr' | 'muscle' | 'streak' | 'custom';
+
+export type UserGoal = {
+  id: string;
+  title: string;
+  type: GoalType;
+  targetDate: string; // YYYY-MM-DD
+  startValue?: number;
+  currentValue?: number;
+  targetValue?: number;
+  unit?: string;
+  categoryLabel?: string;
+  exerciseName?: string;
+  bodyPart?: BodyPartKey;
+  completed?: boolean;
+  completedAt?: string;
+  notes?: string;
+  createdAt: string;
+};
+
+export const SEED_GOALS: UserGoal[] = [
+  {
+    id: 'goal-seed-1',
+    title: 'Subir 10 kg de peso (Volumen Limpio)',
+    type: 'weight',
+    targetDate: '2026-02-14',
+    startValue: 72,
+    currentValue: 76.5,
+    targetValue: 82,
+    unit: 'kg',
+    categoryLabel: 'Peso Corporal',
+    notes: 'Superávit calórico de 400 kcal y entrenamiento pesado de fuerza',
+    createdAt: '2026-01-01',
+    completed: false,
+  },
+  {
+    id: 'goal-seed-2',
+    title: 'Press de Banca: Alcanzar 100 kg (PR)',
+    type: 'pr',
+    targetDate: '2026-03-31',
+    startValue: 80,
+    currentValue: 90,
+    targetValue: 100,
+    unit: 'kg',
+    exerciseName: 'Press de Banca Plano',
+    categoryLabel: 'Mejorar PR',
+    notes: 'Progresión lineal 5x5 cada semana',
+    createdAt: '2026-01-05',
+    completed: false,
+  },
+  {
+    id: 'goal-seed-3',
+    title: 'Aumentar Bíceps a 40 cm',
+    type: 'muscle',
+    targetDate: '2026-04-30',
+    startValue: 36,
+    currentValue: 38,
+    targetValue: 40,
+    unit: 'cm',
+    bodyPart: 'right_arm',
+    categoryLabel: 'Medidas de Músculo',
+    notes: 'Enfoque en curls inclinados y martillo pesado',
+    createdAt: '2026-01-10',
+    completed: false,
+  },
+];
 
 export type ColorPalette = {
   id: string;
@@ -175,6 +247,7 @@ export type HomeVisibleWidgets = {
   health: boolean;
   body: boolean;
   sugar: boolean;
+  goals: boolean;
 };
 
 export const PRESET_PALETTES: ColorPalette[] = [
@@ -293,6 +366,7 @@ export const DEFAULT_HOME_WIDGETS: HomeVisibleWidgets = {
   health: true,
   body: true,
   sugar: false,
+  goals: true,
 };
 
 export function getFontFamily(fontOption: FontStyleOption): string | undefined {
@@ -713,6 +787,13 @@ type State = {
   // Perfil del Usuario
   userProfile: UserProfile;
   setUserProfile: (profile: Partial<UserProfile>) => void;
+
+  // Metas & Objetivos
+  goals: UserGoal[];
+  addGoal: (goal: Omit<UserGoal, 'id' | 'createdAt'>) => void;
+  updateGoal: (id: string, updates: Partial<UserGoal>) => void;
+  deleteGoal: (id: string) => void;
+  toggleGoalCompleted: (id: string) => void;
 
   // Personalización
   activePaletteId: string;
@@ -1244,6 +1325,42 @@ export const useStore = create<State>()(
       setUserProfile: (profile) =>
         set((s) => ({
           userProfile: { ...(s.userProfile || DEFAULT_USER_PROFILE), ...profile },
+          authUser: s.authUser && profile.avatarUri ? { ...s.authUser, avatarUrl: profile.avatarUri } : s.authUser,
+        })),
+
+      // Metas & Objetivos
+      goals: SEED_GOALS,
+      addGoal: (goal) =>
+        set((s) => ({
+          goals: [
+            {
+              ...goal,
+              id: uid(),
+              createdAt: new Date().toISOString().split('T')[0],
+              completed: false,
+            },
+            ...(s.goals || []),
+          ],
+        })),
+      updateGoal: (id, updates) =>
+        set((s) => ({
+          goals: (s.goals || []).map((g) => (g.id === id ? { ...g, ...updates } : g)),
+        })),
+      deleteGoal: (id) =>
+        set((s) => ({
+          goals: (s.goals || []).filter((g) => g.id !== id),
+        })),
+      toggleGoalCompleted: (id) =>
+        set((s) => ({
+          goals: (s.goals || []).map((g) =>
+            g.id === id
+              ? {
+                  ...g,
+                  completed: !g.completed,
+                  completedAt: !g.completed ? new Date().toISOString().split('T')[0] : undefined,
+                }
+              : g,
+          ),
         })),
 
       // Personalización
@@ -1406,6 +1523,7 @@ export const useStore = create<State>()(
           healthLogs: SEED_HEALTH_LOGS,
           sleepLogs: SEED_SLEEP_LOGS,
           userProfile: DEFAULT_USER_PROFILE,
+          goals: SEED_GOALS,
           activePaletteId: 'default',
           customPalettes: [],
           deletedPaletteIds: [],
@@ -1444,6 +1562,7 @@ export const useStore = create<State>()(
           if (records.healthLogs && typeof records.healthLogs === 'object') updates.healthLogs = records.healthLogs;
           if (records.sleepLogs && typeof records.sleepLogs === 'object') updates.sleepLogs = records.sleepLogs;
           if (records.userProfile && typeof records.userProfile === 'object') updates.userProfile = records.userProfile;
+          if (records.goals && Array.isArray(records.goals)) updates.goals = records.goals;
           if (records.activePaletteId && typeof records.activePaletteId === 'string') updates.activePaletteId = records.activePaletteId;
           if (records.customPalettes && Array.isArray(records.customPalettes)) updates.customPalettes = records.customPalettes;
           if (records.deletedPaletteIds && Array.isArray(records.deletedPaletteIds)) updates.deletedPaletteIds = records.deletedPaletteIds;
@@ -1512,6 +1631,7 @@ export const useStore = create<State>()(
             ? persistedState.bodyFatLogs
             : currentState.bodyFatLogs,
         userProfile: { ...DEFAULT_USER_PROFILE, ...(persistedState?.userProfile || {}) },
+        goals: Array.isArray(persistedState?.goals) ? persistedState.goals : (currentState.goals || SEED_GOALS),
         activePaletteId: persistedState?.activePaletteId || 'default',
         customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
         deletedPaletteIds: Array.isArray(persistedState?.deletedPaletteIds) ? persistedState.deletedPaletteIds : [],
