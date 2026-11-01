@@ -14,6 +14,7 @@ import {
   Animated,
   Easing,
   TouchableOpacity,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -5796,7 +5797,13 @@ function AvatarZoomModal({
   onClose: () => void;
   onUpdateAvatar: (uri: string) => void;
 }) {
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'hombres' | 'mujeres'>('all');
+  const { width: windowWidth } = useWindowDimensions();
+  // Modal inner width: overlay padding 18*2 + card padding 18*2 = 72px
+  const availableGridWidth = Math.max(260, Math.min(windowWidth - 72, 380));
+  // Exactly 3 items per row with 2 gaps of 8px (16px total)
+  const itemCardWidth = Math.floor((availableGridWidth - 16) / 3);
+  // Thumbnail size: itemCardWidth - 8px card padding (4px on each side)
+  const thumbSize = Math.max(60, itemCardWidth - 8);
 
   const handlePickCamera = async () => {
     try {
@@ -5846,9 +5853,6 @@ function AvatarZoomModal({
     }
   };
 
-  const filteredPresets = PRESET_AVATARS.filter((p) =>
-    categoryFilter === 'all' ? true : p.category === categoryFilter
-  );
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -5958,8 +5962,8 @@ function AvatarZoomModal({
                 </Text>
               </View>
 
-              {/* Cuadrícula 3x3 de Avatares */}
-              <View style={avatarStyles.presetGrid}>
+              {/* Cuadrícula 3x3 de Avatares (Con límites estrictos y proporciones exactas) */}
+              <View style={[avatarStyles.presetGrid, { width: availableGridWidth, alignSelf: 'center' }]}>
                 {PRESET_AVATARS.map((preset) => {
                   const presetUri = preset.asset ? Image.resolveAssetSource(preset.asset)?.uri : (preset as any).uri;
                   const isSelected = userProfile?.avatarUri === presetUri;
@@ -5974,17 +5978,21 @@ function AvatarZoomModal({
                       style={[
                         avatarStyles.presetItemCard,
                         {
+                          width: itemCardWidth,
+                          maxWidth: itemCardWidth,
                           backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
                           borderColor: isSelected ? c1 : palette.border,
                           borderWidth: isSelected ? 2.5 : 1,
                         },
                       ]}
                     >
-                      <Image
-                        source={preset.asset || { uri: (preset as any).uri }}
-                        style={avatarStyles.presetThumbnail}
-                        resizeMode="cover"
-                      />
+                      <View style={[avatarStyles.thumbnailWrapper, { width: thumbSize, height: thumbSize }]}>
+                        <Image
+                          source={preset.asset || { uri: (preset as any).uri }}
+                          style={{ width: thumbSize, height: thumbSize, borderRadius: 8 }}
+                          resizeMode="cover"
+                        />
+                      </View>
                       <Text
                         style={[
                           avatarStyles.presetTitle,
@@ -6177,21 +6185,24 @@ const avatarStyles = StyleSheet.create({
   presetGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 8,
+    gap: 8,
+    justifyContent: 'flex-start',
   },
   presetItemCard: {
-    width: '31%',
     borderRadius: 12,
     padding: 4,
     alignItems: 'center',
     position: 'relative',
+    overflow: 'hidden',
+  },
+  thumbnailWrapper: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#0F172A',
+    marginBottom: 4,
   },
   presetThumbnail: {
-    width: '100%',
-    aspectRatio: 1,
     borderRadius: 8,
-    marginBottom: 3,
   },
   presetTitle: {
     fontSize: 9.5,
