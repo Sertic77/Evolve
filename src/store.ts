@@ -22,7 +22,7 @@ export type SavedMeal = MealBlock;
 export type Exercise = {
   id: string;
   name: string;
-  muscleGroup: string; // ej. Pecho, Espalda, Piernas, Hombros, Brazos, Core, CrossFit, Cardio
+  muscleGroup: string; // ej. Pecho, Espalda, Piernas, Hombros, Brazos, Core, Calistenia, CrossFit, Cardio, Deporte
   type?: 'reps' | 'time';
 };
 
@@ -620,6 +620,22 @@ const SEED_EXERCISES: Exercise[] = [
   { id: 'ex-curl', name: 'Curl de Bíceps', muscleGroup: 'Brazos' },
   { id: 'ex-dips', name: 'Fondos en Paralelas', muscleGroup: 'Pecho' },
   { id: 'ex-press', name: 'Prensa de Piernas', muscleGroup: 'Piernas' },
+
+  // Calistenia
+  { id: 'ex-calis-pullup', name: 'Dominadas Estrictas', muscleGroup: 'Calistenia' },
+  { id: 'ex-calis-dips', name: 'Fondos en Paralelas (Dips)', muscleGroup: 'Calistenia' },
+  { id: 'ex-calis-muscleup', name: 'Muscle-Up en Barra', muscleGroup: 'Calistenia' },
+  { id: 'ex-calis-pushup', name: 'Flexiones / Push-ups', muscleGroup: 'Calistenia' },
+  { id: 'ex-calis-frontlever', name: 'Front Lever Estático', muscleGroup: 'Calistenia', type: 'time' },
+  { id: 'ex-calis-handstand', name: 'Parada de Manos / Handstand', muscleGroup: 'Calistenia', type: 'time' },
+
+  // Deportes
+  { id: 'ex-sport-basket', name: 'Baloncesto / Basketball', muscleGroup: 'Deporte', type: 'time' },
+  { id: 'ex-sport-soccer', name: 'Fútbol / Soccer', muscleGroup: 'Deporte', type: 'time' },
+  { id: 'ex-sport-tennis', name: 'Tenis / Pádel', muscleGroup: 'Deporte', type: 'time' },
+  { id: 'ex-sport-swim', name: 'Natación', muscleGroup: 'Deporte', type: 'time' },
+  { id: 'ex-sport-box', name: 'Boxeo / Artes Marciales', muscleGroup: 'Deporte', type: 'time' },
+  { id: 'ex-sport-cycling', name: 'Ciclismo de Ruta', muscleGroup: 'Deporte', type: 'time' },
 ];
 
 const SEED_SUPPLEMENTS: Supplement[] = [
@@ -1471,6 +1487,14 @@ export const useStore = create<State>()(
         authToken: persistedState?.authToken || null,
         authUser: persistedState?.authUser || null,
         isAuthenticated: Boolean(persistedState?.authToken && persistedState?.authUser),
+        exercises:
+          persistedState && Array.isArray(persistedState.exercises) && persistedState.exercises.length > 0
+            ? (() => {
+                const existingIds = new Set(persistedState.exercises.map((e: any) => e.id));
+                const missingSeeds = SEED_EXERCISES.filter((s) => !existingIds.has(s.id));
+                return [...persistedState.exercises, ...missingSeeds];
+              })()
+            : SEED_EXERCISES,
         healthMetrics:
           persistedState && Array.isArray(persistedState.healthMetrics) && persistedState.healthMetrics.length > 0
             ? persistedState.healthMetrics

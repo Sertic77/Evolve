@@ -654,35 +654,37 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               <Text style={styles.heroAvatarText}>{initials}</Text>
             </LinearGradient>
 
-            {/* Racha horizontal de entrenamientos justo debajo de la foto de perfil */}
+            {/* Racha de entrenamientos justo debajo de la foto de perfil (icono y número arriba, texto debajo) */}
             <View
               style={[
-                styles.heroStreakHorizontal,
+                styles.heroStreakStacked,
                 {
                   borderColor: workoutStreak.currentStreak > 0 ? c2 : palette.isDark ? '#475569' : '#CBD5E1',
                   backgroundColor: workoutStreak.currentStreak > 0 ? `${c2}18` : 'transparent',
                 },
               ]}
             >
-              <Ionicons
-                name="flame"
-                size={13}
-                color={workoutStreak.currentStreak > 0 ? c2 : palette.textSub}
-              />
+              <View style={styles.heroStreakTopRow}>
+                <Ionicons
+                  name="flame"
+                  size={12}
+                  color={workoutStreak.currentStreak > 0 ? c2 : palette.textSub}
+                />
+                <Text
+                  style={[
+                    styles.heroStreakNumStacked,
+                    {
+                      color: workoutStreak.currentStreak > 0 ? c2 : palette.textSub,
+                      fontFamily: dataFont,
+                    },
+                  ]}
+                >
+                  {Math.round(workoutStreak.currentStreak * growthProgress)}
+                </Text>
+              </View>
               <Text
                 style={[
-                  styles.heroStreakNumHorizontal,
-                  {
-                    color: workoutStreak.currentStreak > 0 ? c2 : palette.textSub,
-                    fontFamily: dataFont,
-                  },
-                ]}
-              >
-                {Math.round(workoutStreak.currentStreak * growthProgress)}
-              </Text>
-              <Text
-                style={[
-                  styles.heroStreakLabelHorizontal,
+                  styles.heroStreakLabelStacked,
                   {
                     color: workoutStreak.currentStreak > 0 ? c2 : palette.textSub,
                     fontFamily: subtitleFont,
@@ -3652,24 +3654,32 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
   },
-  heroStreakHorizontal: {
-    flexDirection: 'row',
+  heroStreakStacked: {
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 10,
     borderWidth: 1,
-    marginTop: 6,
+    marginTop: 5,
+    minWidth: 54,
   },
-  heroStreakNumHorizontal: {
-    fontSize: 11,
+  heroStreakTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  heroStreakNumStacked: {
+    fontSize: 12,
     fontWeight: '900',
-    lineHeight: 13,
+    lineHeight: 14,
   },
-  heroStreakLabelHorizontal: {
-    fontSize: 9,
+  heroStreakLabelStacked: {
+    fontSize: 8.5,
     fontWeight: '800',
+    marginTop: 1,
+    textTransform: 'uppercase',
+    letterSpacing: 0.2,
   },
 
   // Tarjetas genéricas del Home

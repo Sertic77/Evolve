@@ -31,7 +31,7 @@ import {
 } from './store';
 import { DateSelector, PrimaryButton, s } from './components';
 
-const MUSCLE_GROUPS = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Core', 'CrossFit', 'Cardio'];
+const MUSCLE_GROUPS = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Core', 'Calistenia', 'CrossFit', 'Cardio', 'Deporte'];
 
 /* ==========================================================
    TEMAS DINÁMICOS POR GRUPO MUSCULAR & TIPO DE MÉTRICA
@@ -46,6 +46,24 @@ export type StatTheme = {
 
 export function getMuscleTheme(muscleGroup: string): StatTheme {
   const g = (muscleGroup || '').toLowerCase();
+  if (g.includes('deporte') || g.includes('sport') || g.includes('baloncesto') || g.includes('futbol') || g.includes('basket')) {
+    return {
+      primary: '#EA580C',
+      gradient: ['#F97316', '#C2410C'],
+      bgGradient: ['rgba(234, 88, 12, 0.22)', 'rgba(194, 65, 12, 0.05)'],
+      icon: 'basketball-outline',
+      badgeLabel: 'DEPORTE & CANCHA',
+    };
+  }
+  if (g.includes('calistenia') || g.includes('bodyweight')) {
+    return {
+      primary: '#8B5CF6',
+      gradient: ['#A78BFA', '#7C3AED'],
+      bgGradient: ['rgba(139, 92, 246, 0.22)', 'rgba(124, 58, 237, 0.05)'],
+      icon: 'body-outline',
+      badgeLabel: 'CALISTENIA & CONTROL',
+    };
+  }
   if (g.includes('crossfit') || g.includes('wod')) {
     return {
       primary: '#F97316', // Flame Orange
@@ -191,6 +209,10 @@ export function estimateSetKcal(exercise: Exercise | undefined, s: WorkoutSet): 
   if (s.timeSeconds && s.timeSeconds > 0) {
     // Estimación cardio/tiempo: ~9-12 kcal por minuto
     const minutes = s.timeSeconds / 60;
+    const g = (exercise?.muscleGroup || '').toLowerCase();
+    if (g.includes('deporte') || g.includes('baloncesto') || g.includes('futbol') || g.includes('basket')) {
+      return Math.round(minutes * 9.5);
+    }
     return Math.round(minutes * 10.5);
   }
   const reps = Math.max(1, s.reps || 0);
@@ -201,6 +223,7 @@ export function estimateSetKcal(exercise: Exercise | undefined, s: WorkoutSet): 
   if (group.includes('pierna')) factor = 1.45;
   else if (group.includes('espalda')) factor = 1.35;
   else if (group.includes('pecho')) factor = 1.25;
+  else if (group.includes('calistenia')) factor = 1.25;
   else if (group.includes('hombro')) factor = 1.15;
   else if (group.includes('core')) factor = 1.1;
   else if (group.includes('crossfit')) factor = 1.5;
@@ -261,7 +284,7 @@ export default function TrainScreen() {
 
   // Manejo de agregar ejercicio al día
   const handleSelectExercise = (ex: Exercise) => {
-    const isTime = ex.type === 'time' || ex.muscleGroup === 'CrossFit' || ex.muscleGroup === 'Cardio';
+    const isTime = ex.type === 'time' || ex.muscleGroup === 'CrossFit' || ex.muscleGroup === 'Cardio' || ex.muscleGroup === 'Deporte';
     const newEx: WorkoutExercise = {
       id: uid(),
       exerciseId: ex.id,
@@ -269,15 +292,15 @@ export default function TrainScreen() {
         ? [
             {
               id: uid(),
-              timeSeconds: 900,
+              timeSeconds: ex.muscleGroup === 'Deporte' ? 3600 : 900,
               reps: ex.muscleGroup === 'CrossFit' ? 50 : undefined,
               distanceMeters: ex.muscleGroup === 'Cardio' ? 2000 : undefined,
             },
           ]
         : [
-            { id: uid(), weight: 20, reps: 10 },
-            { id: uid(), weight: 20, reps: 10 },
-            { id: uid(), weight: 20, reps: 10 },
+            { id: uid(), weight: ex.muscleGroup === 'Calistenia' ? 0 : 20, reps: 10 },
+            { id: uid(), weight: ex.muscleGroup === 'Calistenia' ? 0 : 20, reps: 10 },
+            { id: uid(), weight: ex.muscleGroup === 'Calistenia' ? 0 : 20, reps: 10 },
           ],
     };
     setDayWorkout(key, [...dayExercises, newEx]);
@@ -1395,6 +1418,7 @@ function WorkoutDayLog({
   const { setDayWorkout, activePaletteId, customPalettes, deletedPaletteIds } = useStore();
   const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
   const [exerciseModes, setExerciseModes] = useState<Record<string, 'reps' | 'time'>>({});
+  const [timeHoursMap, setTimeHoursMap] = useState<Record<string, boolean>>({});
 
   const updateExercises = (newList: WorkoutExercise[]) => {
     setDayWorkout(dayKey, newList);
@@ -1501,7 +1525,7 @@ function WorkoutDayLog({
                           updateSets(
                             we.sets.map((s) => ({
                               ...s,
-                              timeSeconds: 900,
+                              timeSeconds: ex?.muscleGroup === 'Deporte' ? 3600 : 900,
                             })),
                           );
                         }
@@ -1552,6 +1576,7 @@ function WorkoutDayLog({
 
               {/* Filas de Series */}
               {we.sets.map((set, setIdx) => {
+                const isHours = timeHoursMap[set.id] ?? ((set.timeSeconds ?? 0) >= 3600);
                 const isKm =
                   (set.distanceMeters ?? 0) > 0 ||
                   ((set.reps ?? 0) === 0 && !exGroup.toLowerCase().includes('crossfit'));
@@ -1588,7 +1613,9 @@ function WorkoutDayLog({
                             value={
                               set.timeSeconds !== undefined && set.timeSeconds !== null
                                 ? String(
-                                    set.timeSeconds >= 60
+                                    isHours
+                                      ? Math.round(((set.timeSeconds || 0) / 3600) * 10) / 10
+                                      : set.timeSeconds >= 60
                                       ? Math.round((set.timeSeconds / 60) * 10) / 10
                                       : set.timeSeconds,
                                   )
@@ -1602,12 +1629,23 @@ function WorkoutDayLog({
                               const val = parseFloat(t.replace(',', '.')) || 0;
                               updateSets(
                                 we.sets.map((s) =>
-                                  s.id === set.id ? { ...s, timeSeconds: Math.round(val * 60) } : s,
+                                  s.id === set.id ? { ...s, timeSeconds: Math.round(isHours ? val * 3600 : val * 60) } : s,
                                 ),
                               );
                             }}
                           />
-                          <Text style={[styles.setUnitLabel, palette.isDark && { color: '#FFFFFF' }]}>min</Text>
+                          <Pressable
+                            onPress={() => {
+                              setTimeHoursMap((prev) => ({ ...prev, [set.id]: !isHours }));
+                            }}
+                            hitSlop={6}
+                            style={styles.toggleUnitBadge}
+                          >
+                            <Text style={[styles.toggleUnitText, palette.isDark && { color: '#FFFFFF' }]}>
+                              {isHours ? 'h' : 'min'}
+                            </Text>
+                            <Ionicons name="swap-vertical" size={10} color={palette.isDark ? '#FFFFFF' : '#94A3B8'} />
+                          </Pressable>
                         </View>
 
                         {/* Input de Distancia o Repeticiones */}
@@ -2219,7 +2257,7 @@ function ExerciseFormModal({
   const [muscleGroup, setMuscleGroup] = useState(exercise.muscleGroup || 'Pecho');
   const [exerciseType, setExerciseType] = useState<'reps' | 'time'>(
     exercise.type ||
-      (exercise.muscleGroup === 'CrossFit' || exercise.muscleGroup === 'Cardio' ? 'time' : 'reps'),
+      (exercise.muscleGroup === 'CrossFit' || exercise.muscleGroup === 'Cardio' || exercise.muscleGroup === 'Deporte' ? 'time' : 'reps'),
   );
 
   useEffect(() => {
@@ -2227,7 +2265,7 @@ function ExerciseFormModal({
     setMuscleGroup(exercise.muscleGroup || 'Pecho');
     setExerciseType(
       exercise.type ||
-        (exercise.muscleGroup === 'CrossFit' || exercise.muscleGroup === 'Cardio' ? 'time' : 'reps'),
+        (exercise.muscleGroup === 'CrossFit' || exercise.muscleGroup === 'Cardio' || exercise.muscleGroup === 'Deporte' ? 'time' : 'reps'),
     );
   }, [exercise]);
 
@@ -2340,7 +2378,7 @@ function ExerciseFormModal({
                         exerciseType === 'time' && styles.exerciseTypeTextActive,
                       ]}
                     >
-                      Tiempo (CrossFit / Cardio)
+                      Tiempo (Deporte / Cardio / CrossFit)
                     </Text>
                   </Pressable>
                 </View>
@@ -2359,7 +2397,7 @@ function ExerciseFormModal({
                         key={g}
                         onPress={() => {
                           setMuscleGroup(g);
-                          if (g === 'CrossFit' || g === 'Cardio') {
+                          if (g === 'CrossFit' || g === 'Cardio' || g === 'Deporte') {
                             setExerciseType('time');
                           }
                         }}
