@@ -153,7 +153,8 @@ export function calculateUserXpAndLevel(
   bodyFatLogs: Record<string, number> | undefined,
   photoLogs: Record<string, any[]> | undefined,
   healthLogs: Record<string, any> | undefined,
-  ingredients?: any[]
+  ingredients?: any[],
+  goals?: UserGoal[]
 ): XpBreakdown {
   const ingMap = new Map<string, any>();
   if (Array.isArray(ingredients)) {
@@ -312,7 +313,35 @@ export function calculateUserXpAndLevel(
     }
   });
 
-  const totalXp = foodXp + workoutXp + sleepXp + supplementsXp + measurementsXp + healthXp;
+  // 7. Metas y Objetivos Cumplidos (XP de alto valor según la dificultad de la meta)
+  let goalsXp = 0;
+  let completedGoalsCount = 0;
+  if (Array.isArray(goals)) {
+    goals.forEach((g) => {
+      if (g.completed) {
+        completedGoalsCount++;
+        switch (g.type) {
+          case 'pr':
+            goalsXp += 250; // Romper récord personal de fuerza
+            break;
+          case 'body_fat':
+            goalsXp += 220; // Reducción de % grasa corporal
+            break;
+          case 'muscle':
+            goalsXp += 200; // Ganancia de tamaño muscular / medidas
+            break;
+          case 'weight':
+            goalsXp += 180; // Meta de peso corporal
+            break;
+          default:
+            goalsXp += 150; // Objetivo personalizado
+            break;
+        }
+      }
+    });
+  }
+
+  const totalXp = foodXp + workoutXp + sleepXp + supplementsXp + measurementsXp + healthXp + goalsXp;
 
   // Curva de Niveles Progresiva: Nivel L requiere 140 + (L - 1) * 45 XP
   let level = 1;
@@ -577,7 +606,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
       bodyFatLogs,
       photoLogs,
       healthLogs,
-      ingredients
+      ingredients,
+      goals
     );
   }, [
     logs,
@@ -696,7 +726,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               </LinearGradient>
             )}
 
-            {/* Racha de entrenamientos como badge sobrepuesto en la esquina inferior izquierda */}
+            {/* Racha de entrenamientos como badge centrado al fondo del avatar */}
             <View
               style={[
                 styles.heroStreakBadgeOverlay,
@@ -941,7 +971,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         ========================================================== */}
         <View style={styles.goalsAndFriendsContainer}>
           {/* Fila superior: Cabecera Metas (izquierda) y Tarjeta Amigos (derecha) */}
-          <View style={styles.topDualRow}>
+          <View style={[styles.topDualRow, { marginBottom: activeGoals.length > 0 ? 0 : 14 }]}>
             {/* Cabecera / Bloque Superior de Metas en la izquierda */}
             <TouchableOpacity
               activeOpacity={0.92}
@@ -1642,12 +1672,10 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         onToggleCompleted={toggleGoalCompleted}
         weightLogs={weightLogs}
         currentWeight={currentWeight}
+        bodyFatLogs={bodyFatLogs}
         measurementLogs={measurementLogs}
         workoutLogs={workoutLogs}
         exercises={exercises}
-        totalKcal={totalKcal}
-        targetKcal={targetKcal}
-        currentStreak={workoutStreak.currentStreak}
       />
     </View>
   );
@@ -3851,8 +3879,8 @@ const styles = StyleSheet.create({
   },
   heroStreakBadgeOverlay: {
     position: 'absolute',
-    bottom: -4,
-    left: -4,
+    bottom: -8,
+    alignSelf: 'center',
     zIndex: 15,
     flexDirection: 'row',
     alignItems: 'center',
@@ -4161,7 +4189,8 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 18,
     borderBottomRightRadius: 18,
     borderWidth: 1,
-    marginTop: -1,
+    borderTopWidth: 0,
+    marginTop: 0,
     padding: 13,
     shadowColor: '#000',
     shadowOpacity: 0.1,
@@ -5474,116 +5503,89 @@ export const SEED_FRIENDS: FriendUser[] = [
    CON POSES Y ACCESORIOS DE ENTRENAMIENTO
 ========================================================== */
 export const PRESET_AVATARS = [
-  // --- HOMBRES ANIME GYM ---
+  // --- HOMBRES PIXEL ART & ANIME GYM ---
   {
-    id: 'anime_m_ren',
+    id: 'pixel_m_bench',
+    title: 'Bench Press Rain (Pixel Art)',
+    category: 'hombres',
+    accessory: 'Audífonos & Barra Olímpica',
+    pose: 'Press de Banca bajo la Lluvia',
+    emoji: '🏋️‍♂️',
+    asset: require('../assets/avatars/pixel_bench_press.png'),
+  },
+  {
+    id: 'pixel_m_deadlift',
     title: 'Ren (Cinturón & Straps)',
     category: 'hombres',
-    accessory: 'Cinturón de Fuerza & Correas de Agarre',
-    pose: 'Preparación de Peso Muerto',
-    emoji: '🏋️‍♂️',
-    uri: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
+    accessory: 'Cinturón de Fuerza & Correas',
+    pose: 'Peso Muerto Convencional 16-Bit',
+    emoji: '🔥',
+    asset: require('../assets/avatars/pixel_boy_deadlift.jpg'),
   },
   {
-    id: 'anime_m_kenji',
-    title: 'Kenji (Audífonos & Shaker)',
+    id: 'pixel_m_dumbbell',
+    title: 'Kenji (Audífonos & Curl)',
     category: 'hombres',
-    accessory: 'Audífonos Deportivos & Shaker de Proteína',
-    pose: 'Descanso en Banca de Press',
-    emoji: '🎧',
-    uri: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'anime_m_daiki',
-    title: 'Daiki (Mancuerna & Flex)',
-    category: 'hombres',
-    accessory: 'Mancuerna Pesada & Straps',
+    accessory: 'Audífonos & Mancuerna Pesada',
     pose: 'Curl de Bíceps Potente',
     emoji: '💪',
-    uri: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=600&auto=format&fit=crop&q=80',
+    asset: require('../assets/avatars/pixel_boy_dumbbell.jpg'),
   },
   {
-    id: 'anime_m_ryu',
-    title: 'Ryu (Magnesio & Barra)',
+    id: 'pixel_m_pullups',
+    title: 'Hiro (Guantes & Dominadas)',
     category: 'hombres',
-    accessory: 'Magnesio en Manos & Cinturón de Cuero',
-    pose: 'Sentadilla Pesada Olímpica',
-    emoji: '⚡',
-    uri: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'anime_m_hiroshi',
-    title: 'Hiroshi (Muñequeras & Dominadas)',
-    category: 'hombres',
-    accessory: 'Muñequeras de Compresión',
-    pose: 'Agarre de Barra & Espalda en V',
+    accessory: 'Guantes de Agarre & Barra',
+    pose: 'Dominadas Espalda en V',
     emoji: '🥋',
-    uri: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=600&auto=format&fit=crop&q=80',
+    asset: require('../assets/avatars/pixel_boy_pullups.jpg'),
   },
   {
-    id: 'anime_m_kaito',
+    id: 'pixel_m_mostmuscular',
     title: 'Kaito (Most Muscular)',
     category: 'hombres',
-    accessory: 'Camiseta de Tirantes & Correas',
-    pose: 'Pose de Fuerza Most Muscular',
-    emoji: '🔥',
-    uri: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80',
+    accessory: 'Cinturón & Luces Neón',
+    pose: 'Pose Most Muscular Clásica',
+    emoji: '⚡',
+    asset: require('../assets/avatars/pixel_boy_mostmuscular.jpg'),
   },
 
-  // --- MUJERES ANIME GYM ---
+  // --- MUJERES PIXEL ART & ANIME GYM ---
   {
-    id: 'anime_w_yuki',
-    title: 'Yuki (Audífonos & Shaker)',
+    id: 'pixel_w_squat',
+    title: 'Aoi (Sentadillas Neón)',
     category: 'mujeres',
-    accessory: 'Audífonos Inalámbricos & Shaker Rosa',
-    pose: 'Pose Fit Atlética',
-    emoji: '🌸',
-    uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'anime_w_aoi',
-    title: 'Aoi (Cinturón & Sentadillas)',
-    category: 'mujeres',
-    accessory: 'Cinturón de Cuero Powerlifting',
-    pose: 'Sentadilla Profunda & Foco',
+    accessory: 'Barra Olímpica & Neón Cyber',
+    pose: 'Sentadilla Profunda 16-Bit',
     emoji: '⚡',
-    uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
+    asset: require('../assets/avatars/pixel_girl_squat.jpg'),
   },
   {
-    id: 'anime_w_sakura',
-    title: 'Sakura (Mancuernas & Straps)',
+    id: 'pixel_w_shaker',
+    title: 'Yuki (Shaker & Proteína)',
     category: 'mujeres',
-    accessory: 'Correas de Agarre & Mancuernas Hex',
-    pose: 'Peso Muerto Rumano',
+    accessory: 'Shaker de Proteína & Sonrisa',
+    pose: 'Descanso Post-Entreno Fit',
+    emoji: '🌸',
+    asset: require('../assets/avatars/pixel_girl_shaker.jpg'),
+  },
+  {
+    id: 'pixel_w_deadlift',
+    title: 'Rin (Straps & Peso Muerto)',
+    category: 'mujeres',
+    accessory: 'Cinturón de Cuero & Straps',
+    pose: 'Peso Muerto Pesado',
     emoji: '💖',
-    uri: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&auto=format&fit=crop&q=80',
+    asset: require('../assets/avatars/pixel_girl_deadlift.jpg'),
   },
   {
-    id: 'anime_w_rin',
-    title: 'Rin (Doble Bíceps & Guantes)',
+    id: 'pixel_w_dumbbells',
+    title: 'Mei (Elevaciones Laterales)',
     category: 'mujeres',
-    accessory: 'Guantes de Gym & Muñequeras',
-    pose: 'Doble Bíceps Frontal',
+    accessory: 'Mancuernas & Cinta Deportiva',
+    pose: 'Hombros & Vuelos Laterales',
     emoji: '✨',
-    uri: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=600&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'anime_w_mei',
-    title: 'Mei (Magnesio & Crop Top)',
-    category: 'mujeres',
-    accessory: 'Nube de Magnesio & Crop Top Deportivo',
-    pose: 'Concentración Máxima Pre-PR',
-    emoji: '💥',
-    uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'anime_w_hana',
-    title: 'Hana (Bandas & Movilidad)',
-    category: 'mujeres',
-    accessory: 'Bandas de Resistencia & Botella de Agua',
-    pose: 'Calentamiento & Activación Muscular',
-    emoji: '🎀',
-    uri: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&auto=format&fit=crop&q=80',
+    asset: require('../assets/avatars/pixel_girl_dumbbells.jpg'),
   },
 ];
 
@@ -5632,9 +5634,9 @@ export function calculateGoalProgress(goal: UserGoal): number {
 export function getGoalCategoryIcon(type: GoalType): string {
   switch (type) {
     case 'weight': return '⚖️';
+    case 'body_fat': return '📉';
     case 'pr': return '🏋️';
-    case 'muscle': return '💪';
-    case 'streak': return '🔥';
+    case 'muscle': return '📏';
     default: return '🎯';
   }
 }
@@ -5642,9 +5644,9 @@ export function getGoalCategoryIcon(type: GoalType): string {
 export function getGoalCategoryLabel(type: GoalType): string {
   switch (type) {
     case 'weight': return 'Peso Corporal';
-    case 'pr': return 'Mejorar PR';
-    case 'muscle': return 'Medidas de Músculo';
-    case 'streak': return 'Racha / Hábito';
+    case 'body_fat': return '% Grasa Corporal';
+    case 'pr': return 'Récord / PR';
+    case 'muscle': return 'Tamaño Muscular';
     default: return 'Objetivo Personal';
   }
 }
@@ -5880,12 +5882,16 @@ function AvatarZoomModal({
               {/* Cuadrícula de Avatares Anime */}
               <View style={avatarStyles.presetGrid}>
                 {filteredPresets.map((preset) => {
-                  const isSelected = userProfile?.avatarUri === preset.uri;
+                  const presetUri = preset.asset ? Image.resolveAssetSource(preset.asset)?.uri : (preset as any).uri;
+                  const isSelected = userProfile?.avatarUri === presetUri;
                   return (
                     <TouchableOpacity
                       key={preset.id}
                       activeOpacity={0.8}
-                      onPress={() => onUpdateAvatar(preset.uri)}
+                      onPress={() => {
+                        const targetUri = preset.asset ? Image.resolveAssetSource(preset.asset)?.uri : (preset as any).uri;
+                        if (targetUri) onUpdateAvatar(targetUri);
+                      }}
                       style={[
                         avatarStyles.presetItemCard,
                         {
@@ -5896,7 +5902,7 @@ function AvatarZoomModal({
                       ]}
                     >
                       <Image
-                        source={{ uri: preset.uri }}
+                        source={preset.asset || { uri: (preset as any).uri }}
                         style={avatarStyles.presetThumbnail}
                         resizeMode="cover"
                       />
@@ -6146,6 +6152,87 @@ const avatarStyles = StyleSheet.create({
 /* ==========================================================
    MODAL: CONFIGURACIÓN & GESTIÓN DE METAS CON FECHAS LÍMITE
 ========================================================== */
+// ==========================================================
+// METAS PREESTABLECIDAS SUGERIDAS (ACCESO RÁPIDO)
+// ==========================================================
+const QUICK_PRESET_GOALS = [
+  {
+    icon: '🏋️',
+    type: 'pr' as GoalType,
+    variableKey: 'Press de Banca Plano',
+    category: 'Récord / PR',
+    title: 'Club de los 100 kg en Press Banca',
+    targetVal: '100',
+    unit: 'kg',
+    timeline: '3 meses',
+    targetDateOffsetDays: 90,
+  },
+  {
+    icon: '📉',
+    type: 'body_fat' as GoalType,
+    category: '% Grasa',
+    title: 'Definición a 12% de Grasa Corporal',
+    targetVal: '12',
+    unit: '%',
+    timeline: '2 meses',
+    targetDateOffsetDays: 60,
+  },
+  {
+    icon: '📏',
+    type: 'muscle' as GoalType,
+    variableKey: 'right_arm',
+    category: 'Tamaño Muscular',
+    title: 'Bíceps a 40 cm de Contorno',
+    targetVal: '40',
+    unit: 'cm',
+    timeline: '3 meses',
+    targetDateOffsetDays: 90,
+  },
+  {
+    icon: '⚖️',
+    type: 'weight' as GoalType,
+    category: 'Peso Corporal',
+    title: 'Volumen Limpio: Alcanzar 80 kg',
+    targetVal: '80',
+    unit: 'kg',
+    timeline: '3 meses',
+    targetDateOffsetDays: 90,
+  },
+  {
+    icon: '🏋️',
+    type: 'pr' as GoalType,
+    variableKey: 'Sentadilla con Barra',
+    category: 'Récord / PR',
+    title: 'Sentadilla Profunda a 140 kg',
+    targetVal: '140',
+    unit: 'kg',
+    timeline: '3 meses',
+    targetDateOffsetDays: 90,
+  },
+  {
+    icon: '📏',
+    type: 'muscle' as GoalType,
+    variableKey: 'waist',
+    category: 'Tamaño (Cintura)',
+    title: 'Reducir Cintura a 78 cm',
+    targetVal: '78',
+    unit: 'cm',
+    timeline: '2 meses',
+    targetDateOffsetDays: 60,
+  },
+  {
+    icon: '🏋️',
+    type: 'pr' as GoalType,
+    variableKey: 'Peso Muerto',
+    category: 'Récord / PR',
+    title: 'Peso Muerto a 160 kg',
+    targetVal: '160',
+    unit: 'kg',
+    timeline: '4 meses',
+    targetDateOffsetDays: 120,
+  },
+];
+
 function GoalsModal({
   visible,
   goals,
@@ -6163,12 +6250,10 @@ function GoalsModal({
   onToggleCompleted,
   weightLogs = {},
   currentWeight = null,
+  bodyFatLogs = {},
   measurementLogs = {},
   workoutLogs = {},
   exercises = [],
-  totalKcal = 0,
-  targetKcal = 2000,
-  currentStreak = 0,
 }: {
   visible: boolean;
   goals: UserGoal[];
@@ -6186,12 +6271,10 @@ function GoalsModal({
   onToggleCompleted: (id: string) => void;
   weightLogs?: Record<string, number>;
   currentWeight?: number | null;
+  bodyFatLogs?: Record<string, number>;
   measurementLogs?: Record<string, DayMeasurements>;
   workoutLogs?: Record<string, WorkoutExercise[]>;
   exercises?: Exercise[];
-  totalKcal?: number;
-  targetKcal?: number;
-  currentStreak?: number;
 }) {
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'new'>('active');
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
@@ -6211,7 +6294,7 @@ function GoalsModal({
   const activeGoals = goals.filter((g) => !g.completed);
   const completedGoals = goals.filter((g) => g.completed);
 
-  // Lista de medidas musculares disponibles
+  // Lista de medidas musculares disponibles (Tamaño)
   const MUSCLE_PARTS: { key: BodyPartKey; label: string }[] = [
     { key: 'right_arm', label: 'Bíceps / Brazo' },
     { key: 'chest', label: 'Pecho / Torso' },
@@ -6249,9 +6332,9 @@ function GoalsModal({
   // ==========================================================
   const handleSelectVariable = (type: GoalType, variableKey?: string) => {
     setGoalType(type);
-    setSelectedVariableKey(variableKey || type);
 
     if (type === 'weight') {
+      setSelectedVariableKey('weight');
       const dates = Object.keys(weightLogs || {}).sort();
       const earliest = dates.length > 0 ? weightLogs[dates[0]] : currentWeight || 70;
       const latest = currentWeight || (dates.length > 0 ? weightLogs[dates[dates.length - 1]] : 70);
@@ -6265,29 +6348,26 @@ function GoalsModal({
       setUnit('kg');
       setGoalTitle(`Alcanzar ${targetSuggestion} kg de peso corporal`);
       setAutoFilledNotice(`✓ Historial cargado: Peso inicial: ${s} kg | Peso actual: ${c} kg`);
-    } else if (type === 'calories') {
-      const start = targetKcal || 2200;
-      const cur = totalKcal || 0;
-      const targetSuggestion = targetKcal || 2500;
+    } else if (type === 'body_fat') {
+      setSelectedVariableKey('body_fat');
+      const dates = Object.keys(bodyFatLogs || {}).sort();
+      const earliest = dates.length > 0 ? bodyFatLogs[dates[0]] : 18;
+      const latest = dates.length > 0 ? bodyFatLogs[dates[dates.length - 1]] : 15;
+      const s = Number(earliest).toFixed(1).replace('.0', '');
+      const c = Number(latest).toFixed(1).replace('.0', '');
+      const targetSuggestion = Math.max(Math.round(Number(c) - 2), 10);
 
-      setStartVal(String(start));
-      setCurrentVal(String(cur));
+      setStartVal(s);
+      setCurrentVal(c);
       setTargetVal(String(targetSuggestion));
-      setUnit('kcal');
-      setGoalTitle(`Meta diaria de ${targetSuggestion} kcal`);
-      setAutoFilledNotice(`✓ Historial cargado: Consumo de hoy: ${cur} kcal | Objetivo base: ${start} kcal`);
-    } else if (type === 'streak') {
-      const cur = currentStreak || 0;
-      const targetSuggestion = Math.max(cur + 15, 30);
-
-      setStartVal('1');
-      setCurrentVal(String(cur));
-      setTargetVal(String(targetSuggestion));
-      setUnit('días');
-      setGoalTitle(`Alcanzar racha de ${targetSuggestion} días de entreno`);
-      setAutoFilledNotice(`✓ Historial cargado: Racha actual: ${cur} días consecutivos`);
+      setUnit('%');
+      setGoalTitle(`Reducir a ${targetSuggestion}% de grasa corporal`);
+      setAutoFilledNotice(`✓ Historial cargado: Grasa inicial: ${s}% | Grasa actual: ${c}%`);
     } else if (type === 'pr') {
-      const exName = variableKey || 'Press de Banca Plano';
+      // Si no viene variableKey, toma por defecto el primer ejercicio de la lista
+      const exName = variableKey || availableExercises[0]?.name || 'Press de Banca Plano';
+      setSelectedVariableKey(exName);
+
       // Escanear workoutLogs para este ejercicio
       let firstWeight: number | null = null;
       let maxWeight = 0;
@@ -6298,7 +6378,7 @@ function GoalsModal({
         const dayExercises = workoutLogs[date] || [];
         dayExercises.forEach((wEx: any) => {
           const match =
-            wEx.exerciseId === variableKey ||
+            wEx.exerciseId === exName ||
             (wEx.name && wEx.name.toLowerCase() === exName.toLowerCase()) ||
             exercises.find((e) => e.id === wEx.exerciseId)?.name.toLowerCase() === exName.toLowerCase();
 
@@ -6330,7 +6410,9 @@ function GoalsModal({
           : `Configura tu PR para ${exName} (ej. inicio ${s} kg, meta ${targetSuggestion} kg)`
       );
     } else if (type === 'muscle') {
-      const partKey = (variableKey || 'right_arm') as BodyPartKey;
+      // Si no viene variableKey, toma por defecto el primer músculo (Bíceps)
+      const partKey = (variableKey || MUSCLE_PARTS[0].key) as BodyPartKey;
+      setSelectedVariableKey(partKey);
       const partObj = MUSCLE_PARTS.find((p) => p.key === partKey) || MUSCLE_PARTS[0];
 
       let firstMeasure: number | null = null;
@@ -6370,8 +6452,21 @@ function GoalsModal({
           : `Configura tu objetivo para ${partObj.label} (ej. actual ${c} cm, meta ${targetSuggestion} cm)`
       );
     } else {
+      setSelectedVariableKey('custom');
       setAutoFilledNotice(null);
     }
+  };
+
+  // Aplicar sugerencia preestablecida
+  const applyQuickPreset = (preset: typeof QUICK_PRESET_GOALS[0]) => {
+    handleSelectVariable(preset.type, preset.variableKey);
+    setTargetVal(preset.targetVal);
+    setUnit(preset.unit);
+    setGoalTitle(preset.title);
+    const futureDate = new Date(Date.now() + preset.targetDateOffsetDays * 86400000)
+      .toISOString()
+      .split('T')[0];
+    setTargetDate(futureDate);
   };
 
   // Iniciar creación o edición
@@ -6478,7 +6573,7 @@ function GoalsModal({
                 Metas & Objetivos
               </Text>
               <Text style={[goalModalStyles.headerSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                Define fechas límite y haz seguimiento a tu evolución física
+                Fija metas con fechas límite y gana XP por cada reto superado
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={goalModalStyles.closeBtn} hitSlop={10}>
@@ -6548,28 +6643,78 @@ function GoalsModal({
             {activeTab === 'new' ? (
               /* FORMULARIO CREAR / EDITAR META CON SELECTOR DE VARIABLE Y AUTOLLENADO */
               <View style={goalModalStyles.formWrap}>
+                {/* ==========================================================
+                    METAS SUGERIDAS / PREESTABLECIDAS (ARRIBA DEL FORMULARIO)
+                ========================================================== */}
+                <View style={goalModalStyles.presetSectionWrap}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <Ionicons name="bulb-outline" size={15} color="#F59E0B" />
+                    <Text style={[goalModalStyles.presetSectionTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                      Metas Sugeridas / Preestablecidas
+                    </Text>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+                    {QUICK_PRESET_GOALS.map((preset, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        activeOpacity={0.85}
+                        onPress={() => applyQuickPreset(preset)}
+                        style={[
+                          goalModalStyles.quickPresetCard,
+                          {
+                            backgroundColor: palette.bg,
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <View style={goalModalStyles.quickPresetTop}>
+                          <Text style={{ fontSize: 14 }}>{preset.icon}</Text>
+                          <Text style={[goalModalStyles.quickPresetCategory, { color: c1, fontFamily: subtitleFont }]}>
+                            {preset.category}
+                          </Text>
+                        </View>
+                        <Text style={[goalModalStyles.quickPresetTitle, { color: palette.text, fontFamily: subtitleFont }]} numberOfLines={1}>
+                          {preset.title}
+                        </Text>
+                        <Text style={[goalModalStyles.quickPresetTarget, { color: palette.textSub, fontFamily: dataFont }]}>
+                          Meta: {preset.targetVal} {preset.unit} · {preset.timeline}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
                 <Text style={[goalModalStyles.formSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
                   {editingGoalId ? 'Editar Meta' : 'Configurar Nueva Meta'}
                 </Text>
 
-                {/* 1. Tipo de Objetivo */}
+                {/* 1. Tipo de Objetivo (Peso, % Grasa, Récord / PR, Tamaño, Otro) */}
                 <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
                   1. Tipo de Objetivo
                 </Text>
                 <View style={goalModalStyles.typeSelectorRow}>
                   {[
-                    { key: 'weight', label: 'Peso Corporal', icon: 'scale-outline' },
-                    { key: 'calories', label: 'Calorías', icon: 'flame-outline' },
+                    { key: 'weight', label: 'Peso', icon: 'scale-outline' },
+                    { key: 'body_fat', label: '% Grasa', icon: 'trending-down-outline' },
                     { key: 'pr', label: 'Récord / PR', icon: 'barbell-outline' },
-                    { key: 'muscle', label: 'Músculo', icon: 'body-outline' },
-                    { key: 'streak', label: 'Racha', icon: 'flash-outline' },
+                    { key: 'muscle', label: 'Tamaño', icon: 'body-outline' },
                     { key: 'custom', label: 'Otro', icon: 'trophy-outline' },
                   ].map((t) => {
                     const active = goalType === t.key;
                     return (
                       <TouchableOpacity
                         key={t.key}
-                        onPress={() => handleSelectVariable(t.key as GoalType)}
+                        activeOpacity={0.85}
+                        onPress={() => {
+                          // Al seleccionar, pasa la variable por defecto para que se autollene de inmediato
+                          if (t.key === 'pr') {
+                            handleSelectVariable('pr', availableExercises[0]?.name);
+                          } else if (t.key === 'muscle') {
+                            handleSelectVariable('muscle', MUSCLE_PARTS[0].key);
+                          } else {
+                            handleSelectVariable(t.key as GoalType);
+                          }
+                        }}
                         style={[
                           goalModalStyles.typePill,
                           active && { backgroundColor: c1, borderColor: c1 },
@@ -6594,7 +6739,7 @@ function GoalsModal({
                   })}
                 </View>
 
-                {/* 2. Selector de Variable Relacionada */}
+                {/* 2. Selector de Variable Relacionada (PR de Fuerza) */}
                 {goalType === 'pr' && (
                   <View style={{ marginBottom: 12 }}>
                     <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
@@ -6606,6 +6751,7 @@ function GoalsModal({
                         return (
                           <TouchableOpacity
                             key={ex.id + ex.name}
+                            activeOpacity={0.85}
                             onPress={() => handleSelectVariable('pr', ex.name)}
                             style={[
                               goalModalStyles.varPill,
@@ -6633,10 +6779,11 @@ function GoalsModal({
                   </View>
                 )}
 
+                {/* 2. Selector de Variable Relacionada (Tamaño Muscular) */}
                 {goalType === 'muscle' && (
                   <View style={{ marginBottom: 12 }}>
                     <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                      2. Selecciona el Músculo / Medida a Controlar:
+                      2. Selecciona la Medida / Músculo a Controlar:
                     </Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
                       {MUSCLE_PARTS.map((part) => {
@@ -6644,6 +6791,7 @@ function GoalsModal({
                         return (
                           <TouchableOpacity
                             key={part.key}
+                            activeOpacity={0.85}
                             onPress={() => handleSelectVariable('muscle', part.key)}
                             style={[
                               goalModalStyles.varPill,
@@ -7044,6 +7192,40 @@ function GoalsModal({
 }
 
 const goalModalStyles = StyleSheet.create({
+  presetSectionWrap: {
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(203, 213, 225, 0.25)',
+  },
+  presetSectionTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  quickPresetCard: {
+    width: 175,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 3,
+  },
+  quickPresetTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  quickPresetCategory: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  quickPresetTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  quickPresetTarget: {
+    fontSize: 10.5,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.7)',

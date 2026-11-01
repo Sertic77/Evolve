@@ -139,7 +139,7 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
 /* ==========================================================
    METAS & OBJETIVOS CON FECHAS LÍMITE
 ========================================================== */
-export type GoalType = 'weight' | 'calories' | 'pr' | 'muscle' | 'streak' | 'custom';
+export type GoalType = 'weight' | 'body_fat' | 'pr' | 'muscle' | 'custom';
 
 export type UserGoal = {
   id: string;
