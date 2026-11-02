@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Alert,
   Platform,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,10 +19,13 @@ import {
   FriendNotification,
   ColorPalette,
   DISCOVERABLE_USERS,
+  getFriendFullProfile,
+  SectionPrivacySettings,
 } from './store';
+import { getServerUrl } from './api';
 
 /* ==========================================================
-   TIPOS DE ENTRENAMIENTO PARA INVITACIÓN
+   TIPOS DE ENTRENAMIENTO & GRUPOS MUSCULARES
 ========================================================== */
 const WORKOUT_TYPES = [
   { id: 'weights', label: 'Pesas / Fuerza', icon: 'barbell-outline', emoji: '🏋️‍♂️' },
@@ -31,8 +35,19 @@ const WORKOUT_TYPES = [
   { id: 'crossfit', label: 'CrossFit / Funcional', icon: 'flash-outline', emoji: '⚡' },
 ];
 
+const MUSCLE_DIVISIONS = [
+  { id: 'ppl', label: 'PPL (Push / Pull / Legs)', emoji: '💥' },
+  { id: 'torso_pierna', label: 'Torso / Pierna', emoji: '🏛️' },
+  { id: 'full_body', label: 'Full Body (Cuerpo Completo)', emoji: '⚡' },
+  { id: 'push', label: 'Push (Pecho / Hombro / Tríceps)', emoji: '🛡️' },
+  { id: 'pull', label: 'Pull (Espalda / Bíceps)', emoji: '⚔️' },
+  { id: 'legs', label: 'Legs (Pierna & Glúteos)', emoji: '🦵' },
+  { id: 'arms', label: 'Brazos & Hombros', emoji: '💪' },
+  { id: 'chest_biceps', label: 'Pecho & Bíceps', emoji: '🎯' },
+  { id: 'back_triceps', label: 'Espalda & Tríceps', emoji: '🏔️' },
+];
+
 const QUICK_DATES = ['Hoy', 'Mañana', 'Sábado', 'Domingo'];
-const QUICK_TIMES = ['06:30 AM', '08:00 AM', '05:00 PM', '06:30 PM', '07:30 PM'];
 
 /* ==========================================================
    COMPONENTE PRINCIPAL: SECCIÓN AMIGOS & COMUNIDAD
@@ -61,6 +76,8 @@ export function FriendsModal({
   // Store hooks
   const friends = useStore((s) => s.friends) || [];
   const friendNotifications = useStore((s) => s.friendNotifications) || [];
+  const privacySettings = useStore((s) => s.privacySettings);
+  const updatePrivacySettings = useStore((s) => s.updatePrivacySettings);
   const sendWorkoutInvite = useStore((s) => s.sendWorkoutInvite);
   const acceptFriendRequest = useStore((s) => s.acceptFriendRequest);
   const rejectFriendRequest = useStore((s) => s.rejectFriendRequest);
@@ -72,11 +89,35 @@ export function FriendsModal({
   const [activeTab, setActiveTab] = useState<'friends' | 'discover'>('friends');
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [selectedFriendForProfile, setSelectedFriendForProfile] = useState<FriendUser | null>(null);
   const [selectedFriendForInvite, setSelectedFriendForInvite] = useState<FriendUser | null>(null);
   const [sentRequests, setSentRequests] = useState<Record<string, boolean>>({});
+  const [dbUsers, setDbUsers] = useState<Array<{ id: string; name: string; nickname: string }>>([]);
 
-  // Contador de notificaciones no leídas y pendientes
+  // Cargar usuarios de la base de datos
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDbUsers = async () => {
+      try {
+        const res = await fetch(`${getServerUrl()}/api/users`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.users && Array.isArray(data.users)) {
+            setDbUsers(data.users);
+          }
+        }
+      } catch {
+        // En caso de que no haya conexión con backend, usa los locales
+      }
+    };
+    fetchDbUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Notificaciones no leídas y pendientes
   const unreadNotifs = friendNotifications.filter(
     (n) => !n.read && n.status === 'pending'
   );
@@ -89,10 +130,42 @@ export function FriendsModal({
     return f.name.toLowerCase().includes(q) || f.nickname.toLowerCase().includes(q);
   });
 
-  // Filtrado de usuarios para descubrir
-  const friendIds = new Set(friends.map((f) => f.id));
-  const filteredDiscover = DISCOVERABLE_USERS.filter((u) => {
-    if (friendIds.has(u.id)) return false;
+  // Filtrado de usuarios para descubrir (de la BD y presets locales)
+  const friendNicks = new Set(friends.map((f) => f.nickname.toLowerCase()));
+  const allDiscoverable: FriendUser[] = [...DISCOVERABLE_USERS];
+
+  // Integrar usuarios que vinieron de la BD si no están aún en discoverable
+  dbUsers.forEach((dbU) => {
+    const cleanNick = dbU.nickname.startsWith('@') ? dbU.nickname : `@${dbU.nickname}`;
+    const alreadyExists = allDiscoverable.some(
+      (u) => u.nickname.toLowerCase() === cleanNick.toLowerCase()
+    );
+    if (!alreadyExists && !friendNicks.has(cleanNick.toLowerCase())) {
+      allDiscoverable.push({
+        id: dbU.id,
+        name: dbU.name,
+        nickname: cleanNick,
+        streak: 8,
+        level: 15,
+        rank: 'Atleta Activo',
+        todayWorkout: 'Entrenamiento Registrado 🔥',
+        color: '#6366F1',
+        initials: dbU.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase(),
+        metrics: {
+          currentWeight: 76,
+          bodyFat: 14.8,
+          avgCalories: 2600,
+          avgProtein: 165,
+          prs: [{ exercise: 'Press Banca', weight: 95, reps: 5, date: '2026-10-22' }],
+          recentWorkouts: [{ id: 'w-db-1', date: 'Ayer', title: 'Fuerza General', durationMinutes: 60, exercises: ['Sentadilla', 'Press Militar'], totalSets: 14 }],
+          activeGoal: 'Superar sus límites este año',
+        },
+      });
+    }
+  });
+
+  const filteredDiscover = allDiscoverable.filter((u) => {
+    if (friendNicks.has(u.nickname.toLowerCase())) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return u.name.toLowerCase().includes(q) || u.nickname.toLowerCase().includes(q);
@@ -102,20 +175,20 @@ export function FriendsModal({
   const highestStreak = friends.length > 0 ? Math.max(...friends.map((f) => f.streak)) : 0;
   const activeTodayCount = friends.filter((f) => f.todayWorkout && !f.todayWorkout.includes('Descanso')).length;
 
-  // Enviar solicitud a usuario desconocido
+  // Enviar solicitud a usuario
   const handleSendRequest = (user: FriendUser) => {
     sendFriendRequestTo(user);
-    setSentRequests((prev) => ({ ...prev, [user.id]: true }));
+    setSentRequests((prev) => ({ ...prev, [user.nickname]: true }));
     Alert.alert(
       '¡Solicitud Enviada! 🤝',
-      `Le hemos enviado una solicitud de amistad a ${user.name} (${user.nickname}). Podrán ver sus métricas e invitarse a entrenar una vez la acepte.`
+      `Le hemos enviado una solicitud de amistad a ${user.name} (${user.nickname}). Podrán ver sus perfiles e invitarse a entrenar una vez la acepte.`
     );
   };
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.container, { backgroundColor: palette.bg }]}>
-        {/* Cabecera Superior */}
+        {/* Cabecera Superior con Botón de Notificaciones y Ajustes de Privacidad */}
         <View
           style={[
             styles.header,
@@ -139,23 +212,47 @@ export function FriendsModal({
             </View>
           </View>
 
-          {/* Icono de Notificaciones con Badge */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => setShowNotificationsModal(true)}
-            style={[styles.notifBtn, { borderColor: palette.border, backgroundColor: palette.isDark ? '#1E293B' : '#F1F5F9' }]}
-          >
-            <Ionicons
-              name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
-              size={20}
-              color={unreadCount > 0 ? c1 : palette.text}
-            />
-            {unreadCount > 0 && (
-              <View style={styles.notifBadge}>
-                <Text style={styles.notifBadgeText}>{unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {/* Botones de Cabecera: Configuración de Privacidad y Notificaciones */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {/* Botón Settings (Configurar Privacidad de Secciones) */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setShowPrivacyModal(true)}
+              style={[
+                styles.iconBtnHeader,
+                {
+                  borderColor: palette.border,
+                  backgroundColor: palette.isDark ? '#1E293B' : '#F1F5F9',
+                },
+              ]}
+            >
+              <Ionicons name="settings-outline" size={19} color={palette.text} />
+            </TouchableOpacity>
+
+            {/* Icono de Notificaciones con Badge */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setShowNotificationsModal(true)}
+              style={[
+                styles.iconBtnHeader,
+                {
+                  borderColor: palette.border,
+                  backgroundColor: palette.isDark ? '#1E293B' : '#F1F5F9',
+                },
+              ]}
+            >
+              <Ionicons
+                name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+                size={20}
+                color={unreadCount > 0 ? c1 : palette.text}
+              />
+              {unreadCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -184,7 +281,7 @@ export function FriendsModal({
             </View>
           </LinearGradient>
 
-          {/* Barra de Búsqueda */}
+          {/* Barra de Búsqueda con ID único @nickname */}
           <View
             style={[
               styles.searchBarContainer,
@@ -198,7 +295,11 @@ export function FriendsModal({
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder={activeTab === 'friends' ? 'Buscar entre tus amigos...' : 'Buscar nuevos atletas por nombre o @apodo...'}
+              placeholder={
+                activeTab === 'friends'
+                  ? 'Buscar por nombre o ID (@nickname)...'
+                  : 'Buscar atletas en la base de datos por @nickname...'
+              }
               placeholderTextColor={palette.textSub}
               style={[styles.searchInput, { color: palette.text, fontFamily: bodyFont }]}
               autoCapitalize="none"
@@ -285,8 +386,8 @@ export function FriendsModal({
                   </Text>
                   <Text style={[styles.emptySubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
                     {searchQuery
-                      ? 'No hay amigos que coincidan con la búsqueda.'
-                      : '¡Añade amigos para ver sus métricas y retarlos a entrenar juntos!'}
+                      ? 'No hay amigos que coincidan con la búsqueda por nombre o @nickname.'
+                      : '¡Añade amigos para observar sus métricas completas y retarlos a entrenar juntos!'}
                   </Text>
                   <TouchableOpacity
                     activeOpacity={0.85}
@@ -302,7 +403,7 @@ export function FriendsModal({
               ) : (
                 filteredFriends.map((friend) => (
                   <View
-                    key={friend.id}
+                    key={friend.nickname}
                     style={[
                       styles.friendCard,
                       {
@@ -322,7 +423,7 @@ export function FriendsModal({
                           <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
                             {friend.name}
                           </Text>
-                          <Text style={[styles.friendNick, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          <Text style={[styles.friendNickBadge, { color: c1, fontFamily: subtitleFont }]}>
                             {friend.nickname}
                           </Text>
                         </View>
@@ -348,7 +449,7 @@ export function FriendsModal({
 
                     {/* Fila Inferior: BOTONES OBSERVAR E INVITAR A ENTRENAR */}
                     <View style={styles.friendActionsRow}>
-                      {/* Botón 1: Observar (Ver Métricas) */}
+                      {/* Botón 1: Observar (Ver Perfil y Métricas Completas) */}
                       <TouchableOpacity
                         activeOpacity={0.8}
                         onPress={() => setSelectedFriendForProfile(friend)}
@@ -389,32 +490,32 @@ export function FriendsModal({
             </View>
           )}
 
-          {/* TAB 2: DESCUBRIR Y BUSCAR AMIGOS */}
+          {/* TAB 2: DESCUBRIR Y BUSCAR AMIGOS EN BASE DE DATOS */}
           {activeTab === 'discover' && (
             <View style={styles.sectionWrap}>
               <Text style={[styles.sectionHeading, { color: palette.text, fontFamily: titleFont }]}>
-                Atletas en la Comunidad Evolve
+                Atletas en la Base de Datos Evolve
               </Text>
               <Text style={[styles.sectionSubheading, { color: palette.textSub, fontFamily: bodyFont }]}>
-                Envía una solicitud de amistad para compartir entrenamientos, marcas y récords.
+                Busca usuarios por su ID único identificador (@nickname) y envíales solicitud de amistad.
               </Text>
 
               {filteredDiscover.length === 0 ? (
                 <View style={[styles.emptyBox, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
                   <Ionicons name="search-outline" size={40} color={palette.textSub} style={{ opacity: 0.5 }} />
                   <Text style={[styles.emptyTitle, { color: palette.text, fontFamily: titleFont }]}>
-                    No se encontraron nuevos atletas
+                    No se encontraron atletas
                   </Text>
                   <Text style={[styles.emptySubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    Prueba buscando por otro nombre o apodo.
+                    Prueba buscando por otro nombre o @nickname.
                   </Text>
                 </View>
               ) : (
                 filteredDiscover.map((user) => {
-                  const isSent = !!sentRequests[user.id];
+                  const isSent = !!sentRequests[user.nickname];
                   return (
                     <View
-                      key={user.id}
+                      key={user.nickname}
                       style={[
                         styles.discoverCard,
                         {
@@ -431,10 +532,10 @@ export function FriendsModal({
                           <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
                             {user.name}
                           </Text>
-                          <Text style={[styles.friendNick, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          <Text style={[styles.friendNickBadge, { color: c2, fontFamily: subtitleFont }]}>
                             {user.nickname} · Nvl {user.level} ({user.rank})
                           </Text>
-                          <Text style={[styles.userGoalSnippet, { color: c2, fontFamily: bodyFont }]} numberOfLines={1}>
+                          <Text style={[styles.userGoalSnippet, { color: palette.textSub, fontFamily: bodyFont }]} numberOfLines={1}>
                             🎯 {user.metrics?.activeGoal || 'Enfocado en hipertrofia y fuerza'}
                           </Text>
                         </View>
@@ -479,10 +580,11 @@ export function FriendsModal({
         </ScrollView>
 
         {/* ==========================================================
-            POPUP 1: PERFIL DETALLADO DEL AMIGO (OBSERVAR MÉTRICAS)
+            POPUP 1: PERFIL DETALLADO Y COMPLETO DEL AMIGO (OBSERVAR)
+            (Como el de uno mismo: Home, Entreno, Comida, Bienestar, Medidas)
         ========================================================== */}
         {selectedFriendForProfile && (
-          <FriendProfileModal
+          <FriendProfileObserverModal
             visible={!!selectedFriendForProfile}
             friend={selectedFriendForProfile}
             onClose={() => setSelectedFriendForProfile(null)}
@@ -502,7 +604,7 @@ export function FriendsModal({
         )}
 
         {/* ==========================================================
-            POPUP 2: INVITAR A ENTRENAR
+            POPUP 2: INVITAR A ENTRENAR (CON GRUPOS MUSCULARES Y SELECTOR DE HORA)
         ========================================================== */}
         {selectedFriendForInvite && (
           <InviteWorkoutModal
@@ -514,7 +616,7 @@ export function FriendsModal({
               setSelectedFriendForInvite(null);
               Alert.alert(
                 '¡Invitación Enviada! 🚀',
-                `Has invitado a ${selectedFriendForInvite.name} a entrenar ${inviteData.workoutType} el ${inviteData.date} a las ${inviteData.time}. Le llegará a sus notificaciones.`
+                `Has invitado a ${selectedFriendForInvite.name} (${selectedFriendForInvite.nickname}) a entrenar ${inviteData.workoutType} el ${inviteData.date} a las ${inviteData.time}. Le llegará a sus notificaciones.`
               );
             }}
             c1={c1}
@@ -553,15 +655,34 @@ export function FriendsModal({
             bodyFont={bodyFont}
           />
         )}
+
+        {/* ==========================================================
+            POPUP 4: CONFIGURACIÓN DE PRIVACIDAD DE SECCIONES
+        ========================================================== */}
+        {showPrivacyModal && (
+          <PrivacySettingsModal
+            visible={showPrivacyModal}
+            privacySettings={privacySettings}
+            onUpdatePrivacy={(newSettings) => updatePrivacySettings(newSettings)}
+            onClose={() => setShowPrivacyModal(false)}
+            c1={c1}
+            c2={c2}
+            palette={palette}
+            titleFont={titleFont}
+            subtitleFont={subtitleFont}
+            bodyFont={bodyFont}
+          />
+        )}
       </View>
     </Modal>
   );
 }
 
 /* ==========================================================
-   POPUP 1: OBSERVAR PERFIL Y MÉTRICAS DEL AMIGO
+   POPUP 1: OBSERVAR PERFIL COMPLETO (COMO EL DE UNO MISMO)
+   VISTA DE MODO OBSERVADOR CON 5 SECCIONES Y PRIVACIDAD
 ========================================================== */
-function FriendProfileModal({
+function FriendProfileObserverModal({
   visible,
   friend,
   onClose,
@@ -586,192 +707,511 @@ function FriendProfileModal({
   bodyFont?: string;
   dataFont?: string;
 }) {
-  const m = friend.metrics;
+  const profile = getFriendFullProfile(friend);
+  const [activeProfileTab, setActiveProfileTab] = useState<
+    'home' | 'workout' | 'food' | 'wellness' | 'measurements'
+  >('home');
+
+  const p = profile.privacy;
+  const isSectionPublic = p[activeProfileTab];
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
         <View style={[styles.profileCardModal, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
-          {/* Header del Perfil */}
+          {/* Header con Indicador de Modo Observador */}
           <View style={styles.profileHeader}>
-            <Text style={[styles.profileHeaderTitle, { color: palette.text, fontFamily: titleFont }]}>
-              Perfil del Atleta
-            </Text>
+            <View>
+              <View style={styles.observerPill}>
+                <Ionicons name="eye" size={12} color="#10B981" style={{ marginRight: 4 }} />
+                <Text style={styles.observerPillText}>MODO OBSERVADOR (SOLO LECTURA)</Text>
+              </View>
+              <Text style={[styles.profileHeaderTitle, { color: palette.text, fontFamily: titleFont }]}>
+                {friend.name}
+              </Text>
+              <Text style={[styles.friendNickBadge, { color: c1, fontFamily: subtitleFont }]}>
+                {friend.nickname}
+              </Text>
+            </View>
             <TouchableOpacity onPress={onClose} style={styles.closeIconBtn} hitSlop={10}>
-              <Ionicons name="close" size={22} color={palette.textSub} />
+              <Ionicons name="close" size={24} color={palette.textSub} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-            {/* Banner de Usuario */}
-            <LinearGradient
-              colors={[friend.color, c2]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.profileHeroBanner}
-            >
-              <View style={styles.profileHeroRow}>
-                <View style={styles.profileHeroAvatar}>
-                  <Text style={styles.profileHeroAvatarText}>{friend.initials}</Text>
-                </View>
-                <View style={{ flex: 1, marginLeft: 14 }}>
-                  <Text style={[styles.profileHeroName, { fontFamily: titleFont }]}>{friend.name}</Text>
-                  <Text style={[styles.profileHeroNick, { fontFamily: bodyFont }]}>{friend.nickname}</Text>
-                  <View style={styles.profileRankBadge}>
-                    <Text style={styles.profileRankText}>
-                      ⭐ Nivel {friend.level} · {friend.rank}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.profileStreakFooter}>
-                <Text style={styles.profileStreakText}>
-                  🔥 {friend.streak} días consecutivos de entrenamiento
-                </Text>
-              </View>
-            </LinearGradient>
-
-            {/* Grid 2x2 de Métricas Corporales & Nutrición */}
-            <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-              Métricas Corporales & Nutrición
-            </Text>
-            <View style={styles.metricsGrid}>
-              <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
-                <Text style={styles.metricEmoji}>⚖️</Text>
-                <Text style={[styles.metricValue, { color: palette.text, fontFamily: dataFont }]}>
-                  {m?.currentWeight || '--'} kg
-                </Text>
-                <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  Peso Actual
-                </Text>
-              </View>
-
-              <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
-                <Text style={styles.metricEmoji}>📉</Text>
-                <Text style={[styles.metricValue, { color: palette.text, fontFamily: dataFont }]}>
-                  {m?.bodyFat ? `${m.bodyFat}%` : '--'}
-                </Text>
-                <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  % Grasa Corporal
-                </Text>
-              </View>
-
-              <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
-                <Text style={styles.metricEmoji}>🥩</Text>
-                <Text style={[styles.metricValue, { color: palette.text, fontFamily: dataFont }]}>
-                  {m?.avgProtein ? `${m.avgProtein}g` : '--'}
-                </Text>
-                <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  Proteína / día
-                </Text>
-              </View>
-
-              <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
-                <Text style={styles.metricEmoji}>🥗</Text>
-                <Text style={[styles.metricValue, { color: palette.text, fontFamily: dataFont }]}>
-                  {m?.avgCalories ? `${m.avgCalories}` : '--'} kcal
-                </Text>
-                <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  Calorías / día
-                </Text>
-              </View>
+          {/* Banner de Personalización de Tema del Amigo */}
+          <View style={[styles.themeBanner, { backgroundColor: palette.isDark ? '#0F172A' : '#F1F5F9', borderColor: palette.border }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="color-palette-outline" size={15} color={profile.customization.palette.primary} />
+              <Text style={[styles.themeBannerTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                Paleta: <Text style={{ color: profile.customization.palette.primary, fontWeight: '900' }}>{profile.customization.palette.name}</Text>
+              </Text>
             </View>
-
-            {/* Récords Personales (PRs) */}
-            <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-              Récords Personales (PRs)
-            </Text>
-            <View style={[styles.prsContainer, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
-              {m?.prs && m.prs.length > 0 ? (
-                m.prs.map((pr, index) => (
-                  <View
-                    key={pr.exercise}
-                    style={[
-                      styles.prRow,
-                      index > 0 && { borderTopWidth: 1, borderTopColor: palette.border },
-                    ]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.prExerciseName, { color: palette.text, fontFamily: subtitleFont }]}>
-                        {pr.exercise}
-                      </Text>
-                      <Text style={[styles.prDate, { color: palette.textSub, fontFamily: bodyFont }]}>
-                        {pr.date ? `Fecha: ${pr.date}` : 'Récord activo'}
-                      </Text>
-                    </View>
-                    <View style={[styles.prWeightBadge, { backgroundColor: `${c1}20` }]}>
-                      <Text style={[styles.prWeightText, { color: c1, fontFamily: dataFont }]}>
-                        {pr.weight} kg
-                      </Text>
-                      {pr.reps ? (
-                        <Text style={[styles.prRepsText, { color: palette.textSub, fontFamily: bodyFont }]}>
-                          x{pr.reps} reps
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <Text style={[styles.emptyPrText, { color: palette.textSub, fontFamily: bodyFont }]}>
-                  No hay récords registrados todavía.
-                </Text>
-              )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={[styles.themeDot, { backgroundColor: profile.customization.palette.primary }]} />
+              <View style={[styles.themeDot, { backgroundColor: profile.customization.palette.secondary }]} />
+              <Text style={[styles.themeBannerSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                Tipografía: {profile.customization.font}
+              </Text>
             </View>
+          </View>
 
-            {/* Entrenamientos Recientes */}
-            <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-              Historial de Entrenamientos Recientes
-            </Text>
-            {m?.recentWorkouts && m.recentWorkouts.length > 0 ? (
-              m.recentWorkouts.map((w) => (
-                <View
-                  key={w.id}
+          {/* Pestañas de Navegación de Perfil (Home, Entreno, Comida, Bienestar, Medidas) */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.profileTabsScroll}
+          >
+            {[
+              { key: 'home', label: 'Home', icon: 'home-outline' },
+              { key: 'workout', label: 'Entreno', icon: 'barbell-outline' },
+              { key: 'food', label: 'Comida', icon: 'restaurant-outline' },
+              { key: 'wellness', label: 'Bienestar', icon: 'heart-outline' },
+              { key: 'measurements', label: 'Medidas', icon: 'analytics-outline' },
+            ].map((tab) => {
+              const isActive = activeProfileTab === tab.key;
+              const isLocked = !p[tab.key as keyof typeof p];
+              return (
+                <TouchableOpacity
+                  key={tab.key}
+                  activeOpacity={0.8}
+                  onPress={() => setActiveProfileTab(tab.key as any)}
                   style={[
-                    styles.workoutHistoryCard,
+                    styles.profileTabBtn,
                     {
-                      backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                      borderColor: palette.border,
+                      backgroundColor: isActive ? c1 : palette.isDark ? '#0F172A' : '#F1F5F9',
+                      borderColor: isActive ? c1 : palette.border,
                     },
                   ]}
                 >
-                  <View style={styles.workoutHistoryHeader}>
-                    <Text style={[styles.workoutHistoryTitle, { color: palette.text, fontFamily: subtitleFont }]}>
-                      {w.title}
+                  <Ionicons
+                    name={isLocked ? 'lock-closed' : (tab.icon as any)}
+                    size={14}
+                    color={isActive ? '#FFFFFF' : isLocked ? '#EF4444' : palette.textSub}
+                    style={{ marginRight: 5 }}
+                  />
+                  <Text
+                    style={[
+                      styles.profileTabBtnText,
+                      {
+                        color: isActive ? '#FFFFFF' : palette.text,
+                        fontFamily: subtitleFont,
+                      },
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+            {/* SI LA SECCIÓN ESTÁ BLOQUEADA POR PRIVACIDAD */}
+            {!isSectionPublic ? (
+              <View style={[styles.lockedSectionBox, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                <View style={styles.lockedIconCircle}>
+                  <Ionicons name="lock-closed" size={32} color="#EF4444" />
+                </View>
+                <Text style={[styles.lockedTitle, { color: palette.text, fontFamily: titleFont }]}>
+                  Sección Bloqueada / Privada
+                </Text>
+                <Text style={[styles.lockedDesc, { color: palette.textSub, fontFamily: bodyFont }]}>
+                  {friend.nickname} ha decidido mantener la sección de{' '}
+                  <Text style={{ fontWeight: '900', color: palette.text }}>
+                    {activeProfileTab.toUpperCase()}
+                  </Text>{' '}
+                  como privada para amigos.
+                </Text>
+              </View>
+            ) : (
+              /* SECCIÓN PÚBLICA VISIBLE */
+              <View>
+                {/* 1. SECCIÓN HOME */}
+                {activeProfileTab === 'home' && (
+                  <View style={styles.tabContentWrap}>
+                    {/* Tarjeta de Nivel y Racha */}
+                    <LinearGradient
+                      colors={[profile.customization.palette.primary, profile.customization.palette.secondary]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.profileSectionBanner}
+                    >
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View>
+                          <Text style={[styles.profileHeroName, { fontFamily: titleFont }]}>
+                            Nivel {profile.home.level}
+                          </Text>
+                          <Text style={[styles.profileHeroNick, { fontFamily: subtitleFont }]}>
+                            {profile.home.rank}
+                          </Text>
+                        </View>
+                        <View style={styles.heroStreakPill}>
+                          <Text style={styles.heroStreakPillText}>🔥 {profile.home.streak} días</Text>
+                        </View>
+                      </View>
+
+                      {/* Barra de Progreso XP */}
+                      <View style={{ marginTop: 12 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800' }}>Experiencia XP</Text>
+                          <Text style={{ color: '#FDE047', fontSize: 11, fontWeight: '900' }}>
+                            {profile.home.xp} / {profile.home.nextLevelXp} XP
+                          </Text>
+                        </View>
+                        <View style={styles.xpBarTrack}>
+                          <View
+                            style={[
+                              styles.xpBarFill,
+                              { width: `${Math.round((profile.home.xp / profile.home.nextLevelXp) * 100)}%` },
+                            ]}
+                          />
+                        </View>
+                      </View>
+                    </LinearGradient>
+
+                    {/* Metas Activas y en Curso */}
+                    <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Metas Activas en Curso
                     </Text>
-                    <Text style={[styles.workoutHistoryDate, { color: palette.textSub, fontFamily: bodyFont }]}>
-                      {w.date} · {w.durationMinutes} min
-                    </Text>
-                  </View>
-                  <View style={styles.exerciseChipsRow}>
-                    {w.exercises.map((ex) => (
-                      <View key={ex} style={[styles.exerciseMiniChip, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
-                        <Text style={[styles.exerciseMiniChipText, { color: palette.text, fontFamily: bodyFont }]}>
-                          {ex}
+                    {profile.home.activeGoals.map((g) => (
+                      <View
+                        key={g.id}
+                        style={[
+                          styles.goalItemCard,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={[styles.goalTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                            🎯 {g.title}
+                          </Text>
+                          <Text style={[styles.goalPercent, { color: c1, fontFamily: dataFont }]}>
+                            {g.progress}%
+                          </Text>
+                        </View>
+                        <View style={styles.goalTrack}>
+                          <View style={[styles.goalFill, { width: `${g.progress}%`, backgroundColor: c1 }]} />
+                        </View>
+                        <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          Fecha límite: {g.targetDate} · {g.category}
                         </Text>
                       </View>
                     ))}
                   </View>
-                </View>
-              ))
-            ) : null}
+                )}
 
-            {/* Meta Activa del Amigo */}
-            {m?.activeGoal && (
-              <View style={[styles.activeGoalBox, { borderColor: `${c2}50`, backgroundColor: `${c2}15` }]}>
-                <Ionicons name="flag" size={18} color={c2} style={{ marginRight: 8 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.activeGoalTitle, { color: c2, fontFamily: subtitleFont }]}>
-                    Meta Actual del Atleta
-                  </Text>
-                  <Text style={[styles.activeGoalDesc, { color: palette.text, fontFamily: bodyFont }]}>
-                    {m.activeGoal}
-                  </Text>
-                </View>
+                {/* 2. SECCIÓN ENTRENO */}
+                {activeProfileTab === 'workout' && (
+                  <View style={styles.tabContentWrap}>
+                    <View style={[styles.infoBannerBox, { backgroundColor: `${c1}15`, borderColor: `${c1}35` }]}>
+                      <Ionicons name="barbell" size={18} color={c1} style={{ marginRight: 8 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.infoBannerTitle, { color: c1, fontFamily: subtitleFont }]}>
+                          División de Entrenamiento
+                        </Text>
+                        <Text style={[styles.infoBannerDesc, { color: palette.text, fontFamily: bodyFont }]}>
+                          {profile.workout.division} ({profile.workout.weeklyFrequency} sesiones semanales)
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Tabla de Récords Personales PRs */}
+                    <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Récords Personales (PRs)
+                    </Text>
+                    <View style={[styles.prsContainer, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                      {profile.workout.prs.map((pr, index) => (
+                        <View
+                          key={pr.exercise}
+                          style={[
+                            styles.prRow,
+                            index > 0 && { borderTopWidth: 1, borderTopColor: palette.border },
+                          ]}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.prExerciseName, { color: palette.text, fontFamily: subtitleFont }]}>
+                              {pr.exercise}
+                            </Text>
+                            <Text style={[styles.prDate, { color: palette.textSub, fontFamily: bodyFont }]}>
+                              {pr.date || 'Récord activo'}
+                            </Text>
+                          </View>
+                          <View style={[styles.prWeightBadge, { backgroundColor: `${c1}20` }]}>
+                            <Text style={[styles.prWeightText, { color: c1, fontFamily: dataFont }]}>
+                              {pr.weight} kg
+                            </Text>
+                            {pr.reps && (
+                              <Text style={[styles.prRepsText, { color: palette.textSub, fontFamily: bodyFont }]}>
+                                x{pr.reps} reps
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Entrenamientos Recientes */}
+                    <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Entrenamientos Recientes
+                    </Text>
+                    {profile.workout.recentWorkouts.map((w) => (
+                      <View
+                        key={w.id}
+                        style={[
+                          styles.workoutHistoryCard,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <View style={styles.workoutHistoryHeader}>
+                          <Text style={[styles.workoutHistoryTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                            {w.title}
+                          </Text>
+                          <Text style={[styles.workoutHistoryDate, { color: palette.textSub, fontFamily: bodyFont }]}>
+                            {w.date} · {w.durationMinutes} min
+                          </Text>
+                        </View>
+                        <View style={styles.exerciseChipsRow}>
+                          {w.exercises.map((ex) => (
+                            <View key={ex} style={[styles.exerciseMiniChip, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+                              <Text style={[styles.exerciseMiniChipText, { color: palette.text, fontFamily: bodyFont }]}>
+                                {ex}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* 3. SECCIÓN COMIDA / NUTRICIÓN */}
+                {activeProfileTab === 'food' && (
+                  <View style={styles.tabContentWrap}>
+                    <View style={styles.metricsGrid}>
+                      <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                        <Text style={styles.metricEmoji}>🔥</Text>
+                        <Text style={[styles.metricValue, { color: palette.text, fontFamily: dataFont }]}>
+                          {profile.food.targetCalories}
+                        </Text>
+                        <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          Calorías Meta / día
+                        </Text>
+                      </View>
+                      <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                        <Text style={styles.metricEmoji}>💧</Text>
+                        <Text style={[styles.metricValue, { color: palette.text, fontFamily: dataFont }]}>
+                          {profile.food.waterLiters} L
+                        </Text>
+                        <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          Agua Diaria
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Desglose de Macronutrientes */}
+                    <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Distribución de Macronutrientes
+                    </Text>
+                    <View style={[styles.macrosCard, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                      <View style={styles.macroRowItem}>
+                        <Text style={[styles.macroLabel, { color: '#3B82F6', fontFamily: subtitleFont }]}>🥩 Proteínas</Text>
+                        <Text style={[styles.macroVal, { color: palette.text, fontFamily: dataFont }]}>{profile.food.macros.protein}g</Text>
+                      </View>
+                      <View style={styles.macroRowItem}>
+                        <Text style={[styles.macroLabel, { color: '#F59E0B', fontFamily: subtitleFont }]}>🍚 Carbohidratos</Text>
+                        <Text style={[styles.macroVal, { color: palette.text, fontFamily: dataFont }]}>{profile.food.macros.carbs}g</Text>
+                      </View>
+                      <View style={styles.macroRowItem}>
+                        <Text style={[styles.macroLabel, { color: '#EC4899', fontFamily: subtitleFont }]}>🥑 Grasas</Text>
+                        <Text style={[styles.macroVal, { color: palette.text, fontFamily: dataFont }]}>{profile.food.macros.fat}g</Text>
+                      </View>
+                    </View>
+
+                    {/* Comidas Registradas del Día */}
+                    <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Comidas Registradas del Día
+                    </Text>
+                    {profile.food.loggedMealsToday.map((m, idx) => (
+                      <View
+                        key={idx}
+                        style={[
+                          styles.mealLogRow,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.mealLogTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                          {m.name}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                          <Text style={[styles.mealLogVal, { color: c1, fontFamily: dataFont }]}>
+                            {m.calories} kcal
+                          </Text>
+                          <Text style={[styles.mealLogVal, { color: '#3B82F6', fontFamily: dataFont }]}>
+                            {m.protein}g P
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* 4. SECCIÓN BIENESTAR */}
+                {activeProfileTab === 'wellness' && (
+                  <View style={styles.tabContentWrap}>
+                    <View style={styles.metricsGrid}>
+                      <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                        <Text style={styles.metricEmoji}>🌙</Text>
+                        <Text style={[styles.metricValue, { color: palette.text, fontFamily: dataFont }]}>
+                          {profile.wellness.avgSleepHours} hrs
+                        </Text>
+                        <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          Sueño Promedio
+                        </Text>
+                      </View>
+                      <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                        <Text style={styles.metricEmoji}>✨</Text>
+                        <Text style={[styles.metricValue, { color: '#10B981', fontSize: 13, fontFamily: subtitleFont }]}>
+                          Óptima
+                        </Text>
+                        <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          Calidad de Recuperación
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Suplementos Activos */}
+                    <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Suplementación Diaria & Checklist
+                    </Text>
+                    {profile.wellness.activeSupplements.map((supp, idx) => (
+                      <View
+                        key={idx}
+                        style={[
+                          styles.suppCardRow,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.suppName, { color: palette.text, fontFamily: subtitleFont }]}>
+                            {supp.name}
+                          </Text>
+                          <Text style={[styles.suppDosage, { color: palette.textSub, fontFamily: bodyFont }]}>
+                            Dosis: {supp.dosage}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.suppStatusBadge,
+                            { backgroundColor: supp.takenToday ? '#10B98125' : '#EF444420' },
+                          ]}
+                        >
+                          <Ionicons
+                            name={supp.takenToday ? 'checkmark-circle' : 'time-outline'}
+                            size={14}
+                            color={supp.takenToday ? '#10B981' : '#EF4444'}
+                            style={{ marginRight: 4 }}
+                          />
+                          <Text
+                            style={[
+                              styles.suppStatusText,
+                              { color: supp.takenToday ? '#10B981' : '#EF4444', fontFamily: subtitleFont },
+                            ]}
+                          >
+                            {supp.takenToday ? 'Tomado hoy' : 'Pendiente'}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* 5. SECCIÓN MEDIDAS */}
+                {activeProfileTab === 'measurements' && (
+                  <View style={styles.tabContentWrap}>
+                    <View style={styles.metricsGrid}>
+                      <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                        <Text style={styles.metricEmoji}>⚖️</Text>
+                        <Text style={[styles.metricValue, { color: palette.text, fontFamily: dataFont }]}>
+                          {profile.measurements.currentWeight} kg
+                        </Text>
+                        <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          Peso Actual
+                        </Text>
+                      </View>
+                      <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                        <Text style={styles.metricEmoji}>📉</Text>
+                        <Text style={[styles.metricValue, { color: palette.text, fontFamily: dataFont }]}>
+                          {profile.measurements.bodyFat}%
+                        </Text>
+                        <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          % Grasa Corporal
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Evolución de Peso */}
+                    <View style={[styles.weightProgressionBox, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                      <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont, marginTop: 0 }]}>
+                        Objetivo de Peso
+                      </Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 6 }}>
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={[styles.weightSubVal, { color: palette.textSub, fontFamily: bodyFont }]}>Inicio</Text>
+                          <Text style={[styles.weightNum, { color: palette.text, fontFamily: dataFont }]}>{profile.measurements.startWeight} kg</Text>
+                        </View>
+                        <Ionicons name="arrow-forward" size={18} color={c1} style={{ alignSelf: 'center' }} />
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={[styles.weightSubVal, { color: c1, fontFamily: subtitleFont }]}>Actual</Text>
+                          <Text style={[styles.weightNum, { color: c1, fontFamily: dataFont }]}>{profile.measurements.currentWeight} kg</Text>
+                        </View>
+                        <Ionicons name="arrow-forward" size={18} color={c2} style={{ alignSelf: 'center' }} />
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={[styles.weightSubVal, { color: palette.textSub, fontFamily: bodyFont }]}>Meta</Text>
+                          <Text style={[styles.weightNum, { color: '#10B981', fontFamily: dataFont }]}>{profile.measurements.targetWeight} kg</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Medidas Corporales Musculares */}
+                    <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Medidas Corporales Registradas
+                    </Text>
+                    <View style={[styles.musclesBox, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                      {profile.measurements.muscles.map((item, idx) => (
+                        <View
+                          key={item.part}
+                          style={[
+                            styles.muscleRowItem,
+                            idx > 0 && { borderTopWidth: 1, borderTopColor: palette.border },
+                          ]}
+                        >
+                          <Text style={[styles.musclePartName, { color: palette.text, fontFamily: subtitleFont }]}>
+                            {item.part}
+                          </Text>
+                          <Text style={[styles.musclePartCm, { color: c1, fontFamily: dataFont }]}>
+                            {item.cm} cm
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
               </View>
             )}
 
-            {/* Botón Acción: Invitar a entrenar */}
+            {/* Botón Acción: Invitar a entrenar desde el perfil observado */}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={onInvite}
@@ -779,7 +1219,7 @@ function FriendProfileModal({
             >
               <Ionicons name="fitness-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
               <Text style={[styles.profileInviteBtnText, { fontFamily: subtitleFont }]}>
-                Invitar a Entrenar a {friend.name.split(' ')[0]}
+                Invitar a Entrenar a {friend.name.split(' ')[0]} ({friend.nickname})
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -791,6 +1231,7 @@ function FriendProfileModal({
 
 /* ==========================================================
    POPUP 2: FORMULARIO PARA INVITAR A ENTRENAR
+   CON SELECTOR DE GRUPOS MUSCULARES (PESAS) Y SELECTOR DE HORA CON FLECHAS
 ========================================================== */
 function InviteWorkoutModal({
   visible,
@@ -803,6 +1244,7 @@ function InviteWorkoutModal({
   titleFont,
   subtitleFont,
   bodyFont,
+  dataFont,
 }: {
   visible: boolean;
   friend: FriendUser;
@@ -822,34 +1264,50 @@ function InviteWorkoutModal({
   titleFont?: string;
   subtitleFont?: string;
   bodyFont?: string;
+  dataFont?: string;
 }) {
-  const [selectedType, setSelectedType] = useState(WORKOUT_TYPES[0].label);
+  const [selectedType, setSelectedType] = useState('Pesas / Fuerza');
+  const [selectedDivision, setSelectedDivision] = useState(MUSCLE_DIVISIONS[0].label);
+  const [customDivision, setCustomDivision] = useState('');
   const [selectedDate, setSelectedDate] = useState('Hoy');
   const [customDate, setCustomDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('06:30 PM');
-  const [customTime, setCustomTime] = useState('');
+
+  // Estados interactivos para selector de hora con flechas
+  const [hour, setHour] = useState(6);
+  const [minute, setMinute] = useState(30);
+  const [period, setPeriod] = useState<'AM' | 'PM'>('PM');
+
   const [location, setLocation] = useState('');
   const [note, setNote] = useState('');
 
+  // Controles de flechas para hora
+  const incrementHour = () => setHour((prev) => (prev >= 12 ? 1 : prev + 1));
+  const decrementHour = () => setHour((prev) => (prev <= 1 ? 12 : prev - 1));
+
+  // Controles de flechas para minutos (paso de 5 min)
+  const incrementMinute = () => setMinute((prev) => (prev >= 55 ? 0 : prev + 5));
+  const decrementMinute = () => setMinute((prev) => (prev <= 0 ? 55 : prev - 5));
+
+  const formattedTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
+
   const handleSend = () => {
     const finalDate = customDate.trim() || selectedDate;
-    const finalTime = customTime.trim() || selectedTime;
+    const finalType =
+      selectedType === 'Pesas / Fuerza'
+        ? `Pesas (${customDivision.trim() || selectedDivision})`
+        : selectedType;
 
     if (!finalDate) {
       Alert.alert('Falta la fecha', 'Por favor selecciona o ingresa la fecha para entrenar.');
       return;
     }
-    if (!finalTime) {
-      Alert.alert('Falta la hora', 'Por favor selecciona o ingresa la hora del entrenamiento.');
-      return;
-    }
 
     onSend({
-      friendId: friend.id,
+      friendId: friend.nickname,
       friendName: friend.name,
-      workoutType: selectedType,
+      workoutType: finalType,
       date: finalDate,
-      time: finalTime,
+      time: formattedTime,
       location: location.trim() || undefined,
       note: note.trim() || undefined,
     });
@@ -870,7 +1328,7 @@ function InviteWorkoutModal({
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeIconBtn} hitSlop={10}>
-              <Ionicons name="close" size={22} color={palette.textSub} />
+              <Ionicons name="close" size={24} color={palette.textSub} />
             </TouchableOpacity>
           </View>
 
@@ -912,9 +1370,70 @@ function InviteWorkoutModal({
               })}
             </View>
 
+            {/* SI ES PESAS/FUERZA: SELECCIONAR GRUPOS MUSCULARES O DIVISIÓN */}
+            {selectedType === 'Pesas / Fuerza' && (
+              <View style={[styles.subOptionsContainer, { backgroundColor: `${c1}10`, borderColor: `${c1}30` }]}>
+                <Text style={[styles.subOptionsTitle, { color: c1, fontFamily: subtitleFont }]}>
+                  🏋️ Grupos Musculares / División a Entrenar:
+                </Text>
+                <View style={styles.chipsWrap}>
+                  {MUSCLE_DIVISIONS.map((d) => {
+                    const isDivSelected = selectedDivision === d.label && !customDivision;
+                    return (
+                      <TouchableOpacity
+                        key={d.id}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          setSelectedDivision(d.label);
+                          setCustomDivision('');
+                        }}
+                        style={[
+                          styles.choiceChip,
+                          {
+                            backgroundColor: isDivSelected ? c1 : palette.cardBg,
+                            borderColor: isDivSelected ? c1 : palette.border,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.choiceEmoji}>{d.emoji}</Text>
+                        <Text
+                          style={[
+                            styles.choiceText,
+                            {
+                              color: isDivSelected ? '#FFFFFF' : palette.text,
+                              fontFamily: subtitleFont,
+                            },
+                          ]}
+                        >
+                          {d.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TextInput
+                  value={customDivision}
+                  onChangeText={setCustomDivision}
+                  placeholder="O escribe grupos personalizados (ej. Bíceps y Abdomen)..."
+                  placeholderTextColor={palette.textSub}
+                  style={[
+                    styles.formInput,
+                    {
+                      backgroundColor: palette.cardBg,
+                      color: palette.text,
+                      borderColor: customDivision ? c1 : palette.border,
+                      fontFamily: bodyFont,
+                      marginTop: 4,
+                    },
+                  ]}
+                />
+              </View>
+            )}
+
             {/* 2. Fecha */}
             <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont }]}>
-              2. Fecha
+              2. Fecha de Entrenamiento
             </Text>
             <View style={styles.chipsWrap}>
               {QUICK_DATES.map((d) => {
@@ -953,7 +1472,7 @@ function InviteWorkoutModal({
             <TextInput
               value={customDate}
               onChangeText={setCustomDate}
-              placeholder="O escribe otra fecha (ej. Viernes 15 Nov)..."
+              placeholder="O escribe otra fecha personalizada (ej. Viernes 15 Nov)..."
               placeholderTextColor={palette.textSub}
               style={[
                 styles.formInput,
@@ -966,59 +1485,90 @@ function InviteWorkoutModal({
               ]}
             />
 
-            {/* 3. Hora */}
+            {/* 3. Selector de Hora con Flechas e Inputs (Hora, Minutos, AM/PM) */}
             <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont }]}>
-              3. Hora de Encuentro
+              3. Hora de Encuentro (Mueve con flechas o ingresa valores)
             </Text>
-            <View style={styles.chipsWrap}>
-              {QUICK_TIMES.map((t) => {
-                const isSelected = selectedTime === t && !customTime;
-                return (
-                  <TouchableOpacity
-                    key={t}
-                    activeOpacity={0.8}
-                    onPress={() => {
-                      setSelectedTime(t);
-                      setCustomTime('');
-                    }}
-                    style={[
-                      styles.choiceChip,
-                      {
-                        backgroundColor: isSelected ? c1 : palette.isDark ? '#0F172A' : '#F1F5F9',
-                        borderColor: isSelected ? c1 : palette.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.choiceText,
-                        {
-                          color: isSelected ? '#FFFFFF' : palette.text,
-                          fontFamily: subtitleFont,
-                        },
-                      ]}
-                    >
-                      {t}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={[styles.timePickerContainer, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+              {/* Columna Horas */}
+              <View style={styles.timeColumn}>
+                <TouchableOpacity onPress={incrementHour} style={styles.arrowBtn} hitSlop={8}>
+                  <Ionicons name="chevron-up" size={20} color={c1} />
+                </TouchableOpacity>
+                <TextInput
+                  value={String(hour).padStart(2, '0')}
+                  onChangeText={(val) => {
+                    const num = parseInt(val, 10);
+                    if (!isNaN(num) && num >= 1 && num <= 12) setHour(num);
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  style={[styles.timeBoxInput, { color: palette.text, borderColor: palette.border, fontFamily: dataFont }]}
+                />
+                <TouchableOpacity onPress={decrementHour} style={styles.arrowBtn} hitSlop={8}>
+                  <Ionicons name="chevron-down" size={20} color={c1} />
+                </TouchableOpacity>
+                <Text style={[styles.timeUnitLabel, { color: palette.textSub, fontFamily: bodyFont }]}>Hora</Text>
+              </View>
+
+              <Text style={[styles.timeSeparator, { color: palette.text, fontFamily: titleFont }]}>:</Text>
+
+              {/* Columna Minutos */}
+              <View style={styles.timeColumn}>
+                <TouchableOpacity onPress={incrementMinute} style={styles.arrowBtn} hitSlop={8}>
+                  <Ionicons name="chevron-up" size={20} color={c1} />
+                </TouchableOpacity>
+                <TextInput
+                  value={String(minute).padStart(2, '0')}
+                  onChangeText={(val) => {
+                    const num = parseInt(val, 10);
+                    if (!isNaN(num) && num >= 0 && num <= 59) setMinute(num);
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  style={[styles.timeBoxInput, { color: palette.text, borderColor: palette.border, fontFamily: dataFont }]}
+                />
+                <TouchableOpacity onPress={decrementMinute} style={styles.arrowBtn} hitSlop={8}>
+                  <Ionicons name="chevron-down" size={20} color={c1} />
+                </TouchableOpacity>
+                <Text style={[styles.timeUnitLabel, { color: palette.textSub, fontFamily: bodyFont }]}>Minutos</Text>
+              </View>
+
+              {/* Selector AM / PM */}
+              <View style={styles.periodColumn}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setPeriod('AM')}
+                  style={[
+                    styles.periodBtn,
+                    {
+                      backgroundColor: period === 'AM' ? c1 : palette.cardBg,
+                      borderColor: period === 'AM' ? c1 : palette.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.periodBtnText, { color: period === 'AM' ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont }]}>
+                    AM
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setPeriod('PM')}
+                  style={[
+                    styles.periodBtn,
+                    {
+                      backgroundColor: period === 'PM' ? c1 : palette.cardBg,
+                      borderColor: period === 'PM' ? c1 : palette.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.periodBtnText, { color: period === 'PM' ? '#FFFFFF' : palette.textSub, fontFamily: subtitleFont }]}>
+                    PM
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <TextInput
-              value={customTime}
-              onChangeText={setCustomTime}
-              placeholder="O ingresa otra hora personalizada..."
-              placeholderTextColor={palette.textSub}
-              style={[
-                styles.formInput,
-                {
-                  backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                  color: palette.text,
-                  borderColor: customTime ? c1 : palette.border,
-                  fontFamily: bodyFont,
-                },
-              ]}
-            />
 
             {/* 4. Lugar (Opcional) */}
             <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont }]}>
@@ -1027,7 +1577,7 @@ function InviteWorkoutModal({
             <TextInput
               value={location}
               onChangeText={setLocation}
-              placeholder="Ej. Smart Fit Medellín, Parque Simón Bolívar, etc."
+              placeholder="Ej. Smart Fit Medellín, Zona de Peso Libre, Parque..."
               placeholderTextColor={palette.textSub}
               style={[
                 styles.formInput,
@@ -1047,7 +1597,7 @@ function InviteWorkoutModal({
             <TextInput
               value={note}
               onChangeText={setNote}
-              placeholder="Ej. ¡Vamos a darle duro a sentadilla pesada!"
+              placeholder="Ej. ¡Vamos con toda a romper PR de sentadillas!"
               placeholderTextColor={palette.textSub}
               style={[
                 styles.formInput,
@@ -1060,7 +1610,7 @@ function InviteWorkoutModal({
               ]}
             />
 
-            {/* Botón Enviar */}
+            {/* Botón Enviar Invitación */}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={handleSend}
@@ -1136,7 +1686,7 @@ function NotificationsModal({
               </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeIconBtn} hitSlop={10}>
-              <Ionicons name="close" size={22} color={palette.textSub} />
+              <Ionicons name="close" size={24} color={palette.textSub} />
             </TouchableOpacity>
           </View>
 
@@ -1169,7 +1719,7 @@ function NotificationsModal({
                         <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
                           {req.senderName}
                         </Text>
-                        <Text style={[styles.friendNick, { color: palette.textSub, fontFamily: bodyFont }]}>
+                        <Text style={[styles.friendNickBadge, { color: c1, fontFamily: subtitleFont }]}>
                           {req.senderNickname} · Nvl {req.senderLevel} ({req.senderRank})
                         </Text>
                         <Text style={[styles.notifDateText, { color: palette.textSub, fontFamily: bodyFont }]}>
@@ -1235,7 +1785,7 @@ function NotificationsModal({
                         <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
                           {inv.senderName}
                         </Text>
-                        <Text style={[styles.friendNick, { color: palette.textSub, fontFamily: bodyFont }]}>
+                        <Text style={[styles.friendNickBadge, { color: c2, fontFamily: subtitleFont }]}>
                           {inv.senderNickname} · {inv.date}
                         </Text>
                       </View>
@@ -1244,7 +1794,7 @@ function NotificationsModal({
                     {inv.workoutDetails && (
                       <View style={[styles.inviteDetailsBox, { backgroundColor: `${c1}12`, borderColor: `${c1}30` }]}>
                         <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: subtitleFont }]}>
-                          Modalidad: <Text style={{ color: c1 }}>{inv.workoutDetails.workoutType}</Text>
+                          Modalidad: <Text style={{ color: c1, fontWeight: '900' }}>{inv.workoutDetails.workoutType}</Text>
                         </Text>
                         <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
                           📅 Cuándo: {inv.workoutDetails.dateTime}
@@ -1356,6 +1906,167 @@ function NotificationsModal({
 }
 
 /* ==========================================================
+   POPUP 4: CONFIGURACIÓN DE PRIVACIDAD DE SECCIONES PARA AMIGOS
+   (Home, Entreno, Comida, Bienestar, Medidas)
+========================================================== */
+function PrivacySettingsModal({
+  visible,
+  privacySettings,
+  onUpdatePrivacy,
+  onClose,
+  c1,
+  c2,
+  palette,
+  titleFont,
+  subtitleFont,
+  bodyFont,
+}: {
+  visible: boolean;
+  privacySettings: SectionPrivacySettings;
+  onUpdatePrivacy: (settings: Partial<SectionPrivacySettings>) => void;
+  onClose: () => void;
+  c1: string;
+  c2: string;
+  palette: ColorPalette;
+  titleFont?: string;
+  subtitleFont?: string;
+  bodyFont?: string;
+}) {
+  const sections = [
+    {
+      key: 'home' as const,
+      name: 'Home',
+      icon: 'home-outline',
+      desc: 'Nivel, XP y progreso de tus metas activas y completadas.',
+    },
+    {
+      key: 'workout' as const,
+      name: 'Entreno',
+      icon: 'barbell-outline',
+      desc: 'Tus récords personales (PRs), rutinas y sesiones recientes.',
+    },
+    {
+      key: 'food' as const,
+      name: 'Comida',
+      icon: 'restaurant-outline',
+      desc: 'Calorías diarias meta, macronutrientes y comidas registradas.',
+    },
+    {
+      key: 'wellness' as const,
+      name: 'Bienestar',
+      icon: 'heart-outline',
+      desc: 'Horas de sueño, recuperación y checklist de suplementos.',
+    },
+    {
+      key: 'measurements' as const,
+      name: 'Medidas',
+      icon: 'analytics-outline',
+      desc: 'Evolución de peso corporal, % grasa y medidas musculares.',
+    },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.privacyModalCard, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+          <View style={styles.profileHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="shield-checkmark" size={22} color={c1} style={{ marginRight: 8 }} />
+              <View>
+                <Text style={[styles.profileHeaderTitle, { color: palette.text, fontFamily: titleFont }]}>
+                  Privacidad de tu Perfil
+                </Text>
+                <Text style={[styles.headerSubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
+                  Controla qué pueden observar tus amigos
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeIconBtn} hitSlop={10}>
+              <Ionicons name="close" size={24} color={palette.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.privacyIntroText, { color: palette.textSub, fontFamily: bodyFont }]}>
+            Elige qué secciones de tu perfil son públicas para tus amigos y cuáles prefieres mantener bloqueadas con candado para que solo las veas tú.
+          </Text>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+            {sections.map((sec) => {
+              const isPublic = privacySettings[sec.key];
+              return (
+                <View
+                  key={sec.key}
+                  style={[
+                    styles.privacyRowItem,
+                    {
+                      backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                      borderColor: palette.border,
+                    },
+                  ]}
+                >
+                  <View style={[styles.privacyIconWrap, { backgroundColor: isPublic ? `${c1}20` : '#EF444420' }]}>
+                    <Ionicons
+                      name={isPublic ? (sec.icon as any) : 'lock-closed'}
+                      size={18}
+                      color={isPublic ? c1 : '#EF4444'}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginHorizontal: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[styles.privacySecName, { color: palette.text, fontFamily: subtitleFont }]}>
+                        {sec.name}
+                      </Text>
+                      <View
+                        style={[
+                          styles.privacyStatusTag,
+                          { backgroundColor: isPublic ? '#10B98125' : '#EF444425' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.privacyStatusTagText,
+                            { color: isPublic ? '#10B981' : '#EF4444', fontFamily: subtitleFont },
+                          ]}
+                        >
+                          {isPublic ? 'Público' : 'Bloqueado (Solo tú)'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.privacySecDesc, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      {sec.desc}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={isPublic}
+                    onValueChange={(val) => onUpdatePrivacy({ [sec.key]: val })}
+                    trackColor={{ false: '#334155', true: c1 }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              );
+            })}
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => {
+                onClose();
+                Alert.alert('¡Ajustes Guardados! 🛡️', 'Tu configuración de privacidad se ha actualizado correctamente.');
+              }}
+              style={[styles.profileInviteBtn, { backgroundColor: c1, marginTop: 14 }]}
+            >
+              <Ionicons name="checkmark-done" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={[styles.profileInviteBtnText, { fontFamily: subtitleFont }]}>
+                Guardar Ajustes de Privacidad
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/* ==========================================================
    ESTILOS GENERALES
 ========================================================== */
 const styles = StyleSheet.create({
@@ -1389,7 +2100,7 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     marginTop: 1,
   },
-  notifBtn: {
+  iconBtnHeader: {
     width: 38,
     height: 38,
     borderRadius: 12,
@@ -1532,9 +2243,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   friendAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -1559,8 +2270,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
   },
-  friendNick: {
-    fontSize: 11,
+  friendNickBadge: {
+    fontSize: 11.5,
+    fontWeight: '800',
     marginTop: 1,
   },
   streakPill: {
@@ -1702,9 +2414,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
 
-  // Profile Modal
+  // Profile Observer Modal
   profileCardModal: {
-    maxHeight: '90%',
+    maxHeight: '92%',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     borderWidth: 1,
@@ -1715,78 +2427,161 @@ const styles = StyleSheet.create({
   profileHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
   profileHeaderTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '900',
+  },
+  observerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10B98120',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  observerPillText: {
+    color: '#10B981',
+    fontSize: 9.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   closeIconBtn: {
     padding: 4,
   },
-  profileHeroBanner: {
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
+  themeBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 10,
   },
-  profileHeroRow: {
+  themeBannerTitle: {
+    fontSize: 11.5,
+  },
+  themeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  themeBannerSub: {
+    fontSize: 10.5,
+    marginLeft: 4,
+  },
+  profileTabsScroll: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 10,
+  },
+  profileTabBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
   },
-  profileHeroAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+  profileTabBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
   },
-  profileHeroAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '900',
+  tabContentWrap: {
+    marginTop: 6,
+  },
+  profileSectionBanner: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
   },
   profileHeroName: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '900',
   },
   profileHeroNick: {
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 12,
     marginTop: 1,
   },
-  profileRankBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 7,
-    marginTop: 5,
+  heroStreakPill: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
-  profileRankText: {
+  heroStreakPillText: {
     color: '#FDE047',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
   },
-  profileStreakFooter: {
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+  xpBarTrack: {
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    overflow: 'hidden',
   },
-  profileStreakText: {
-    color: '#FFFFFF',
-    fontSize: 12,
+  xpBarFill: {
+    height: '100%',
+    backgroundColor: '#FDE047',
+    borderRadius: 3.5,
+  },
+  goalItemCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 8,
+  },
+  goalTitle: {
+    fontSize: 12.5,
     fontWeight: '800',
+    flex: 1,
+  },
+  goalPercent: {
+    fontSize: 13,
+    fontWeight: '900',
+    marginLeft: 6,
+  },
+  goalTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    overflow: 'hidden',
+    marginVertical: 8,
+  },
+  goalFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  goalDate: {
+    fontSize: 10.5,
+  },
+  infoBannerBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  infoBannerTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  infoBannerDesc: {
+    fontSize: 12,
+    marginTop: 1,
   },
   metricSectionTitle: {
     fontSize: 13.5,
     fontWeight: '900',
-    marginTop: 12,
+    marginTop: 10,
     marginBottom: 8,
   },
   metricsGrid: {
@@ -1848,11 +2643,6 @@ const styles = StyleSheet.create({
   prRepsText: {
     fontSize: 9.5,
   },
-  emptyPrText: {
-    padding: 14,
-    textAlign: 'center',
-    fontSize: 12,
-  },
   workoutHistoryCard: {
     borderRadius: 12,
     borderWidth: 1,
@@ -1886,23 +2676,134 @@ const styles = StyleSheet.create({
   exerciseMiniChipText: {
     fontSize: 10,
   },
-  activeGoalBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
+  macrosCard: {
     borderRadius: 12,
     borderWidth: 1,
-    marginTop: 6,
+    padding: 12,
+    gap: 8,
     marginBottom: 10,
   },
-  activeGoalTitle: {
-    fontSize: 11,
+  macroRowItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  macroLabel: {
+    fontSize: 12.5,
+  },
+  macroVal: {
+    fontSize: 13,
     fontWeight: '900',
   },
-  activeGoalDesc: {
+  mealLogRow: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  mealLogTitle: {
     fontSize: 12,
+    flex: 1,
+  },
+  mealLogVal: {
+    fontSize: 11.5,
+  },
+  suppCardRow: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  suppName: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  suppDosage: {
+    fontSize: 10.5,
     marginTop: 1,
   },
+  suppStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  suppStatusText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  weightProgressionBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 10,
+  },
+  weightSubVal: {
+    fontSize: 10.5,
+  },
+  weightNum: {
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  musclesBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  muscleRowItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  musclePartName: {
+    fontSize: 12,
+  },
+  musclePartCm: {
+    fontSize: 12.5,
+    fontWeight: '900',
+  },
+
+  // Locked Section Style
+  lockedSectionBox: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 18,
+  },
+  lockedIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#EF444415',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  lockedTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  lockedDesc: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 14,
+  },
+
   profileInviteBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1923,7 +2824,7 @@ const styles = StyleSheet.create({
 
   // Invite Modal
   inviteCardModal: {
-    maxHeight: '90%',
+    maxHeight: '92%',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     borderWidth: 1,
@@ -1958,6 +2859,18 @@ const styles = StyleSheet.create({
   choiceText: {
     fontSize: 11.5,
   },
+  subOptionsContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  subOptionsTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
   formInput: {
     borderRadius: 11,
     borderWidth: 1,
@@ -1965,6 +2878,58 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? 9 : 6,
     fontSize: 12,
     marginBottom: 6,
+  },
+
+  // Time Picker Stepper with Arrows
+  timePickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 12,
+    marginBottom: 6,
+  },
+  timeColumn: {
+    alignItems: 'center',
+  },
+  arrowBtn: {
+    padding: 4,
+  },
+  timeBoxInput: {
+    width: 44,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  timeUnitLabel: {
+    fontSize: 9.5,
+    marginTop: 2,
+  },
+  timeSeparator: {
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: 14,
+  },
+  periodColumn: {
+    gap: 6,
+    marginLeft: 6,
+  },
+  periodBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  periodBtnText: {
+    fontSize: 11.5,
+    fontWeight: '900',
   },
 
   // Notifications Modal
@@ -2080,5 +3045,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     textDecorationLine: 'underline',
+  },
+
+  // Privacy Settings Modal
+  privacyModalCard: {
+    maxHeight: '88%',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+  },
+  privacyIntroText: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  privacyRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 8,
+  },
+  privacyIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  privacySecName: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  privacyStatusTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  privacyStatusTagText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+  },
+  privacySecDesc: {
+    fontSize: 10.5,
+    marginTop: 2,
   },
 });

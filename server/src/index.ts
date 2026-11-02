@@ -264,6 +264,46 @@ app.put('/api/auth/profile', authMiddleware, async (req: AuthenticatedRequest, r
   }
 });
 
+// 6. LISTAR Y BUSCAR USUARIOS DE LA BASE DE DATOS
+app.get('/api/users', async (req: Request, res: Response) => {
+  try {
+    const q = req.query.q ? String(req.query.q).trim().toLowerCase() : '';
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        nickname: true,
+        email: true,
+        avatarUrl: true,
+      },
+    });
+
+    const formatted = users.map((u) => {
+      const cleanNick = u.nickname ? (u.nickname.startsWith('@') ? u.nickname : '@' + u.nickname) : '@' + u.email.split('@')[0];
+      return {
+        id: u.id,
+        name: u.name,
+        nickname: cleanNick,
+        email: u.email,
+        avatarUrl: u.avatarUrl,
+      };
+    });
+
+    if (q) {
+      return res.json({
+        users: formatted.filter(
+          (u) => u.name.toLowerCase().includes(q) || u.nickname.toLowerCase().includes(q)
+        ),
+      });
+    }
+
+    return res.json({ users: formatted });
+  } catch (error) {
+    console.error('Error en /api/users:', error);
+    return res.status(500).json({ error: 'Error al listar usuarios.' });
+  }
+});
+
 /* ==========================================================
    RUTAS DE SINCRONIZACIÓN DE DATOS (NUBE / BASE DE DATOS)
 ========================================================== */

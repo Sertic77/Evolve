@@ -236,10 +236,77 @@ export type FriendMetrics = {
   activeGoal?: string;
 };
 
+export type SectionPrivacySettings = {
+  home: boolean;
+  workout: boolean;
+  food: boolean;
+  wellness: boolean;
+  measurements: boolean;
+};
+
+export const DEFAULT_PRIVACY_SETTINGS: SectionPrivacySettings = {
+  home: true,
+  workout: true,
+  food: true,
+  wellness: true,
+  measurements: true,
+};
+
+export type FriendCustomization = {
+  palette: {
+    name: string;
+    primary: string;
+    secondary: string;
+    cardBg: string;
+    bg: string;
+    isDark: boolean;
+  };
+  font: string;
+  avatarIcon?: string;
+};
+
+export type FriendFullProfile = {
+  customization: FriendCustomization;
+  privacy: SectionPrivacySettings;
+  home: {
+    streak: number;
+    level: number;
+    rank: string;
+    xp: number;
+    nextLevelXp: number;
+    activeGoals: { id: string; title: string; progress: number; targetDate: string; category: string }[];
+    completedGoalsCount: number;
+  };
+  workout: {
+    division: string;
+    weeklyFrequency: number;
+    prs: FriendPR[];
+    recentWorkouts: FriendRecentWorkout[];
+  };
+  food: {
+    targetCalories: number;
+    macros: { protein: number; carbs: number; fat: number };
+    waterLiters: number;
+    loggedMealsToday: { name: string; calories: number; protein: number }[];
+  };
+  wellness: {
+    avgSleepHours: number;
+    sleepQuality: string;
+    activeSupplements: { name: string; dosage: string; takenToday: boolean }[];
+  };
+  measurements: {
+    currentWeight: number;
+    startWeight: number;
+    targetWeight: number;
+    bodyFat: number;
+    muscles: { part: string; cm: number }[];
+  };
+};
+
 export type FriendUser = {
   id: string;
   name: string;
-  nickname: string;
+  nickname: string; // ID único identificador @nickname
   streak: number;
   level: number;
   rank: string;
@@ -249,6 +316,7 @@ export type FriendUser = {
   initials: string;
   cheeredToday?: boolean;
   metrics: FriendMetrics;
+  fullProfile?: FriendFullProfile;
 };
 
 export type FriendNotification = {
@@ -286,6 +354,117 @@ export type WorkoutInvite = {
   status: 'pending' | 'accepted' | 'declined';
   createdAt: string;
 };
+
+
+export function getFriendFullProfile(friend: FriendUser): FriendFullProfile {
+  if (friend.fullProfile) return friend.fullProfile;
+  const m = friend.metrics || {
+    currentWeight: 75,
+    bodyFat: 15,
+    avgCalories: 2500,
+    avgProtein: 160,
+    prs: [],
+    recentWorkouts: [],
+    activeGoal: 'Superar mis marcas este año',
+  };
+
+  return {
+    customization: {
+      palette: {
+        name: friend.color === '#EC4899' ? 'Rosa Sakura & Magenta' : friend.color === '#3B82F6' ? 'Azul Neón Eléctrico' : 'Violeta & Lavanda',
+        primary: friend.color || '#8B5CF6',
+        secondary: '#EC4899',
+        cardBg: '#1E293B',
+        bg: '#0F172A',
+        isDark: true,
+      },
+      font: 'athletic',
+      avatarIcon: 'flame',
+    },
+    privacy: {
+      home: true,
+      workout: true,
+      food: true,
+      wellness: friend.nickname !== '@lau_wod', // Demostración de sección privada con candado para @lau_wod
+      measurements: true,
+    },
+    home: {
+      streak: friend.streak || 15,
+      level: friend.level || 20,
+      rank: friend.rank || 'Atleta Avanzado',
+      xp: (friend.level || 20) * 1250 + 450,
+      nextLevelXp: ((friend.level || 20) + 1) * 1250,
+      activeGoals: [
+        {
+          id: 'g-fr-1',
+          title: m.activeGoal || 'Mejorar PR de Fuerza',
+          progress: 78,
+          targetDate: '2026-03-31',
+          category: 'Fuerza & Rendimiento',
+        },
+        {
+          id: 'g-fr-2',
+          title: 'Mantener racha de entrenamientos activa',
+          progress: 92,
+          targetDate: '2026-02-28',
+          category: 'Hábito & Racha',
+        },
+      ],
+      completedGoalsCount: 6,
+    },
+    workout: {
+      division: friend.nickname === '@valen_lift' ? 'Glúteos / Pierna / Torso' : 'Push / Pull / Legs (PPL)',
+      weeklyFrequency: 5,
+      prs: m.prs && m.prs.length > 0 ? m.prs : [
+        { exercise: 'Press de Banca Plano', weight: 100, reps: 5, date: '2026-10-20' },
+        { exercise: 'Sentadilla Profunda', weight: 140, reps: 4, date: '2026-10-15' },
+        { exercise: 'Peso Muerto Convencional', weight: 170, reps: 3, date: '2026-10-10' },
+      ],
+      recentWorkouts: m.recentWorkouts && m.recentWorkouts.length > 0 ? m.recentWorkouts : [
+        { id: 'rw-1', date: 'Ayer', title: 'Empuje Pesado (Pecho/Hombro)', durationMinutes: 65, exercises: ['Press Banca Plano', 'Press Militar', 'Fondos Lastrados'], totalSets: 18 },
+        { id: 'rw-2', date: 'Hace 3 días', title: 'Jalón & Espalda', durationMinutes: 60, exercises: ['Dominadas Lastradas', 'Remo con Barra', 'Jalón al Pecho'], totalSets: 16 },
+      ],
+    },
+    food: {
+      targetCalories: m.avgCalories || 2600,
+      macros: {
+        protein: m.avgProtein || 170,
+        carbs: Math.round(((m.avgCalories || 2600) * 0.45) / 4),
+        fat: Math.round(((m.avgCalories || 2600) * 0.25) / 9),
+      },
+      waterLiters: 3.2,
+      loggedMealsToday: [
+        { name: 'Desayuno Proteico (Huevos + Avena + Fruta)', calories: 650, protein: 42 },
+        { name: 'Almuerzo (Pechuga + Arroz + Aguacate)', calories: 850, protein: 55 },
+        { name: 'Merienda Post-Entreno (Batido Whey + Plátano)', calories: 420, protein: 35 },
+        { name: 'Cena Ligera (Salmón + Ensalada verde)', calories: 580, protein: 38 },
+      ],
+    },
+    wellness: {
+      avgSleepHours: 7.8,
+      sleepQuality: 'Excelente (88% sueño profundo)',
+      activeSupplements: [
+        { name: 'Creatina Monohidrato Creapure', dosage: '5g diarios', takenToday: true },
+        { name: 'Proteína Whey Isolate', dosage: '30g post-entreno', takenToday: true },
+        { name: 'Omega 3 EPA/DHA', dosage: '2 cápsulas', takenToday: false },
+        { name: 'Magnesio Bisglicinato', dosage: '400mg antes de dormir', takenToday: false },
+      ],
+    },
+    measurements: {
+      currentWeight: m.currentWeight || 75.0,
+      startWeight: Number(((m.currentWeight || 75.0) - 4.5).toFixed(1)),
+      targetWeight: Number(((m.currentWeight || 75.0) + 3.0).toFixed(1)),
+      bodyFat: m.bodyFat || 14.5,
+      muscles: [
+        { part: 'Brazo Derecho (Bíceps)', cm: 39.5 },
+        { part: 'Pecho / Torso', cm: 108.0 },
+        { part: 'Cintura', cm: 79.0 },
+        { part: 'Muslo / Cuádriceps', cm: 61.5 },
+        { part: 'Pantorrilla', cm: 38.0 },
+      ],
+    },
+  };
+}
 
 export const SEED_FRIENDS: FriendUser[] = [
   {
@@ -1172,6 +1351,10 @@ type State = {
   deleteGoal: (id: string) => void;
   toggleGoalCompleted: (id: string) => void;
 
+  // Configuración de Privacidad de Secciones para Amigos
+  privacySettings: SectionPrivacySettings;
+  updatePrivacySettings: (settings: Partial<SectionPrivacySettings>) => void;
+
   // Amigos & Comunidad
   friends: FriendUser[];
   friendNotifications: FriendNotification[];
@@ -1753,6 +1936,13 @@ export const useStore = create<State>()(
           ),
         })),
 
+      // Configuración de Privacidad
+      privacySettings: DEFAULT_PRIVACY_SETTINGS,
+      updatePrivacySettings: (settings) =>
+        set((s) => ({
+          privacySettings: { ...s.privacySettings, ...settings },
+        })),
+
       // Amigos & Comunidad
       friends: SEED_FRIENDS,
       friendNotifications: INITIAL_NOTIFICATIONS,
@@ -2042,6 +2232,7 @@ export const useStore = create<State>()(
           sleepLogs: SEED_SLEEP_LOGS,
           userProfile: DEFAULT_USER_PROFILE,
           goals: SEED_GOALS,
+          privacySettings: DEFAULT_PRIVACY_SETTINGS,
           friends: SEED_FRIENDS,
           friendNotifications: INITIAL_NOTIFICATIONS,
           sentWorkoutInvites: [],
@@ -2153,6 +2344,7 @@ export const useStore = create<State>()(
             : currentState.bodyFatLogs,
         userProfile: { ...DEFAULT_USER_PROFILE, ...(persistedState?.userProfile || {}) },
         goals: Array.isArray(persistedState?.goals) ? persistedState.goals : (currentState.goals || SEED_GOALS),
+        privacySettings: { ...DEFAULT_PRIVACY_SETTINGS, ...(persistedState?.privacySettings || {}) },
         friends: Array.isArray(persistedState?.friends) ? persistedState.friends : (currentState.friends || SEED_FRIENDS),
         friendNotifications: Array.isArray(persistedState?.friendNotifications) ? persistedState.friendNotifications : (currentState.friendNotifications || INITIAL_NOTIFICATIONS),
         sentWorkoutInvites: Array.isArray(persistedState?.sentWorkoutInvites) ? persistedState.sentWorkoutInvites : (currentState.sentWorkoutInvites || []),

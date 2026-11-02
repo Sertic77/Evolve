@@ -1063,7 +1063,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         ========================================================== */}
         <View style={styles.goalsAndFriendsContainer}>
           {/* Fila superior: Cabecera Metas (izquierda) y Tarjeta Amigos (derecha) */}
-          <View style={[styles.topDualRow, { marginBottom: activeGoals.length > 0 ? 0 : 14 }]}>
+          <View style={[styles.topDualRow, { marginBottom: 12 }]}>
             {/* Cabecera / Bloque Superior de Metas en la izquierda */}
             <TouchableOpacity
               activeOpacity={0.92}
@@ -1073,13 +1073,9 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 {
                   backgroundColor: palette.primary,
                   borderColor: palette.primary,
-                  borderBottomLeftRadius: activeGoals.length > 0 ? 0 : 18,
-                  borderBottomRightRadius: activeGoals.length > 0 ? 0 : 18,
-                  borderBottomWidth: 0,
-                  borderBottomColor: 'transparent',
-                  // Eliminar sombreado inferior en el empalme para que sea un solo bloque
-                  shadowOpacity: activeGoals.length > 0 ? 0 : 0.05,
-                  elevation: activeGoals.length > 0 ? 0 : 2,
+                  borderRadius: 18,
+                  shadowOpacity: 0.08,
+                  elevation: 2,
                 },
               ]}
             >
@@ -1221,10 +1217,11 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 styles.metasLBaseCard,
                 {
                   backgroundColor: palette.primary,
-                  borderColor: palette.primary,
-                  borderTopWidth: 0,
-                  borderTopColor: 'transparent',
-                  marginTop: -2, // Empalme exacto sin línea intermedia
+                  borderColor: 'rgba(255, 255, 255, 0.25)',
+                  borderWidth: 1,
+                  borderRadius: 18,
+                  marginTop: 0,
+                  padding: 15,
                 },
               ]}
             >
