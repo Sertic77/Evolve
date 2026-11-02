@@ -609,6 +609,7 @@ export const SEED_FRIENDS: FriendUser[] = [
 ];
 
 export const DISCOVERABLE_USERS: FriendUser[] = [
+  ...SEED_FRIENDS,
   {
     id: 'disc-1',
     name: 'Andrés Morales',
@@ -2001,8 +2002,8 @@ export const useStore = create<State>()(
         })),
 
       // Amigos & Comunidad
-      friends: SEED_FRIENDS,
-      friendNotifications: INITIAL_NOTIFICATIONS,
+      friends: [],
+      friendNotifications: [],
       sentWorkoutInvites: [],
       sentChallenges: [],
 
@@ -2334,8 +2335,8 @@ export const useStore = create<State>()(
           userProfile: DEFAULT_USER_PROFILE,
           goals: SEED_GOALS,
           privacySettings: DEFAULT_PRIVACY_SETTINGS,
-          friends: SEED_FRIENDS,
-          friendNotifications: INITIAL_NOTIFICATIONS,
+          friends: [],
+          friendNotifications: [],
           sentWorkoutInvites: [],
           sentChallenges: [],
           activePaletteId: 'default',
@@ -2447,8 +2448,8 @@ export const useStore = create<State>()(
         userProfile: { ...DEFAULT_USER_PROFILE, ...(persistedState?.userProfile || {}) },
         goals: Array.isArray(persistedState?.goals) ? persistedState.goals : (currentState.goals || SEED_GOALS),
         privacySettings: { ...DEFAULT_PRIVACY_SETTINGS, ...(persistedState?.privacySettings || {}) },
-        friends: Array.isArray(persistedState?.friends) ? persistedState.friends : (currentState.friends || SEED_FRIENDS),
-        friendNotifications: Array.isArray(persistedState?.friendNotifications) ? persistedState.friendNotifications : (currentState.friendNotifications || INITIAL_NOTIFICATIONS),
+        friends: Array.isArray(persistedState?.friends) ? (persistedState.friends as FriendUser[]).filter((f: FriendUser) => !f.id.startsWith('f-') || !SEED_FRIENDS.some((sf) => sf.id === f.id)) : (currentState.friends || []),
+        friendNotifications: Array.isArray(persistedState?.friendNotifications) ? (persistedState.friendNotifications as FriendNotification[]).filter((n: FriendNotification) => !n.id.startsWith('notif-chal-demo') && !n.id.startsWith('notif-1') && !n.id.startsWith('notif-2') && !n.id.startsWith('notif-act-1')) : (currentState.friendNotifications || []),
         sentWorkoutInvites: Array.isArray(persistedState?.sentWorkoutInvites) ? persistedState.sentWorkoutInvites : (currentState.sentWorkoutInvites || []),
         sentChallenges: Array.isArray(persistedState?.sentChallenges) ? persistedState.sentChallenges : [],
         activePaletteId: persistedState?.activePaletteId || 'default',

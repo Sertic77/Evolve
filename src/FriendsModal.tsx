@@ -2261,10 +2261,17 @@ function NotificationsModal({
 }) {
   const [activeTab, setActiveTab] = useState<'requests' | 'invites' | 'activity'>('requests');
 
+  useEffect(() => {
+    if (visible) {
+      onMarkAllAsRead();
+    }
+  }, [visible]);
+
   const friendRequests = notifications.filter((n) => n.type === 'friend_request' && n.status === 'pending');
   const workoutInvites = notifications.filter((n) => n.type === 'workout_invite' && n.status === 'pending');
   const challenges = notifications.filter((n) => n.type === 'challenge' && n.status === 'pending');
   const activityUpdates = notifications.filter((n) => n.type === 'activity' || n.status !== 'pending');
+  const unreadActivityCount = activityUpdates.filter((n) => !n.read).length;
 
   const totalPending = friendRequests.length + workoutInvites.length + challenges.length;
   const invitesCount = workoutInvites.length + challenges.length;
@@ -2400,7 +2407,7 @@ function NotificationsModal({
               >
                 Actividad
               </Text>
-              {activityUpdates.length > 0 && (
+              {unreadActivityCount > 0 && (
                 <View
                   style={[
                     styles.notifTabBadge,
@@ -2415,7 +2422,7 @@ function NotificationsModal({
                       { color: activeTab === 'activity' ? palette.text : '#FFFFFF' },
                     ]}
                   >
-                    {activityUpdates.length}
+                    {unreadActivityCount}
                   </Text>
                 </View>
               )}
@@ -2713,21 +2720,7 @@ function NotificationsModal({
               </View>
             )}
 
-            {/* Marcar todas como leídas */}
-            {notifications.length > 0 && (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => {
-                  onMarkAllAsRead();
-                  Alert.alert('Listo', 'Se han marcado las notificaciones como leídas.');
-                }}
-                style={styles.markReadBtn}
-              >
-                <Text style={[styles.markReadBtnText, { color: palette.textSub, fontFamily: subtitleFont }]}>
-                  Marcar todas como leídas
-                </Text>
-              </TouchableOpacity>
-            )}
+
           </ScrollView>
         </View>
       </View>

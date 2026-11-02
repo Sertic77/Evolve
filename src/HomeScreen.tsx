@@ -90,6 +90,8 @@ export interface XpBreakdown {
   healthDays: number;
   goalsXp: number;
   completedGoalsCount: number;
+  partnerWorkoutXp: number;
+  partnerWorkoutsCount: number;
   totalXp: number;
   userLevel: number;
   rankTitle: string;
@@ -254,7 +256,10 @@ export function calculateUserXpAndLevel(
   photoLogs: Record<string, any[]> | undefined,
   healthLogs: Record<string, any> | undefined,
   ingredients?: any[],
-  goals?: UserGoal[]
+  goals?: UserGoal[],
+  sentWorkoutInvites?: any[],
+  friendNotifications?: any[],
+  friends?: any[]
 ): XpBreakdown {
   const ingMap = new Map<string, any>();
   if (Array.isArray(ingredients)) {
@@ -426,7 +431,52 @@ export function calculateUserXpAndLevel(
     });
   }
 
-  const totalXp = foodXp + workoutXp + sleepXp + supplementsXp + measurementsXp + healthXp + goalsXp;
+  // 8 & 9. Entrenamiento Conjunto con Amigos (Compañero de Gym)
+  // +40 XP para ambos atletas cuando ambos registran entrenamiento en el calendario en la fecha pactada
+  let partnerWorkoutXp = 0;
+  let partnerWorkoutsCount = 0;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const processedPartnerDates = new Set<string>();
+
+  // Revisar invitaciones enviadas y aceptadas
+  (sentWorkoutInvites || []).forEach((inv: any) => {
+    let targetDateKey = '';
+    const dLower = String(inv.date || '').toLowerCase();
+    if (dLower.includes('hoy')) targetDateKey = todayStr;
+    else if (inv.date && inv.date.includes('-')) targetDateKey = inv.date;
+
+    const userTrained = targetDateKey ? (workoutLogs && Array.isArray(workoutLogs[targetDateKey]) && workoutLogs[targetDateKey].length > 0) : false;
+    const friend = (friends || []).find((f: any) => f.id === inv.friendId || f.nickname === inv.friendId);
+    const friendTrained = friend ? Boolean((friend.todayWorkout && !friend.todayWorkout.includes('Descanso')) || (friend.metrics?.recentWorkouts?.length || 0) > 0) : true;
+
+    if (userTrained && friendTrained && targetDateKey && !processedPartnerDates.has(targetDateKey + inv.friendId)) {
+      processedPartnerDates.add(targetDateKey + inv.friendId);
+      partnerWorkoutsCount++;
+      partnerWorkoutXp += 40;
+    }
+  });
+
+  // Revisar invitaciones recibidas y aceptadas
+  (friendNotifications || []).forEach((n: any) => {
+    if (n.type === 'workout_invite' && n.status === 'accepted' && n.workoutDetails) {
+      let targetDateKey = '';
+      const dLower = String(n.workoutDetails.dateTime || '').toLowerCase();
+      if (dLower.includes('hoy')) targetDateKey = todayStr;
+      else if (n.workoutDetails.dateTime && n.workoutDetails.dateTime.includes('-')) targetDateKey = n.workoutDetails.dateTime;
+
+      const userTrained = targetDateKey ? (workoutLogs && Array.isArray(workoutLogs[targetDateKey]) && workoutLogs[targetDateKey].length > 0) : false;
+      const friend = (friends || []).find((f: any) => f.id === n.senderId || f.nickname === n.senderNickname);
+      const friendTrained = friend ? Boolean((friend.todayWorkout && !friend.todayWorkout.includes('Descanso')) || (friend.metrics?.recentWorkouts?.length || 0) > 0) : true;
+
+      if (userTrained && friendTrained && targetDateKey && !processedPartnerDates.has(targetDateKey + n.senderId)) {
+        processedPartnerDates.add(targetDateKey + n.senderId);
+        partnerWorkoutsCount++;
+        partnerWorkoutXp += 40;
+      }
+    }
+  });
+
+  const totalXp = foodXp + workoutXp + sleepXp + supplementsXp + measurementsXp + healthXp + goalsXp + partnerWorkoutXp;
 
   // Curva de Niveles Progresiva: Nivel L requiere 140 + (L - 1) * 45 XP
   let level = 1;
@@ -471,6 +521,8 @@ export function calculateUserXpAndLevel(
     healthDays,
     goalsXp,
     completedGoalsCount,
+    partnerWorkoutXp,
+    partnerWorkoutsCount,
     totalXp,
     userLevel: level,
     rankTitle,
@@ -681,6 +733,25 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   const currentBodyFat = getLatestEntry(bodyFatLogs);
   const [stickyHeaderHeight, setStickyHeaderHeight] = useState(Platform.OS === 'android' ? 104 : 96);
 
+  const [showXpModal, setShowXpModal] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [showGoalsModal, setShowGoalsModal] = useState(false);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const avatarZoomAnim = useRef(new Animated.Value(0)).current;
+
+  // Amigos, Notificaciones e Invitaciones desde el store
+  const friends = useStore((s) => s.friends) || [];
+  const friendNotifications = useStore((s) => s.friendNotifications) || [];
+  const sentWorkoutInvites = useStore((s) => s.sentWorkoutInvites) || [];
+  const unreadFriendsCount = friendNotifications.filter((n) => !n.read && n.status === 'pending').length;
+
+  // Metas del usuario desde el store
+  const goals = useStore((s) => s.goals) || [];
+  const addGoal = useStore((s) => s.addGoal);
+  const updateGoal = useStore((s) => s.updateGoal);
+  const deleteGoal = useStore((s) => s.deleteGoal);
+  const toggleGoalCompleted = useStore((s) => s.toggleGoalCompleted);
+
   // 6. Racha de Entrenamientos y Sistema Progresivo de Niveles & Puntos XP
   const xpBreakdown = React.useMemo(() => {
     return calculateUserXpAndLevel(
@@ -694,7 +765,10 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
       photoLogs,
       healthLogs,
       ingredients,
-      goals
+      goals,
+      sentWorkoutInvites,
+      friendNotifications,
+      friends
     );
   }, [
     logs,
@@ -707,29 +781,15 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
     photoLogs,
     healthLogs,
     ingredients,
+    goals,
+    sentWorkoutInvites,
+    friendNotifications,
+    friends,
   ]);
 
   const workoutStreak = React.useMemo(() => {
     return calculateWorkoutStreak(workoutLogs, todayKeyStr);
   }, [workoutLogs, todayKeyStr]);
-
-  const [showXpModal, setShowXpModal] = useState(false);
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [showGoalsModal, setShowGoalsModal] = useState(false);
-  const [showFriendsModal, setShowFriendsModal] = useState(false);
-  const avatarZoomAnim = useRef(new Animated.Value(0)).current;
-
-  // Amigos & Notificaciones desde el store
-  const friends = useStore((s) => s.friends) || SEED_FRIENDS;
-  const friendNotifications = useStore((s) => s.friendNotifications) || [];
-  const unreadFriendsCount = friendNotifications.filter((n) => !n.read && n.status === 'pending').length;
-
-    // Metas del usuario desde el store
-  const goals = useStore((s) => s.goals) || [];
-  const addGoal = useStore((s) => s.addGoal);
-  const updateGoal = useStore((s) => s.updateGoal);
-  const deleteGoal = useStore((s) => s.deleteGoal);
-  const toggleGoalCompleted = useStore((s) => s.toggleGoalCompleted);
 
   const activeGoals = goals.filter((g) => !g.completed);
   const completedGoals = goals.filter((g) => g.completed);
@@ -741,10 +801,10 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 
   const toggleMetasFold = () => {
     const toValue = isMetasExpanded ? 0 : 1;
-    Animated.spring(metasFoldAnim, {
+    Animated.timing(metasFoldAnim, {
       toValue,
-      friction: 6,
-      tension: 45,
+      duration: 320,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
       useNativeDriver: false,
     }).start();
     setIsMetasExpanded(!isMetasExpanded);
@@ -1074,11 +1134,19 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
       >
 
         {/* ==========================================================
-            FILA SUPERIOR: METAS (FORMA EN L SI HAY METAS ACTIVAS) & AMIGOS
+            FILA SUPERIOR: METAS (FORMA EN L UNIFICADA) & AMIGOS
         ========================================================== */}
         <View style={styles.goalsAndFriendsContainer}>
           {/* Fila superior: Cabecera Metas (izquierda) y Tarjeta Amigos (derecha) */}
-          <View style={[styles.topDualRow, { marginBottom: 12 }]}>
+          <View
+            style={[
+              styles.topDualRow,
+              {
+                marginBottom: activeGoals.length > 0 && isMetasExpanded ? 0 : 12,
+                alignItems: 'flex-start',
+              },
+            ]}
+          >
             {/* Cabecera / Bloque Superior de Metas en la izquierda */}
             <TouchableOpacity
               activeOpacity={0.92}
@@ -1088,30 +1156,17 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 {
                   backgroundColor: palette.primary,
                   borderColor: palette.primary,
+                  borderWidth: 0,
                   borderRadius: 18,
                   borderBottomLeftRadius: activeGoals.length > 0 && isMetasExpanded ? 0 : 18,
                   borderBottomRightRadius: activeGoals.length > 0 && isMetasExpanded ? 0 : 18,
-                  shadowOpacity: activeGoals.length > 0 && isMetasExpanded ? 0 : 0.08,
-                  elevation: activeGoals.length > 0 && isMetasExpanded ? 0 : 2,
+                  borderBottomWidth: 0,
+                  paddingBottom: activeGoals.length > 0 && isMetasExpanded ? 24 : 13,
+                  shadowOpacity: 0,
+                  elevation: 0,
                 },
               ]}
             >
-              {/* Bloque puente que cubre el gap entre Metas y Progreso Detallado para dar ilusión de bloque único */}
-              {activeGoals.length > 0 && (
-                <Animated.View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    bottom: -14,
-                    left: 0,
-                    right: 0,
-                    height: 16,
-                    backgroundColor: palette.primary,
-                    zIndex: 20,
-                    opacity: metasFoldAnim,
-                  }}
-                />
-              )}
               <View style={styles.topDualHeader}>
                 <View style={[styles.topDualIconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
                   <Ionicons name="trophy" size={14} color="#FFFFFF" />
@@ -1198,6 +1253,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 {
                   backgroundColor: palette.cardBg,
                   borderColor: palette.border,
+                  marginBottom: activeGoals.length > 0 && isMetasExpanded ? 12 : 0,
                 },
               ]}
             >
@@ -1213,7 +1269,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   )}
                   <View style={[styles.topDualPill, { backgroundColor: `${c2}18` }]}>
                     <Text style={[styles.topDualPillText, { color: c2, fontFamily: subtitleFont }]}>
-                      {friends.length} amigos
+                      {friends.length} {friends.length === 1 ? 'amigo' : 'amigos'}
                     </Text>
                   </View>
                 </View>
@@ -1224,37 +1280,52 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               </Text>
 
               <View style={styles.topDualBodyWrap}>
-                <View style={styles.friendsStackedRow}>
-                  {friends.slice(0, 3).map((f, i) => (
-                    <View
-                      key={f.id}
-                      style={[
-                        styles.friendMiniDot,
-                        {
-                          backgroundColor: f.color,
-                          marginLeft: i === 0 ? 0 : -8,
-                          borderColor: palette.cardBg,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.friendMiniDotText}>{f.initials}</Text>
+                {friends.length > 0 ? (
+                  <>
+                    <View style={styles.friendsStackedRow}>
+                      {friends.slice(0, 3).map((f, i) => (
+                        <View
+                          key={f.id}
+                          style={[
+                            styles.friendMiniDot,
+                            {
+                              backgroundColor: f.color,
+                              marginLeft: i === 0 ? 0 : -8,
+                              borderColor: palette.cardBg,
+                            },
+                          ]}
+                        >
+                          <Text style={styles.friendMiniDotText}>{f.initials}</Text>
+                        </View>
+                      ))}
+                      <Text style={[styles.friendsActiveText, { color: palette.textSub, fontFamily: bodyFont }]}>
+                        {friends.filter((f) => f.todayWorkout && !f.todayWorkout.includes('Descanso')).length} activos hoy
+                      </Text>
                     </View>
-                  ))}
-                  <Text style={[styles.friendsActiveText, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    {friends.filter((f) => f.todayWorkout && !f.todayWorkout.includes('Descanso')).length} activos hoy
-                  </Text>
-                </View>
 
-                <Text
-                  style={[styles.friendLeadText, { color: palette.text, fontFamily: subtitleFont }]}
-                  numberOfLines={1}
-                >
-                  🔥 {friends[0]?.name?.split(' ')[0] || 'Atleta'} racha {friends[0]?.streak || 0}d
-                </Text>
+                    <Text
+                      style={[styles.friendLeadText, { color: palette.text, fontFamily: subtitleFont }]}
+                      numberOfLines={1}
+                    >
+                      🔥 {friends[0]?.name?.split(' ')[0] || 'Atleta'} racha {friends[0]?.streak || 0}d
+                    </Text>
 
-                <Text style={[styles.friendActionLink, { color: c2, fontFamily: subtitleFont }]}>
-                  {unreadFriendsCount > 0 ? `Ver solicitudes (${unreadFriendsCount}) ➔` : 'Ver comunidad ➔'}
-                </Text>
+                    <Text style={[styles.friendActionLink, { color: c2, fontFamily: subtitleFont }]}>
+                      {unreadFriendsCount > 0 ? `Ver solicitudes (${unreadFriendsCount}) ➔` : 'Ver comunidad ➔'}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.topDualEmptyDesc, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      Entrena y compite en comunidad
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                      <Text style={[styles.friendActionLink, { color: c2, fontFamily: subtitleFont }]}>
+                        + Buscar atletas ➔
+                      </Text>
+                    </View>
+                  </>
+                )}
               </View>
             </TouchableOpacity>
           </View>
@@ -1265,20 +1336,12 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               style={{
                 maxHeight: metasFoldAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [0, 800],
+                  outputRange: [0, 950],
                 }),
                 opacity: metasFoldAnim.interpolate({
-                  inputRange: [0, 0.2, 1],
-                  outputRange: [0, 0, 1],
+                  inputRange: [0, 0.25, 1],
+                  outputRange: [0, 0.5, 1],
                 }),
-                transform: [
-                  {
-                    scale: metasFoldAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.94, 1],
-                    }),
-                  },
-                ],
                 overflow: 'hidden',
               }}
             >
@@ -1289,13 +1352,17 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   styles.metasLBaseCard,
                   {
                     backgroundColor: palette.primary,
-                    borderColor: 'rgba(255, 255, 255, 0.25)',
-                    borderWidth: 1,
+                    borderColor: palette.primary,
+                    borderWidth: 0,
                     borderTopWidth: 0,
                     borderTopLeftRadius: 0,
-                    borderRadius: 18,
-                    marginTop: 0,
+                    borderTopRightRadius: 18,
+                    borderBottomLeftRadius: 18,
+                    borderBottomRightRadius: 18,
+                    marginTop: -1,
                     padding: 15,
+                    shadowOpacity: 0.08,
+                    elevation: 2,
                   },
                 ]}
               >
@@ -2190,6 +2257,33 @@ function XpInfoModal({
                   Al retar a un amigo o aceptar un reto en la comunidad (Calorías, Fuerza, Peso total levantado o Tiempo), el sistema compara automáticamente los datos registrados por ambos en la fecha acordada:{`\n`}
                   • <Text style={{ fontWeight: '800', color: '#10B981' }}>El Atleta Ganador </Text>se lleva <Text style={{ fontWeight: '800', color: '#10B981' }}>+50 XP</Text> de victoria.{`\n`}
                   • <Text style={{ fontWeight: '800', color: '#EF4444' }}>El Atleta Derrotado </Text>pierde <Text style={{ fontWeight: '800', color: '#EF4444' }}>-25 XP</Text>, añadiendo riesgo y motivación a cada duelo.
+                </Text>
+              </View>
+            </View>
+
+            {/* 9. Entrenamiento Conjunto con Amigos (Compañero de Gym) */}
+            <View style={[xpStyles.metricCard, { backgroundColor: palette.bg, borderColor: '#3B82F6', borderWidth: 1.5 }]}>
+              <View style={[xpStyles.metricIconWrap, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
+                <Ionicons name="people" size={20} color="#3B82F6" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={xpStyles.metricHeaderRow}>
+                  <Text style={[xpStyles.metricTitle, { color: palette.text }]}>
+                    9. Entrenamiento Conjunto con Amigos
+                  </Text>
+                  <View style={[xpStyles.priorityBadge, { backgroundColor: 'rgba(59, 130, 246, 0.18)' }]}>
+                    <Text style={[xpStyles.priorityBadgeText, { color: '#3B82F6' }]}>Compañerismo</Text>
+                  </View>
+                </View>
+                <Text style={[xpStyles.metricPoints, { color: '#3B82F6' }]}>
+                  🤝 +40 XP para ambos atletas
+                </Text>
+                <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
+                  Al invitar a un amigo a entrenar (o aceptar una invitación) y registrar ambos su entrenamiento en el calendario en la fecha pactada:{'\n'}
+                  • <Text style={{ fontWeight: '800', color: '#10B981' }}>Ambos Atletas </Text>reciben <Text style={{ fontWeight: '800', color: '#10B981' }}>+40 XP</Text> de bonificación de compañerismo por cumplir su sesión conjunta.
+                </Text>
+                <Text style={[xpStyles.metricUserStat, { color: palette.textSub }]}>
+                  Has completado: <Text style={{ color: palette.text, fontWeight: '700' }}>{xpBreakdown.partnerWorkoutsCount} entrenos conjuntos</Text> ({xpBreakdown.partnerWorkoutXp} XP)
                 </Text>
               </View>
             </View>
