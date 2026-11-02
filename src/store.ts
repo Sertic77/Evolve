@@ -206,6 +206,383 @@ export const SEED_GOALS: UserGoal[] = [
   },
 ];
 
+
+/* ==========================================================
+   AMIGOS & COMUNIDAD EVOLVE
+========================================================== */
+export type FriendPR = {
+  exercise: string;
+  weight: number;
+  reps?: number;
+  date?: string;
+};
+
+export type FriendRecentWorkout = {
+  id: string;
+  date: string;
+  title: string;
+  durationMinutes: number;
+  exercises: string[];
+  totalSets: number;
+};
+
+export type FriendMetrics = {
+  currentWeight: number; // kg
+  bodyFat?: number; // %
+  avgCalories: number; // kcal
+  avgProtein: number; // g
+  prs: FriendPR[];
+  recentWorkouts: FriendRecentWorkout[];
+  activeGoal?: string;
+};
+
+export type FriendUser = {
+  id: string;
+  name: string;
+  nickname: string;
+  streak: number;
+  level: number;
+  rank: string;
+  todayWorkout: string;
+  avatarUri?: string;
+  color: string;
+  initials: string;
+  cheeredToday?: boolean;
+  metrics: FriendMetrics;
+};
+
+export type FriendNotification = {
+  id: string;
+  type: 'friend_request' | 'workout_invite' | 'activity';
+  senderId: string;
+  senderName: string;
+  senderNickname: string;
+  senderAvatarUri?: string;
+  senderColor: string;
+  senderInitials: string;
+  senderLevel: number;
+  senderRank: string;
+  date: string;
+  read: boolean;
+  status: 'pending' | 'accepted' | 'rejected';
+  message?: string;
+  workoutDetails?: {
+    workoutType: string;
+    dateTime: string;
+    location?: string;
+    note?: string;
+  };
+};
+
+export type WorkoutInvite = {
+  id: string;
+  friendId: string;
+  friendName: string;
+  workoutType: string;
+  date: string;
+  time: string;
+  location?: string;
+  note?: string;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
+};
+
+export const SEED_FRIENDS: FriendUser[] = [
+  {
+    id: 'f-1',
+    name: 'Carlos Mendoza',
+    nickname: '@carlos_fit',
+    streak: 22,
+    level: 28,
+    rank: 'Atleta Avanzado',
+    todayWorkout: 'Pecho & Tríceps (5 series pesadas)',
+    color: '#3B82F6',
+    initials: 'CM',
+    cheeredToday: false,
+    metrics: {
+      currentWeight: 81.2,
+      bodyFat: 14.2,
+      avgCalories: 2850,
+      avgProtein: 180,
+      prs: [
+        { exercise: 'Press de Banca Plano', weight: 115, reps: 5, date: '2026-10-24' },
+        { exercise: 'Sentadilla Trasera', weight: 150, reps: 4, date: '2026-10-18' },
+        { exercise: 'Peso Muerto Convencional', weight: 180, reps: 3, date: '2026-10-10' },
+        { exercise: 'Press Militar de Pie', weight: 75, reps: 6, date: '2026-10-05' },
+      ],
+      recentWorkouts: [
+        { id: 'w-cm-1', date: 'Ayer', title: 'Pecho & Tríceps Pesado', durationMinutes: 65, exercises: ['Press de Banca Plano', 'Fondos Lastrados', 'Press Inclinado', 'Extensiones Polea'], totalSets: 18 },
+        { id: 'w-cm-2', date: 'Hace 3 días', title: 'Espalda & Jalones', durationMinutes: 70, exercises: ['Dominadas Lastradas', 'Remo con Barra', 'Jalón al Pecho', 'Face Pulls'], totalSets: 20 },
+        { id: 'w-cm-3', date: 'Hace 5 días', title: 'Pierna Hipertrofia', durationMinutes: 60, exercises: ['Sentadilla Trasera', 'Prensa 45', 'Curl Femoral', 'Gemelos'], totalSets: 16 },
+      ],
+      activeGoal: 'Superar los 120 kg en Press de Banca antes de fin de año',
+    },
+  },
+  {
+    id: 'f-2',
+    name: 'Valentina Ortiz',
+    nickname: '@valen_lift',
+    streak: 18,
+    level: 32,
+    rank: 'Atleta Élite',
+    todayWorkout: 'Sentadillas & Glúteos (PR 105 kg)',
+    color: '#EC4899',
+    initials: 'VO',
+    cheeredToday: false,
+    metrics: {
+      currentWeight: 62.0,
+      bodyFat: 19.5,
+      avgCalories: 2200,
+      avgProtein: 135,
+      prs: [
+        { exercise: 'Hip Thrust con Barra', weight: 165, reps: 8, date: '2026-10-28' },
+        { exercise: 'Sentadilla Profunda', weight: 105, reps: 5, date: '2026-10-22' },
+        { exercise: 'Peso Muerto Rumano', weight: 110, reps: 6, date: '2026-10-15' },
+      ],
+      recentWorkouts: [
+        { id: 'w-vo-1', date: 'Hoy', title: 'Glúteos & Isquios Foco PR', durationMinutes: 60, exercises: ['Hip Thrust', 'Sentadilla Búlgara', 'Peso Muerto Rumano', 'Abductores'], totalSets: 17 },
+        { id: 'w-vo-2', date: 'Hace 2 días', title: 'Tren Superior & Hombro 3D', durationMinutes: 55, exercises: ['Press Militar Mancuernas', 'Elevaciones Laterales', 'Remo Gironda'], totalSets: 19 },
+      ],
+      activeGoal: 'Alcanzar 180 kg en Hip Thrust con técnica perfecta',
+    },
+  },
+  {
+    id: 'f-3',
+    name: 'Mateo Silva',
+    nickname: '@mateo_iron',
+    streak: 14,
+    level: 16,
+    rank: 'Guerrero del Gym',
+    todayWorkout: 'Espalda & Jalones Foco Dorsal',
+    color: '#8B5CF6',
+    initials: 'MS',
+    cheeredToday: true,
+    metrics: {
+      currentWeight: 75.0,
+      bodyFat: 16.0,
+      avgCalories: 2500,
+      avgProtein: 150,
+      prs: [
+        { exercise: 'Dominadas con Lastre', weight: 25, reps: 6, date: '2026-10-20' },
+        { exercise: 'Remo Pendlay con Barra', weight: 90, reps: 8, date: '2026-10-14' },
+        { exercise: 'Peso Muerto', weight: 140, reps: 5, date: '2026-10-08' },
+      ],
+      recentWorkouts: [
+        { id: 'w-ms-1', date: 'Ayer', title: 'Espalda Foco Dorsales', durationMinutes: 55, exercises: ['Dominadas', 'Remo con Mancuerna', 'Pullover Polea'], totalSets: 16 },
+      ],
+      activeGoal: 'Lograr 15 dominadas estrictas seguidas',
+    },
+  },
+  {
+    id: 'f-4',
+    name: 'Laura Ramos',
+    nickname: '@lau_wod',
+    streak: 9,
+    level: 21,
+    rank: 'Atleta Avanzado',
+    todayWorkout: 'CrossFit WOD & Metcon Cardio',
+    color: '#10B981',
+    initials: 'LR',
+    cheeredToday: false,
+    metrics: {
+      currentWeight: 58.5,
+      bodyFat: 20.0,
+      avgCalories: 2100,
+      avgProtein: 125,
+      prs: [
+        { exercise: 'Clean & Jerk', weight: 70, reps: 1, date: '2026-10-26' },
+        { exercise: 'Snatch (Arrancada)', weight: 52, reps: 1, date: '2026-10-19' },
+        { exercise: 'Carrera 5K', weight: 0, reps: 1, date: '2026-10-12' },
+      ],
+      recentWorkouts: [
+        { id: 'w-lr-1', date: 'Hoy', title: 'WOD Murph Adaptado', durationMinutes: 45, exercises: ['Box Jumps', 'Wall Balls', 'Burpees', 'Kettlebell Swings'], totalSets: 15 },
+      ],
+      activeGoal: 'Mejorar marca de 5K por debajo de 22 minutos',
+    },
+  },
+];
+
+export const DISCOVERABLE_USERS: FriendUser[] = [
+  {
+    id: 'disc-1',
+    name: 'Andrés Morales',
+    nickname: '@andres_beast',
+    streak: 30,
+    level: 35,
+    rank: 'Maestro del Hierro',
+    todayWorkout: 'Sentadilla Pesada & Prensa',
+    color: '#EF4444',
+    initials: 'AM',
+    metrics: {
+      currentWeight: 86.0,
+      bodyFat: 12.8,
+      avgCalories: 3200,
+      avgProtein: 210,
+      prs: [
+        { exercise: 'Sentadilla Trasera', weight: 190, reps: 3, date: '2026-10-25' },
+        { exercise: 'Press de Banca', weight: 140, reps: 2, date: '2026-10-18' },
+        { exercise: 'Peso Muerto', weight: 220, reps: 1, date: '2026-10-10' },
+      ],
+      recentWorkouts: [
+        { id: 'w-am-1', date: 'Ayer', title: 'Pierna Hipertrofia Pesada', durationMinutes: 75, exercises: ['Sentadilla', 'Prensa 45', 'Extensiones'], totalSets: 18 },
+      ],
+      activeGoal: 'Llegar a 200 kg en Sentadilla',
+    },
+  },
+  {
+    id: 'disc-2',
+    name: 'Sofía Castro',
+    nickname: '@sofi_fitness',
+    streak: 15,
+    level: 19,
+    rank: 'Atleta Avanzado',
+    todayWorkout: 'HIIT & Abdomen Funcional',
+    color: '#F59E0B',
+    initials: 'SC',
+    metrics: {
+      currentWeight: 56.0,
+      bodyFat: 18.0,
+      avgCalories: 1950,
+      avgProtein: 120,
+      prs: [
+        { exercise: 'Hip Thrust con Mancuerna', weight: 130, reps: 10, date: '2026-10-28' },
+      ],
+      recentWorkouts: [
+        { id: 'w-sc-1', date: 'Hoy', title: 'Core & Cardio Funcional', durationMinutes: 45, exercises: ['Plancha', 'Elevación de piernas', 'Burpees'], totalSets: 14 },
+      ],
+      activeGoal: 'Completar 30 días de racha continua',
+    },
+  },
+  {
+    id: 'disc-3',
+    name: 'David Guerrero',
+    nickname: '@david_power',
+    streak: 26,
+    level: 31,
+    rank: 'Atleta Élite',
+    todayWorkout: 'Press Banca & Fondos Lastrados',
+    color: '#10B981',
+    initials: 'DG',
+    metrics: {
+      currentWeight: 84.5,
+      bodyFat: 15.1,
+      avgCalories: 3000,
+      avgProtein: 190,
+      prs: [
+        { exercise: 'Press Banca Plano', weight: 130, reps: 4, date: '2026-10-22' },
+        { exercise: 'Fondos en Paralelas', weight: 45, reps: 6, date: '2026-10-15' },
+      ],
+      recentWorkouts: [
+        { id: 'w-dg-1', date: 'Ayer', title: 'Empuje & Tríceps Explosivo', durationMinutes: 65, exercises: ['Press Banca', 'Press Militar', 'Fondos'], totalSets: 17 },
+      ],
+      activeGoal: 'Dominar fondos con 50 kg de lastre',
+    },
+  },
+  {
+    id: 'disc-4',
+    name: 'Camila Vélez',
+    nickname: '@cami_cross',
+    streak: 12,
+    level: 24,
+    rank: 'Atleta Avanzado',
+    todayWorkout: 'CrossFit WOD & Gimnásticos',
+    color: '#8B5CF6',
+    initials: 'CV',
+    metrics: {
+      currentWeight: 60.5,
+      bodyFat: 19.0,
+      avgCalories: 2300,
+      avgProtein: 140,
+      prs: [
+        { exercise: 'Clean & Jerk', weight: 75, reps: 1, date: '2026-10-29' },
+        { exercise: 'Pull-ups Estrictas', weight: 0, reps: 16, date: '2026-10-14' },
+      ],
+      recentWorkouts: [
+        { id: 'w-cv-1', date: 'Hoy', title: 'WOD Potencia & Halterofilia', durationMinutes: 50, exercises: ['Power Clean', 'Box Jumps', 'Kettlebell Swings'], totalSets: 15 },
+      ],
+      activeGoal: 'Mejorar 1RM de Snatch a 60 kg',
+    },
+  },
+  {
+    id: 'disc-5',
+    name: 'Santiago Ríos',
+    nickname: '@santi_calisthenics',
+    streak: 40,
+    level: 29,
+    rank: 'Atleta Élite',
+    todayWorkout: 'Muscle-ups & Front Lever',
+    color: '#06B6D4',
+    initials: 'SR',
+    metrics: {
+      currentWeight: 71.0,
+      bodyFat: 9.8,
+      avgCalories: 2600,
+      avgProtein: 160,
+      prs: [
+        { exercise: 'Muscle-up en Barra', weight: 0, reps: 12, date: '2026-10-27' },
+        { exercise: 'Dominadas con +30 kg', weight: 30, reps: 5, date: '2026-10-19' },
+      ],
+      recentWorkouts: [
+        { id: 'w-sr-1', date: 'Ayer', title: 'Fuerza Calistenia Pura', durationMinutes: 70, exercises: ['Muscle-ups', 'Front Lever', 'Fondos en anillas'], totalSets: 20 },
+      ],
+      activeGoal: 'Sostener Full Planche por 5 segundos',
+    },
+  },
+];
+
+export const INITIAL_NOTIFICATIONS: FriendNotification[] = [
+  {
+    id: 'notif-1',
+    type: 'friend_request',
+    senderId: 'disc-1',
+    senderName: 'Andrés Morales',
+    senderNickname: '@andres_beast',
+    senderColor: '#EF4444',
+    senderInitials: 'AM',
+    senderLevel: 35,
+    senderRank: 'Maestro del Hierro',
+    date: 'Hoy · hace 25 min',
+    read: false,
+    status: 'pending',
+    message: 'Te envió una solicitud de amistad para ver métricas y entrenar juntos.',
+  },
+  {
+    id: 'notif-2',
+    type: 'workout_invite',
+    senderId: 'f-2',
+    senderName: 'Valentina Ortiz',
+    senderNickname: '@valen_lift',
+    senderColor: '#EC4899',
+    senderInitials: 'VO',
+    senderLevel: 32,
+    senderRank: 'Atleta Élite',
+    date: 'Hoy · hace 1 hora',
+    read: false,
+    status: 'pending',
+    workoutDetails: {
+      workoutType: '🏋️ Pierna & Glúteos (Pesas / Fuerza)',
+      dateTime: 'Mañana · 06:30 PM',
+      location: 'Smart Fit El Poblado (Zona de Peso Libre)',
+      note: '¡Vamos a romper récord en sentadilla pesada!',
+    },
+  },
+  {
+    id: 'notif-3',
+    type: 'activity',
+    senderId: 'f-1',
+    senderName: 'Carlos Mendoza',
+    senderNickname: '@carlos_fit',
+    senderColor: '#3B82F6',
+    senderInitials: 'CM',
+    senderLevel: 28,
+    senderRank: 'Atleta Avanzado',
+    date: 'Ayer · 07:15 PM',
+    read: true,
+    status: 'accepted',
+    message: 'Carlos completó un nuevo récord: 115 kg en Press de Banca Plano 🔥',
+  },
+];
+
 export type ColorPalette = {
   id: string;
   name: string;
@@ -795,6 +1172,19 @@ type State = {
   deleteGoal: (id: string) => void;
   toggleGoalCompleted: (id: string) => void;
 
+  // Amigos & Comunidad
+  friends: FriendUser[];
+  friendNotifications: FriendNotification[];
+  sentWorkoutInvites: WorkoutInvite[];
+  addFriend: (friend: FriendUser) => void;
+  removeFriend: (friendId: string) => void;
+  acceptFriendRequest: (notificationId: string) => void;
+  rejectFriendRequest: (notificationId: string) => void;
+  sendWorkoutInvite: (invite: Omit<WorkoutInvite, 'id' | 'createdAt' | 'status'>) => void;
+  respondWorkoutInvite: (notificationId: string, accept: boolean) => void;
+  markNotificationsAsRead: () => void;
+  sendFriendRequestTo: (user: FriendUser) => void;
+
   // Personalización
   activePaletteId: string;
   customPalettes: ColorPalette[];
@@ -1363,6 +1753,134 @@ export const useStore = create<State>()(
           ),
         })),
 
+      // Amigos & Comunidad
+      friends: SEED_FRIENDS,
+      friendNotifications: INITIAL_NOTIFICATIONS,
+      sentWorkoutInvites: [],
+
+      addFriend: (friend) =>
+        set((s) => ({
+          friends: s.friends.some((f) => f.id === friend.id) ? s.friends : [...s.friends, friend],
+        })),
+
+      removeFriend: (friendId) =>
+        set((s) => ({
+          friends: s.friends.filter((f) => f.id !== friendId),
+        })),
+
+      acceptFriendRequest: (notificationId) =>
+        set((s) => {
+          const notif = s.friendNotifications.find((n) => n.id === notificationId);
+          if (!notif) return s;
+          // Buscar si está en discoverable users o construir friend a partir del notif
+          const disc = DISCOVERABLE_USERS.find((u) => u.id === notif.senderId);
+          const newFriend: FriendUser = disc || {
+            id: notif.senderId,
+            name: notif.senderName,
+            nickname: notif.senderNickname,
+            streak: 10,
+            level: notif.senderLevel,
+            rank: notif.senderRank,
+            todayWorkout: 'Entrenamiento Completado 🔥',
+            color: notif.senderColor,
+            initials: notif.senderInitials,
+            metrics: {
+              currentWeight: 75,
+              bodyFat: 15,
+              avgCalories: 2600,
+              avgProtein: 160,
+              prs: [{ exercise: 'Press Banca', weight: 100, reps: 5, date: '2026-10-25' }],
+              recentWorkouts: [{ id: 'w-rec-1', date: 'Ayer', title: 'Fuerza General', durationMinutes: 60, exercises: ['Press Banca', 'Sentadilla'], totalSets: 12 }],
+              activeGoal: 'Superar sus límites este mes',
+            },
+          };
+
+          const alreadyFriend = s.friends.some((f) => f.id === newFriend.id);
+          const updatedFriends = alreadyFriend ? s.friends : [...s.friends, newFriend];
+
+          return {
+            friends: updatedFriends,
+            friendNotifications: s.friendNotifications.map((n) =>
+              n.id === notificationId ? { ...n, status: 'accepted', read: true } : n
+            ),
+          };
+        }),
+
+      rejectFriendRequest: (notificationId) =>
+        set((s) => ({
+          friendNotifications: s.friendNotifications.map((n) =>
+            n.id === notificationId ? { ...n, status: 'rejected', read: true } : n
+          ),
+        })),
+
+      sendWorkoutInvite: (invite) =>
+        set((s) => {
+          const newInvite: WorkoutInvite = {
+            ...invite,
+            id: 'inv-' + Date.now(),
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          };
+          return {
+            sentWorkoutInvites: [newInvite, ...(s.sentWorkoutInvites || [])],
+            friendNotifications: [
+              {
+                id: 'notif-sent-' + Date.now(),
+                type: 'activity',
+                senderId: 'me',
+                senderName: 'Tú',
+                senderNickname: '@yo',
+                senderColor: '#3B82F6',
+                senderInitials: 'TÚ',
+                senderLevel: 1,
+                senderRank: 'Atleta',
+                date: 'Ahora mismo',
+                read: true,
+                status: 'accepted',
+                message: `Enviaste invitación a ${invite.friendName} para ${invite.workoutType} el ${invite.date} a las ${invite.time}.`,
+              },
+              ...s.friendNotifications,
+            ],
+          };
+        }),
+
+      respondWorkoutInvite: (notificationId, accept) =>
+        set((s) => ({
+          friendNotifications: s.friendNotifications.map((n) =>
+            n.id === notificationId ? { ...n, status: accept ? 'accepted' : 'rejected', read: true } : n
+          ),
+        })),
+
+      markNotificationsAsRead: () =>
+        set((s) => ({
+          friendNotifications: s.friendNotifications.map((n) => ({ ...n, read: true })),
+        })),
+
+      sendFriendRequestTo: (user) =>
+        set((s) => {
+          // Agrega notificación de actividad y registra
+          return {
+            friendNotifications: [
+              {
+                id: 'req-' + Date.now(),
+                type: 'activity',
+                senderId: 'me',
+                senderName: 'Tú',
+                senderNickname: '@yo',
+                senderColor: '#10B981',
+                senderInitials: 'TÚ',
+                senderLevel: 1,
+                senderRank: 'Atleta',
+                date: 'Ahora mismo',
+                read: true,
+                status: 'accepted',
+                message: `Enviaste solicitud de amistad a ${user.name} (${user.nickname}).`,
+              },
+              ...s.friendNotifications,
+            ],
+          };
+        }),
+
       // Personalización
       activePaletteId: 'default',
       customPalettes: [],
@@ -1524,6 +2042,9 @@ export const useStore = create<State>()(
           sleepLogs: SEED_SLEEP_LOGS,
           userProfile: DEFAULT_USER_PROFILE,
           goals: SEED_GOALS,
+          friends: SEED_FRIENDS,
+          friendNotifications: INITIAL_NOTIFICATIONS,
+          sentWorkoutInvites: [],
           activePaletteId: 'default',
           customPalettes: [],
           deletedPaletteIds: [],
@@ -1632,6 +2153,9 @@ export const useStore = create<State>()(
             : currentState.bodyFatLogs,
         userProfile: { ...DEFAULT_USER_PROFILE, ...(persistedState?.userProfile || {}) },
         goals: Array.isArray(persistedState?.goals) ? persistedState.goals : (currentState.goals || SEED_GOALS),
+        friends: Array.isArray(persistedState?.friends) ? persistedState.friends : (currentState.friends || SEED_FRIENDS),
+        friendNotifications: Array.isArray(persistedState?.friendNotifications) ? persistedState.friendNotifications : (currentState.friendNotifications || INITIAL_NOTIFICATIONS),
+        sentWorkoutInvites: Array.isArray(persistedState?.sentWorkoutInvites) ? persistedState.sentWorkoutInvites : (currentState.sentWorkoutInvites || []),
         activePaletteId: persistedState?.activePaletteId || 'default',
         customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
         deletedPaletteIds: Array.isArray(persistedState?.deletedPaletteIds) ? persistedState.deletedPaletteIds : [],

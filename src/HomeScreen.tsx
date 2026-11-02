@@ -38,8 +38,11 @@ import {
   WorkoutExercise,
   Exercise,
   BodyPartKey,
+  FriendUser,
+  SEED_FRIENDS,
 } from './store';
 import { pushUserDataToDatabase, pullUserDataFromDatabase } from './syncService';
+import { FriendsModal } from './FriendsModal';
 
 const COLOR_SWATCHES = [
   '#8B5CF6', // Lavanda
@@ -716,7 +719,12 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const avatarZoomAnim = useRef(new Animated.Value(0)).current;
 
-  // Metas del usuario desde el store
+  // Amigos & Notificaciones desde el store
+  const friends = useStore((s) => s.friends) || SEED_FRIENDS;
+  const friendNotifications = useStore((s) => s.friendNotifications) || [];
+  const unreadFriendsCount = friendNotifications.filter((n) => !n.read && n.status === 'pending').length;
+
+    // Metas del usuario desde el store
   const goals = useStore((s) => s.goals) || [];
   const addGoal = useStore((s) => s.addGoal);
   const updateGoal = useStore((s) => s.updateGoal);
@@ -1150,10 +1158,17 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 <View style={[styles.topDualIconCircle, { backgroundColor: `${c2}18` }]}>
                   <Ionicons name="people" size={14} color={c2} />
                 </View>
-                <View style={[styles.topDualPill, { backgroundColor: `${c2}18` }]}>
-                  <Text style={[styles.topDualPillText, { color: c2, fontFamily: subtitleFont }]}>
-                    {SEED_FRIENDS.length} amigos
-                  </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  {unreadFriendsCount > 0 && (
+                    <View style={styles.friendNotifBadge}>
+                      <Text style={styles.friendNotifBadgeText}>{unreadFriendsCount}</Text>
+                    </View>
+                  )}
+                  <View style={[styles.topDualPill, { backgroundColor: `${c2}18` }]}>
+                    <Text style={[styles.topDualPillText, { color: c2, fontFamily: subtitleFont }]}>
+                      {friends.length} amigos
+                    </Text>
+                  </View>
                 </View>
               </View>
 
@@ -1163,7 +1178,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 
               <View style={styles.topDualBodyWrap}>
                 <View style={styles.friendsStackedRow}>
-                  {SEED_FRIENDS.slice(0, 3).map((f, i) => (
+                  {friends.slice(0, 3).map((f, i) => (
                     <View
                       key={f.id}
                       style={[
@@ -1179,7 +1194,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                     </View>
                   ))}
                   <Text style={[styles.friendsActiveText, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    3 activos hoy
+                    {friends.filter((f) => f.todayWorkout && !f.todayWorkout.includes('Descanso')).length} activos hoy
                   </Text>
                 </View>
 
@@ -1187,11 +1202,11 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   style={[styles.friendLeadText, { color: palette.text, fontFamily: subtitleFont }]}
                   numberOfLines={1}
                 >
-                  🔥 {SEED_FRIENDS[0].name.split(' ')[0]} racha {SEED_FRIENDS[0].streak}d
+                  🔥 {friends[0]?.name?.split(' ')[0] || 'Atleta'} racha {friends[0]?.streak || 0}d
                 </Text>
 
                 <Text style={[styles.friendActionLink, { color: c2, fontFamily: subtitleFont }]}>
-                  Ver ranking ➔
+                  {unreadFriendsCount > 0 ? `Ver solicitudes (${unreadFriendsCount}) ➔` : 'Ver comunidad ➔'}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -1767,6 +1782,19 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         measurementLogs={measurementLogs}
         workoutLogs={workoutLogs}
         exercises={exercises}
+      />
+
+      {/* Modal de Sección Completa: Amigos, Comunidad y Notificaciones */}
+      <FriendsModal
+        visible={showFriendsModal}
+        onClose={() => setShowFriendsModal(false)}
+        c1={c1}
+        c2={c2}
+        palette={palette}
+        titleFont={titleFont}
+        subtitleFont={subtitleFont}
+        bodyFont={bodyFont}
+        dataFont={dataFont}
       />
     </View>
   );
@@ -4512,6 +4540,20 @@ const styles = StyleSheet.create({
   },
 
   // Estilos de Amigos en Home
+  friendNotifBadge: {
+    backgroundColor: '#EF4444',
+    minWidth: 17,
+    height: 17,
+    borderRadius: 8.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  friendNotifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '900',
+  },
   friendsStackedRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -5550,78 +5592,6 @@ const renameStyles = StyleSheet.create({
   },
 });
 
-/* ==========================================================
-   AMIGOS & COMUNIDAD EVOLVE
-========================================================== */
-export type FriendUser = {
-  id: string;
-  name: string;
-  nickname: string;
-  streak: number;
-  level: number;
-  rank: string;
-  todayWorkout: string;
-  avatarUri?: string;
-  color: string;
-  initials: string;
-  cheeredToday?: boolean;
-};
-
-export const SEED_FRIENDS: FriendUser[] = [
-  {
-    id: 'f-1',
-    name: 'Carlos Mendoza',
-    nickname: '@carlos_fit',
-    streak: 22,
-    level: 28,
-    rank: 'Atleta Avanzado',
-    todayWorkout: 'Pecho & Tríceps (5 series)',
-    color: '#3B82F6',
-    initials: 'CM',
-    cheeredToday: false,
-  },
-  {
-    id: 'f-2',
-    name: 'Valentina Ortiz',
-    nickname: '@valen_lift',
-    streak: 18,
-    level: 32,
-    rank: 'Atleta Élite',
-    todayWorkout: 'Sentadillas & Glúteos (PR 105 kg)',
-    color: '#EC4899',
-    initials: 'VO',
-    cheeredToday: false,
-  },
-  {
-    id: 'f-3',
-    name: 'Mateo Silva',
-    nickname: '@mateo_iron',
-    streak: 14,
-    level: 16,
-    rank: 'Guerrero del Gym',
-    todayWorkout: 'Espalda & Jalones',
-    color: '#8B5CF6',
-    initials: 'MS',
-    cheeredToday: true,
-  },
-  {
-    id: 'f-4',
-    name: 'Laura Ramos',
-    nickname: '@lau_wod',
-    streak: 9,
-    level: 21,
-    rank: 'Atleta Avanzado',
-    todayWorkout: 'CrossFit WOD & Cardio',
-    color: '#10B981',
-    initials: 'LR',
-    cheeredToday: false,
-  },
-];
-
-/* ==========================================================
-   AVATARES ANIMADOS / ESTILO ANIME GYM (HOMBRES & MUJERES)
-   CON POSES Y ACCESORIOS DE ENTRENAMIENTO
-========================================================== */
 export const PRESET_AVATARS = [
   {
     id: 'pixel_m_bench',
