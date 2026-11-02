@@ -319,9 +319,34 @@ export type FriendUser = {
   fullProfile?: FriendFullProfile;
 };
 
+export type ChallengeVariable =
+  | 'calories'
+  | 'muscle_weight'
+  | 'total_weight'
+  | 'time_running';
+
+export type ChallengeDetails = {
+  targetDate: string;
+  variableType: ChallengeVariable;
+  variableLabel: string;
+  muscleOrExercise?: string;
+  targetValue?: string;
+  message?: string;
+};
+
+export type FriendChallenge = {
+  id: string;
+  friendId: string;
+  friendName: string;
+  friendNickname: string;
+  details: ChallengeDetails;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
+};
+
 export type FriendNotification = {
   id: string;
-  type: 'friend_request' | 'workout_invite' | 'activity';
+  type: 'friend_request' | 'workout_invite' | 'challenge' | 'activity';
   senderId: string;
   senderName: string;
   senderNickname: string;
@@ -340,6 +365,7 @@ export type FriendNotification = {
     location?: string;
     note?: string;
   };
+  challengeDetails?: ChallengeDetails;
 };
 
 export type WorkoutInvite = {
@@ -710,6 +736,29 @@ export const DISCOVERABLE_USERS: FriendUser[] = [
 ];
 
 export const INITIAL_NOTIFICATIONS: FriendNotification[] = [
+  {
+    id: 'notif-chal-demo',
+    type: 'challenge',
+    senderId: 'disc-2',
+    senderName: 'Mateo Iron',
+    senderNickname: '@mateo_iron',
+    senderColor: '#3B82F6',
+    senderInitials: 'MI',
+    senderLevel: 28,
+    senderRank: 'Titán de Fuerza',
+    date: 'Hoy · hace 15 min',
+    read: false,
+    status: 'pending',
+    message: '¿Te atreves a superar mi marca en sentadilla este fin de semana?',
+    challengeDetails: {
+      targetDate: 'Este Sábado',
+      variableType: 'muscle_weight',
+      variableLabel: 'Peso levantado por determinado músculo',
+      muscleOrExercise: 'Piernas (Sentadilla)',
+      targetValue: '120 kg',
+      message: '¡A ver si tus piernas aguantan el peso pesado!',
+    },
+  },
   {
     id: 'notif-1',
     type: 'friend_request',
@@ -1359,12 +1408,20 @@ type State = {
   friends: FriendUser[];
   friendNotifications: FriendNotification[];
   sentWorkoutInvites: WorkoutInvite[];
+  sentChallenges: FriendChallenge[];
   addFriend: (friend: FriendUser) => void;
   removeFriend: (friendId: string) => void;
   acceptFriendRequest: (notificationId: string) => void;
   rejectFriendRequest: (notificationId: string) => void;
   sendWorkoutInvite: (invite: Omit<WorkoutInvite, 'id' | 'createdAt' | 'status'>) => void;
   respondWorkoutInvite: (notificationId: string, accept: boolean) => void;
+  sendChallenge: (challenge: {
+    friendId: string;
+    friendName: string;
+    friendNickname: string;
+    details: ChallengeDetails;
+  }) => void;
+  respondChallenge: (notificationId: string, accept: boolean) => void;
   markNotificationsAsRead: () => void;
   sendFriendRequestTo: (user: FriendUser) => void;
 
@@ -1947,6 +2004,7 @@ export const useStore = create<State>()(
       friends: SEED_FRIENDS,
       friendNotifications: INITIAL_NOTIFICATIONS,
       sentWorkoutInvites: [],
+      sentChallenges: [],
 
       addFriend: (friend) =>
         set((s) => ({
@@ -2038,6 +2096,49 @@ export const useStore = create<State>()(
         set((s) => ({
           friendNotifications: s.friendNotifications.map((n) =>
             n.id === notificationId ? { ...n, status: accept ? 'accepted' : 'rejected', read: true } : n
+          ),
+        })),
+
+      sendChallenge: (challenge) =>
+        set((s) => {
+          const newChallenge: FriendChallenge = {
+            id: 'chal-' + Date.now(),
+            friendId: challenge.friendId,
+            friendName: challenge.friendName,
+            friendNickname: challenge.friendNickname,
+            details: challenge.details,
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          };
+          return {
+            sentChallenges: [newChallenge, ...(s.sentChallenges || [])],
+            friendNotifications: [
+              {
+                id: 'notif-chal-sent-' + Date.now(),
+                type: 'activity',
+                senderId: 'me',
+                senderName: 'Tú',
+                senderNickname: '@yo',
+                senderColor: '#EF4444',
+                senderInitials: 'TÚ',
+                senderLevel: 1,
+                senderRank: 'Atleta',
+                date: 'Ahora mismo',
+                read: true,
+                status: 'accepted',
+                message: `Retaste a ${challenge.friendName} (${challenge.friendNickname}) en ${challenge.details.variableLabel}${challenge.details.muscleOrExercise ? ' [' + challenge.details.muscleOrExercise + ']' : ''} para ${challenge.details.targetDate}.`,
+              },
+              ...s.friendNotifications,
+            ],
+          };
+        }),
+
+      respondChallenge: (notificationId, accept) =>
+        set((s) => ({
+          friendNotifications: s.friendNotifications.map((n) =>
+            n.id === notificationId
+              ? { ...n, status: accept ? 'accepted' : 'rejected', read: true }
+              : n
           ),
         })),
 
@@ -2236,6 +2337,7 @@ export const useStore = create<State>()(
           friends: SEED_FRIENDS,
           friendNotifications: INITIAL_NOTIFICATIONS,
           sentWorkoutInvites: [],
+          sentChallenges: [],
           activePaletteId: 'default',
           customPalettes: [],
           deletedPaletteIds: [],
@@ -2348,6 +2450,7 @@ export const useStore = create<State>()(
         friends: Array.isArray(persistedState?.friends) ? persistedState.friends : (currentState.friends || SEED_FRIENDS),
         friendNotifications: Array.isArray(persistedState?.friendNotifications) ? persistedState.friendNotifications : (currentState.friendNotifications || INITIAL_NOTIFICATIONS),
         sentWorkoutInvites: Array.isArray(persistedState?.sentWorkoutInvites) ? persistedState.sentWorkoutInvites : (currentState.sentWorkoutInvites || []),
+        sentChallenges: Array.isArray(persistedState?.sentChallenges) ? persistedState.sentChallenges : [],
         activePaletteId: persistedState?.activePaletteId || 'default',
         customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
         deletedPaletteIds: Array.isArray(persistedState?.deletedPaletteIds) ? persistedState.deletedPaletteIds : [],

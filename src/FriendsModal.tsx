@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   Switch,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +22,8 @@ import {
   DISCOVERABLE_USERS,
   getFriendFullProfile,
   SectionPrivacySettings,
+  ChallengeDetails,
+  ChallengeVariable,
 } from './store';
 import { getServerUrl } from './api';
 
@@ -84,6 +87,8 @@ export function FriendsModal({
   const respondWorkoutInvite = useStore((s) => s.respondWorkoutInvite);
   const markNotificationsAsRead = useStore((s) => s.markNotificationsAsRead);
   const sendFriendRequestTo = useStore((s) => s.sendFriendRequestTo);
+  const sendChallenge = useStore((s) => s.sendChallenge);
+  const respondChallenge = useStore((s) => s.respondChallenge);
 
   // Estados locales
   const [activeTab, setActiveTab] = useState<'friends' | 'discover'>('friends');
@@ -92,6 +97,7 @@ export function FriendsModal({
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [selectedFriendForProfile, setSelectedFriendForProfile] = useState<FriendUser | null>(null);
   const [selectedFriendForInvite, setSelectedFriendForInvite] = useState<FriendUser | null>(null);
+  const [selectedFriendForChallenge, setSelectedFriendForChallenge] = useState<FriendUser | null>(null);
   const [sentRequests, setSentRequests] = useState<Record<string, boolean>>({});
   const [dbUsers, setDbUsers] = useState<Array<{ id: string; name: string; nickname: string }>>([]);
 
@@ -447,7 +453,7 @@ export function FriendsModal({
                       </Text>
                     </View>
 
-                    {/* Fila Inferior: BOTONES OBSERVAR E INVITAR A ENTRENAR */}
+                    {/* Fila Inferior: BOTONES OBSERVAR, INVITAR Y RETAR */}
                     <View style={styles.friendActionsRow}>
                       {/* Botón 1: Observar (Ver Perfil y Métricas Completas) */}
                       <TouchableOpacity
@@ -461,7 +467,7 @@ export function FriendsModal({
                           },
                         ]}
                       >
-                        <Ionicons name="eye-outline" size={17} color={c1} style={{ marginRight: 6 }} />
+                        <Ionicons name="eye-outline" size={15} color={c1} style={{ marginRight: 4 }} />
                         <Text style={[styles.actionBtnObservarText, { color: palette.text, fontFamily: subtitleFont }]}>
                           Observar
                         </Text>
@@ -478,9 +484,26 @@ export function FriendsModal({
                           },
                         ]}
                       >
-                        <Ionicons name="fitness-outline" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Ionicons name="fitness-outline" size={15} color="#FFFFFF" style={{ marginRight: 4 }} />
                         <Text style={[styles.actionBtnInvitarText, { fontFamily: subtitleFont }]}>
-                          Invitar a Entrenar
+                          Invitar
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Botón 3: Retar */}
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => setSelectedFriendForChallenge(friend)}
+                        style={[
+                          styles.actionBtnRetar,
+                          {
+                            backgroundColor: '#EF4444',
+                          },
+                        ]}
+                      >
+                        <Ionicons name="flame" size={15} color="#FFFFFF" style={{ marginRight: 4 }} />
+                        <Text style={[styles.actionBtnRetarText, { fontFamily: subtitleFont }]}>
+                          Retar
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -646,6 +669,11 @@ export function FriendsModal({
               Alert.alert('¡Entrenamiento Aceptado! 🏋️‍♂️', 'La sesión conjunta quedó confirmada.');
             }}
             onRejectWorkout={(notifId) => respondWorkoutInvite(notifId, false)}
+            onAcceptChallenge={(notifId) => {
+              respondChallenge(notifId, true);
+              Alert.alert('¡Reto Aceptado! ⚔️🔥', '¡Que empiece el duelo! Lo darás todo en el entrenamiento.');
+            }}
+            onRejectChallenge={(notifId) => respondChallenge(notifId, false)}
             onMarkAllAsRead={markNotificationsAsRead}
             c1={c1}
             c2={c2}
@@ -653,6 +681,32 @@ export function FriendsModal({
             titleFont={titleFont}
             subtitleFont={subtitleFont}
             bodyFont={bodyFont}
+          />
+        )}
+
+        {/* ==========================================================
+            POPUP 4: RETAR A UN AMIGO (FECHA, VARIABLE A MEDIR, MENSAJE)
+        ========================================================== */}
+        {selectedFriendForChallenge && (
+          <ChallengeModal
+            visible={!!selectedFriendForChallenge}
+            friend={selectedFriendForChallenge}
+            onClose={() => setSelectedFriendForChallenge(null)}
+            onSend={(challengeData) => {
+              sendChallenge(challengeData);
+              setSelectedFriendForChallenge(null);
+              Alert.alert(
+                '¡Reto Enviado! ⚔️',
+                `Has desafiado a ${challengeData.friendName} (${challengeData.friendNickname}) a competir en ${challengeData.details.variableLabel}. ¡Le llegará la notificación para aceptar el reto!`
+              );
+            }}
+            c1={c1}
+            c2={c2}
+            palette={palette}
+            titleFont={titleFont}
+            subtitleFont={subtitleFont}
+            bodyFont={bodyFont}
+            dataFont={dataFont}
           />
         )}
 
@@ -719,19 +773,32 @@ function FriendProfileObserverModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
         <View style={[styles.profileCardModal, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
-          {/* Header con Indicador de Modo Observador */}
+          {/* Header con Indicador de Modo Observador y Avatar al lado izquierdo */}
           <View style={styles.profileHeader}>
-            <View>
-              <View style={styles.observerPill}>
-                <Ionicons name="eye" size={12} color="#10B981" style={{ marginRight: 4 }} />
-                <Text style={styles.observerPillText}>MODO OBSERVADOR (SOLO LECTURA)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+              {friend.avatarUri ? (
+                <Image
+                  source={{ uri: friend.avatarUri }}
+                  style={styles.observerHeaderAvatarImg}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.observerHeaderAvatarDot, { backgroundColor: friend.color }]}>
+                  <Text style={styles.observerHeaderAvatarText}>{friend.initials}</Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <View style={styles.observerPill}>
+                  <Ionicons name="eye" size={12} color="#10B981" style={{ marginRight: 4 }} />
+                  <Text style={styles.observerPillText}>MODO OBSERVADOR</Text>
+                </View>
+                <Text style={[styles.profileHeaderTitle, { color: palette.text, fontFamily: titleFont }]} numberOfLines={1}>
+                  {friend.name}
+                </Text>
+                <Text style={[styles.friendNickBadge, { color: c1, fontFamily: subtitleFont }]}>
+                  {friend.nickname}
+                </Text>
               </View>
-              <Text style={[styles.profileHeaderTitle, { color: palette.text, fontFamily: titleFont }]}>
-                {friend.name}
-              </Text>
-              <Text style={[styles.friendNickBadge, { color: c1, fontFamily: subtitleFont }]}>
-                {friend.nickname}
-              </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeIconBtn} hitSlop={10}>
               <Ionicons name="close" size={24} color={palette.textSub} />
@@ -1225,6 +1292,7 @@ function FriendProfileObserverModal({
           </ScrollView>
         </View>
       </View>
+
     </Modal>
   );
 }
@@ -1271,6 +1339,7 @@ function InviteWorkoutModal({
   const [customDivision, setCustomDivision] = useState('');
   const [selectedDate, setSelectedDate] = useState('Hoy');
   const [customDate, setCustomDate] = useState('');
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
 
   // Estados interactivos para selector de hora con flechas
   const [hour, setHour] = useState(6);
@@ -1469,6 +1538,25 @@ function InviteWorkoutModal({
                 );
               })}
             </View>
+
+            {/* Botón de Calendario para escoger la fecha */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setShowCalendarPicker(true)}
+              style={[
+                styles.calendarPickerBtn,
+                {
+                  backgroundColor: `${c2}15`,
+                  borderColor: c2,
+                },
+              ]}
+            >
+              <Ionicons name="calendar" size={17} color={c2} style={{ marginRight: 8 }} />
+              <Text style={[styles.calendarPickerBtnText, { color: c2, fontFamily: subtitleFont }]}>
+                {customDate ? `Fecha seleccionada: ${customDate}` : 'Elegir en Calendario 🗓️'}
+              </Text>
+            </TouchableOpacity>
+
             <TextInput
               value={customDate}
               onChangeText={setCustomDate}
@@ -1489,7 +1577,7 @@ function InviteWorkoutModal({
             <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont }]}>
               3. Hora de Encuentro (Mueve con flechas o ingresa valores)
             </Text>
-            <View style={[styles.timePickerContainer, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+            <View style={styles.timePickerContainer}>
               {/* Columna Horas */}
               <View style={styles.timeColumn}>
                 <TouchableOpacity onPress={incrementHour} style={styles.arrowBtn} hitSlop={8}>
@@ -1624,6 +1712,21 @@ function InviteWorkoutModal({
           </ScrollView>
         </View>
       </View>
+
+      {/* Modal Selector de Calendario */}
+      <CalendarDatePickerModal
+        visible={showCalendarPicker}
+        onClose={() => setShowCalendarPicker(false)}
+        onSelectDate={(dateFormatted) => {
+          setCustomDate(dateFormatted);
+          setShowCalendarPicker(false);
+        }}
+        palette={palette}
+        primaryColor={c2}
+        titleFont={titleFont}
+        subtitleFont={subtitleFont}
+        bodyFont={bodyFont}
+      />
     </Modal>
   );
 }
@@ -1631,6 +1734,474 @@ function InviteWorkoutModal({
 /* ==========================================================
    POPUP 3: MENSAJES Y NOTIFICACIONES PENDIENTES
 ========================================================== */
+/* ==========================================================
+   COMPONENTE: SELECTOR DE FECHA EN CALENDARIO
+========================================================== */
+function CalendarDatePickerModal({
+  visible,
+  onClose,
+  onSelectDate,
+  palette,
+  primaryColor,
+  titleFont,
+  subtitleFont,
+  bodyFont,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSelectDate: (dateStr: string) => void;
+  palette: ColorPalette;
+  primaryColor: string;
+  titleFont?: string;
+  subtitleFont?: string;
+  bodyFont?: string;
+}) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+  ];
+  const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const daysGrid: (number | null)[] = [];
+  for (let i = 0; i < firstDayIndex; i++) daysGrid.push(null);
+  for (let d = 1; d <= daysInMonth; d++) daysGrid.push(d);
+
+  const today = new Date();
+  const isCurrentMonthToday = today.getFullYear() === year && today.getMonth() === month;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.calendarModalCard, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+          <View style={styles.calendarHeaderRow}>
+            <TouchableOpacity onPress={prevMonth} style={styles.calendarNavBtn} hitSlop={10}>
+              <Ionicons name="chevron-back" size={20} color={primaryColor} />
+            </TouchableOpacity>
+            <Text style={[styles.calendarMonthTitle, { color: palette.text, fontFamily: titleFont }]}>
+              {monthNames[month]} {year}
+            </Text>
+            <TouchableOpacity onPress={nextMonth} style={styles.calendarNavBtn} hitSlop={10}>
+              <Ionicons name="chevron-forward" size={20} color={primaryColor} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.calendarDaysHeader}>
+            {dayNames.map((d) => (
+              <Text key={d} style={[styles.calendarDayHeaderCol, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                {d}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.calendarGrid}>
+            {daysGrid.map((day, idx) => {
+              if (day === null) {
+                return <View key={`empty-${idx}`} style={styles.calendarDayCell} />;
+              }
+              const isToday = isCurrentMonthToday && today.getDate() === day;
+              return (
+                <TouchableOpacity
+                  key={`day-${day}`}
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    const formatted = `${day} de ${monthNames[month]} ${year}`;
+                    onSelectDate(formatted);
+                    onClose();
+                  }}
+                  style={[
+                    styles.calendarDayCell,
+                    isToday && { backgroundColor: `${primaryColor}25`, borderColor: primaryColor, borderWidth: 1.5, borderRadius: 20 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.calendarDayNumber,
+                      { color: isToday ? primaryColor : palette.text, fontFamily: isToday ? subtitleFont : bodyFont },
+                    ]}
+                  >
+                    {day}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={onClose}
+            style={[styles.calendarCancelBtn, { borderColor: palette.border }]}
+          >
+            <Text style={[styles.calendarCancelBtnText, { color: palette.textSub, fontFamily: subtitleFont }]}>
+              Cerrar
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/* ==========================================================
+   POPUP 4: MODAL PARA RETAR A UN AMIGO
+========================================================== */
+function ChallengeModal({
+  visible,
+  friend,
+  onClose,
+  onSend,
+  c1,
+  c2,
+  palette,
+  titleFont,
+  subtitleFont,
+  bodyFont,
+  dataFont,
+}: {
+  visible: boolean;
+  friend: FriendUser;
+  onClose: () => void;
+  onSend: (challengeData: {
+    friendId: string;
+    friendName: string;
+    friendNickname: string;
+    details: ChallengeDetails;
+  }) => void;
+  c1: string;
+  c2: string;
+  palette: ColorPalette;
+  titleFont?: string;
+  subtitleFont?: string;
+  bodyFont?: string;
+  dataFont?: string;
+}) {
+  const [selectedDate, setSelectedDate] = useState('Hoy');
+  const [customDate, setCustomDate] = useState('');
+  const [showCalendar, setShowCalendar] = useState(false);
+
+  const [selectedVariable, setSelectedVariable] = useState<ChallengeVariable>('muscle_weight');
+  const [selectedMuscle, setSelectedMuscle] = useState('Pecho (Bench Press)');
+  const [customMuscle, setCustomMuscle] = useState('');
+  const [targetValue, setTargetValue] = useState('100 kg');
+  const [message, setMessage] = useState('');
+
+  const CHALLENGE_VARIABLES: { id: ChallengeVariable; label: string; icon: string; defaultVal: string }[] = [
+    { id: 'calories', label: 'Calorías quemadas', icon: 'flame', defaultVal: '500 kcal' },
+    { id: 'muscle_weight', label: 'Peso levantado por determinado músculo', icon: 'barbell', defaultVal: '100 kg' },
+    { id: 'total_weight', label: 'Peso total levantado (Volumen)', icon: 'speedometer', defaultVal: '8,000 kg' },
+    { id: 'time_running', label: 'Tiempo (Running / Cardio)', icon: 'stopwatch', defaultVal: '25 min' },
+  ];
+
+  const MUSCLE_CHOICES = [
+    'Pecho (Bench Press)',
+    'Espalda (Deadlift)',
+    'Piernas (Sentadilla)',
+    'Hombros (Press Militar)',
+    'Brazos (Curl Bíceps / Tríceps)',
+    'Dominadas (Pull-ups)',
+    'Abdomen & Core',
+  ];
+
+  const handleSend = () => {
+    const finalDate = customDate.trim() || selectedDate;
+    if (!finalDate) {
+      Alert.alert('Falta la fecha', 'Por favor selecciona la fecha del reto.');
+      return;
+    }
+    const varItem = CHALLENGE_VARIABLES.find((v) => v.id === selectedVariable);
+    onSend({
+      friendId: friend.nickname,
+      friendName: friend.name,
+      friendNickname: friend.nickname,
+      details: {
+        targetDate: finalDate,
+        variableType: selectedVariable,
+        variableLabel: varItem?.label || 'Reto de Entrenamiento',
+        muscleOrExercise: selectedVariable === 'muscle_weight' ? (customMuscle.trim() || selectedMuscle) : undefined,
+        targetValue: targetValue.trim() || undefined,
+        message: message.trim() || undefined,
+      },
+    });
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.challengeCardModal, { backgroundColor: palette.cardBg, borderColor: '#EF4444' }]}>
+          {/* Header */}
+          <View style={styles.profileHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <View style={[styles.observerHeaderAvatarDot, { backgroundColor: '#EF4444' }]}>
+                <Ionicons name="flame" size={22} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.profileHeaderTitle, { color: palette.text, fontFamily: titleFont }]}>
+                  Retar a {friend.name}
+                </Text>
+                <Text style={[styles.headerSubtitle, { color: '#EF4444', fontFamily: subtitleFont }]}>
+                  {friend.nickname} · Duelo Atleta vs Atleta
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeIconBtn} hitSlop={10}>
+              <Ionicons name="close" size={24} color={palette.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+            {/* 1. Fecha del Reto */}
+            <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont }]}>
+              1. Fecha de Reto
+            </Text>
+            <View style={styles.chipsWrap}>
+              {['Hoy', 'Mañana', 'Fin de Semana', 'Próximo Lunes'].map((d) => {
+                const isSelected = selectedDate === d && !customDate;
+                return (
+                  <TouchableOpacity
+                    key={d}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedDate(d);
+                      setCustomDate('');
+                    }}
+                    style={[
+                      styles.choiceChip,
+                      {
+                        backgroundColor: isSelected ? '#EF4444' : palette.isDark ? '#0F172A' : '#F1F5F9',
+                        borderColor: isSelected ? '#EF4444' : palette.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.choiceText,
+                        { color: isSelected ? '#FFFFFF' : palette.text, fontFamily: subtitleFont },
+                      ]}
+                    >
+                      {d}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Botón Calendario */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setShowCalendar(true)}
+              style={[
+                styles.calendarPickerBtn,
+                {
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  borderColor: '#EF4444',
+                },
+              ]}
+            >
+              <Ionicons name="calendar" size={17} color="#EF4444" style={{ marginRight: 8 }} />
+              <Text style={[styles.calendarPickerBtnText, { color: '#EF4444', fontFamily: subtitleFont }]}>
+                {customDate ? `Fecha elegida: ${customDate}` : 'Elegir en Calendario 🗓️'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* 2. Variable a Medir */}
+            <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont, marginTop: 14 }]}>
+              2. Variable a Medir
+            </Text>
+            <View style={{ gap: 8 }}>
+              {CHALLENGE_VARIABLES.map((v) => {
+                const isSelected = selectedVariable === v.id;
+                return (
+                  <TouchableOpacity
+                    key={v.id}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedVariable(v.id);
+                      setTargetValue(v.defaultVal);
+                    }}
+                    style={[
+                      styles.choiceChip,
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start',
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        backgroundColor: isSelected ? '#EF4444' : palette.isDark ? '#0F172A' : '#F1F5F9',
+                        borderColor: isSelected ? '#EF4444' : palette.border,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={v.icon as any}
+                      size={18}
+                      color={isSelected ? '#FFFFFF' : '#EF4444'}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text
+                      style={[
+                        styles.choiceText,
+                        { color: isSelected ? '#FFFFFF' : palette.text, fontFamily: subtitleFont, flex: 1 },
+                      ]}
+                    >
+                      {v.label}
+                    </Text>
+                    {isSelected && <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Sub-selector para peso por músculo */}
+            {selectedVariable === 'muscle_weight' && (
+              <View style={[styles.subOptionsContainer, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)', marginTop: 10 }]}>
+                <Text style={[styles.subOptionsTitle, { color: '#EF4444', fontFamily: subtitleFont }]}>
+                  🏋️ Selecciona el Músculo / Ejercicio a Retar:
+                </Text>
+                <View style={styles.chipsWrap}>
+                  {MUSCLE_CHOICES.map((m) => {
+                    const isMSelected = selectedMuscle === m && !customMuscle;
+                    return (
+                      <TouchableOpacity
+                        key={m}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          setSelectedMuscle(m);
+                          setCustomMuscle('');
+                        }}
+                        style={[
+                          styles.choiceChip,
+                          {
+                            backgroundColor: isMSelected ? '#EF4444' : palette.cardBg,
+                            borderColor: isMSelected ? '#EF4444' : palette.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.choiceText,
+                            { color: isMSelected ? '#FFFFFF' : palette.text, fontFamily: subtitleFont },
+                          ]}
+                        >
+                          {m}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TextInput
+                  value={customMuscle}
+                  onChangeText={setCustomMuscle}
+                  placeholder="O escribe otro ejercicio/músculo..."
+                  placeholderTextColor={palette.textSub}
+                  style={[
+                    styles.formInput,
+                    {
+                      backgroundColor: palette.cardBg,
+                      color: palette.text,
+                      borderColor: customMuscle ? '#EF4444' : palette.border,
+                      fontFamily: bodyFont,
+                      marginTop: 6,
+                    },
+                  ]}
+                />
+              </View>
+            )}
+
+            {/* 3. Marca / Meta a Superar */}
+            <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont, marginTop: 14 }]}>
+              3. Marca / Meta Propuesta
+            </Text>
+            <TextInput
+              value={targetValue}
+              onChangeText={setTargetValue}
+              placeholder="Ej. 100 kg, 500 kcal, 25 min..."
+              placeholderTextColor={palette.textSub}
+              style={[
+                styles.formInput,
+                {
+                  backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                  color: palette.text,
+                  borderColor: palette.border,
+                  fontFamily: dataFont || bodyFont,
+                },
+              ]}
+            />
+
+            {/* 4. Mensaje Motivacional */}
+            <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont, marginTop: 14 }]}>
+              4. Mensaje del Reto (Desafío cara a cara)
+            </Text>
+            <TextInput
+              value={message}
+              onChangeText={setMessage}
+              placeholder="Ej. ¡A ver si aguantas mi ritmo este fin de semana! No hay excusas..."
+              placeholderTextColor={palette.textSub}
+              multiline
+              numberOfLines={3}
+              style={[
+                styles.formInput,
+                {
+                  backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                  color: palette.text,
+                  borderColor: palette.border,
+                  fontFamily: bodyFont,
+                  minHeight: 65,
+                },
+              ]}
+            />
+
+            {/* Botón Enviar Reto */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleSend}
+              style={[
+                styles.profileInviteBtn,
+                {
+                  backgroundColor: '#EF4444',
+                  marginTop: 18,
+                  shadowColor: '#EF4444',
+                  shadowOpacity: 0.35,
+                  shadowRadius: 8,
+                },
+              ]}
+            >
+              <Ionicons name="flame" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={[styles.profileInviteBtnText, { fontFamily: subtitleFont }]}>
+                ⚔️ Enviar Reto Desafiante
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+
+      <CalendarDatePickerModal
+        visible={showCalendar}
+        onClose={() => setShowCalendar(false)}
+        onSelectDate={(d) => {
+          setCustomDate(d);
+          setShowCalendar(false);
+        }}
+        palette={palette}
+        primaryColor="#EF4444"
+        titleFont={titleFont}
+        subtitleFont={subtitleFont}
+        bodyFont={bodyFont}
+      />
+    </Modal>
+  );
+}
+
 function NotificationsModal({
   visible,
   notifications,
@@ -1639,6 +2210,8 @@ function NotificationsModal({
   onRejectFriend,
   onAcceptWorkout,
   onRejectWorkout,
+  onAcceptChallenge,
+  onRejectChallenge,
   onMarkAllAsRead,
   c1,
   c2,
@@ -1654,6 +2227,8 @@ function NotificationsModal({
   onRejectFriend: (notifId: string) => void;
   onAcceptWorkout: (notifId: string) => void;
   onRejectWorkout: (notifId: string) => void;
+  onAcceptChallenge: (notifId: string) => void;
+  onRejectChallenge: (notifId: string) => void;
   onMarkAllAsRead: () => void;
   c1: string;
   c2: string;
@@ -1664,9 +2239,10 @@ function NotificationsModal({
 }) {
   const friendRequests = notifications.filter((n) => n.type === 'friend_request' && n.status === 'pending');
   const workoutInvites = notifications.filter((n) => n.type === 'workout_invite' && n.status === 'pending');
+  const challenges = notifications.filter((n) => n.type === 'challenge' && n.status === 'pending');
   const activityUpdates = notifications.filter((n) => n.type === 'activity' || n.status !== 'pending');
 
-  const totalPending = friendRequests.length + workoutInvites.length;
+  const totalPending = friendRequests.length + workoutInvites.length + challenges.length;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -1829,7 +2405,101 @@ function NotificationsModal({
                         style={[styles.notifAcceptBtn, { backgroundColor: c1 }]}
                       >
                         <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
-                        <Text style={[styles.notifAcceptBtnText, { fontFamily: subtitleFont }]}>¡Aceptar Entreno!</Text>
+                        <Text style={[styles.notifAcceptBtnText, { fontFamily: subtitleFont }]}>Aceptar Entrenamiento</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* 3. RETOS Y DESAFÍOS RECIBIDOS */}
+            {challenges.length > 0 && (
+              <View style={styles.notifSection}>
+                <View style={styles.notifSectionHeader}>
+                  <Text style={[styles.notifSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
+                    ⚔️ Retos y Desafíos Recibidos ({challenges.length})
+                  </Text>
+                </View>
+
+                {challenges.map((chal) => (
+                  <View
+                    key={chal.id}
+                    style={[
+                      styles.notifItemCard,
+                      {
+                        backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                        borderColor: '#EF4444',
+                        borderWidth: 1.5,
+                      },
+                    ]}
+                  >
+                    <View style={styles.notifItemTop}>
+                      <View style={[styles.friendAvatar, { backgroundColor: chal.senderColor }]}>
+                        <Text style={styles.friendAvatarText}>{chal.senderInitials}</Text>
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
+                            {chal.senderName}
+                          </Text>
+                          <View style={styles.challengeBadge}>
+                            <Text style={styles.challengeBadgeText}>⚔️ RETO</Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.friendNickBadge, { color: '#EF4444', fontFamily: subtitleFont }]}>
+                          {chal.senderNickname} · {chal.date}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {chal.challengeDetails && (
+                      <View style={[styles.inviteDetailsBox, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
+                        <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: subtitleFont }]}>
+                          🎯 Variable a medir:{' '}
+                          <Text style={{ color: '#EF4444', fontWeight: '900' }}>
+                            {chal.challengeDetails.variableLabel}
+                          </Text>
+                        </Text>
+                        {chal.challengeDetails.muscleOrExercise && (
+                          <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
+                            🏋️ Músculo/Ejercicio: <Text style={{ fontWeight: '800' }}>{chal.challengeDetails.muscleOrExercise}</Text>
+                          </Text>
+                        )}
+                        {chal.challengeDetails.targetValue && (
+                          <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
+                            📊 Marca a superar: <Text style={{ color: '#F59E0B', fontWeight: '800' }}>{chal.challengeDetails.targetValue}</Text>
+                          </Text>
+                        )}
+                        <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
+                          🗓️ Fecha del reto: {chal.challengeDetails.targetDate}
+                        </Text>
+                        {(chal.challengeDetails.message || chal.message) && (
+                          <Text style={[styles.inviteDetailNote, { color: palette.textSub, fontFamily: bodyFont, fontStyle: 'italic', marginTop: 4 }]}>
+                            "{chal.challengeDetails.message || chal.message}"
+                          </Text>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Botones Aceptar y Rechazar Reto */}
+                    <View style={styles.notifActionsRow}>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => onRejectChallenge(chal.id)}
+                        style={[styles.notifRejectBtn, { borderColor: palette.border }]}
+                      >
+                        <Ionicons name="close-circle-outline" size={16} color="#EF4444" style={{ marginRight: 4 }} />
+                        <Text style={[styles.notifRejectBtnText, { fontFamily: subtitleFont }]}>Declinar</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => onAcceptChallenge(chal.id)}
+                        style={[styles.notifAcceptBtn, { backgroundColor: '#EF4444' }]}
+                      >
+                        <Ionicons name="flame" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                        <Text style={[styles.notifAcceptBtnText, { fontFamily: subtitleFont }]}>Aceptar Reto ⚔️</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -2324,7 +2994,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   actionBtnInvitar: {
-    flex: 1.2,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2338,6 +3008,147 @@ const styles = StyleSheet.create({
   actionBtnInvitarText: {
     color: '#FFFFFF',
     fontSize: 12,
+    fontWeight: '900',
+  },
+  actionBtnRetar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 11,
+    shadowColor: '#EF4444',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  actionBtnRetarText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  // Header Avatar in Observer Mode
+  observerHeaderAvatarDot: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  observerHeaderAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  observerHeaderAvatarImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+
+  // Calendar Picker Modal Styles
+  calendarModalCard: {
+    width: '90%',
+    maxWidth: 360,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  calendarHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  calendarNavBtn: {
+    padding: 6,
+    borderRadius: 8,
+  },
+  calendarMonthTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  calendarDaysHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 8,
+  },
+  calendarDayHeaderCol: {
+    width: 36,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  calendarDayCell: {
+    width: '14.28%',
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 2,
+  },
+  calendarDayNumber: {
+    fontSize: 13,
+  },
+  calendarCancelBtn: {
+    marginTop: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  calendarCancelBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  calendarPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    marginVertical: 8,
+  },
+  calendarPickerBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  // Challenge Modal Styles
+  challengeCardModal: {
+    width: '100%',
+    maxHeight: '88%',
+    borderRadius: 22,
+    borderWidth: 1.5,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  challengeBadge: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  challengeBadgeText: {
+    color: '#EF4444',
+    fontSize: 10,
     fontWeight: '900',
   },
 
@@ -2885,12 +3696,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: 1,
     paddingVertical: 10,
     paddingHorizontal: 14,
     gap: 12,
     marginBottom: 6,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
   timeColumn: {
     alignItems: 'center',

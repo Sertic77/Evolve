@@ -735,6 +735,21 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   const completedGoals = goals.filter((g) => g.completed);
   const userLevel = xpBreakdown.userLevel;
 
+  // Estado y animación tipo burbuja suave para plegar/desplegar el progreso detallado de metas
+  const [isMetasExpanded, setIsMetasExpanded] = useState(true);
+  const metasFoldAnim = useRef(new Animated.Value(1)).current;
+
+  const toggleMetasFold = () => {
+    const toValue = isMetasExpanded ? 0 : 1;
+    Animated.spring(metasFoldAnim, {
+      toValue,
+      friction: 6,
+      tension: 45,
+      useNativeDriver: false,
+    }).start();
+    setIsMetasExpanded(!isMetasExpanded);
+  };
+
   // Animación de crecimiento suave para todos los datos métricos de Home
   const growthAnim = useRef(new Animated.Value(0)).current;
   const [growthProgress, setGrowthProgress] = useState(0);
@@ -1067,26 +1082,62 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             {/* Cabecera / Bloque Superior de Metas en la izquierda */}
             <TouchableOpacity
               activeOpacity={0.92}
-              onPress={() => setShowGoalsModal(true)}
+              onPress={activeGoals.length > 0 ? toggleMetasFold : () => setShowGoalsModal(true)}
               style={[
                 styles.topDualCard,
                 {
                   backgroundColor: palette.primary,
                   borderColor: palette.primary,
                   borderRadius: 18,
-                  shadowOpacity: 0.08,
-                  elevation: 2,
+                  borderBottomLeftRadius: activeGoals.length > 0 && isMetasExpanded ? 0 : 18,
+                  borderBottomRightRadius: activeGoals.length > 0 && isMetasExpanded ? 0 : 18,
+                  shadowOpacity: activeGoals.length > 0 && isMetasExpanded ? 0 : 0.08,
+                  elevation: activeGoals.length > 0 && isMetasExpanded ? 0 : 2,
                 },
               ]}
             >
+              {/* Bloque puente que cubre el gap entre Metas y Progreso Detallado para dar ilusión de bloque único */}
+              {activeGoals.length > 0 && (
+                <Animated.View
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    bottom: -14,
+                    left: 0,
+                    right: 0,
+                    height: 16,
+                    backgroundColor: palette.primary,
+                    zIndex: 20,
+                    opacity: metasFoldAnim,
+                  }}
+                />
+              )}
               <View style={styles.topDualHeader}>
                 <View style={[styles.topDualIconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
                   <Ionicons name="trophy" size={14} color="#FFFFFF" />
                 </View>
-                <View style={[styles.topDualPill, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
-                  <Text style={[styles.topDualPillText, { color: '#FFFFFF', fontFamily: subtitleFont }]}>
-                    {activeGoals.length} {activeGoals.length === 1 ? 'meta' : 'metas'}
-                  </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <View style={[styles.topDualPill, { backgroundColor: 'rgba(255, 255, 255, 0.22)' }]}>
+                    <Text style={[styles.topDualPillText, { color: '#FFFFFF', fontFamily: subtitleFont }]}>
+                      {activeGoals.length} {activeGoals.length === 1 ? 'meta' : 'metas'}
+                    </Text>
+                  </View>
+                  {activeGoals.length > 0 && (
+                    <Animated.View
+                      style={{
+                        transform: [
+                          {
+                            rotate: metasFoldAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ['0deg', '180deg'],
+                            }),
+                          },
+                        ],
+                      }}
+                    >
+                      <Ionicons name="chevron-down" size={14} color="#FFFFFF" />
+                    </Animated.View>
+                  )}
                 </View>
               </View>
 
@@ -1210,21 +1261,44 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 
           {/* EXTENSIÓN EN FORMA DE "L" DE METAS HACIA ABAJO Y HACIA LA DERECHA */}
           {activeGoals.length > 0 && (
-            <TouchableOpacity
-              activeOpacity={0.94}
-              onPress={() => setShowGoalsModal(true)}
-              style={[
-                styles.metasLBaseCard,
-                {
-                  backgroundColor: palette.primary,
-                  borderColor: 'rgba(255, 255, 255, 0.25)',
-                  borderWidth: 1,
-                  borderRadius: 18,
-                  marginTop: 0,
-                  padding: 15,
-                },
-              ]}
+            <Animated.View
+              style={{
+                maxHeight: metasFoldAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 800],
+                }),
+                opacity: metasFoldAnim.interpolate({
+                  inputRange: [0, 0.2, 1],
+                  outputRange: [0, 0, 1],
+                }),
+                transform: [
+                  {
+                    scale: metasFoldAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.94, 1],
+                    }),
+                  },
+                ],
+                overflow: 'hidden',
+              }}
             >
+              <TouchableOpacity
+                activeOpacity={0.94}
+                onPress={() => setShowGoalsModal(true)}
+                style={[
+                  styles.metasLBaseCard,
+                  {
+                    backgroundColor: palette.primary,
+                    borderColor: 'rgba(255, 255, 255, 0.25)',
+                    borderWidth: 1,
+                    borderTopWidth: 0,
+                    borderTopLeftRadius: 0,
+                    borderRadius: 18,
+                    marginTop: 0,
+                    padding: 15,
+                  },
+                ]}
+              >
               <View style={styles.metasLBaseHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="flag" size={13} color="#FFFFFF" />
@@ -1287,6 +1361,7 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 </Text>
               </View>
             </TouchableOpacity>
+            </Animated.View>
           )}
         </View>
 
