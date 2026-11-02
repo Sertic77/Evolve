@@ -1539,39 +1539,40 @@ function InviteWorkoutModal({
               })}
             </View>
 
-            {/* Botón de Calendario para escoger la fecha */}
+            {/* Botón moderno de Calendario para escoger la fecha */}
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => setShowCalendarPicker(true)}
               style={[
-                styles.calendarPickerBtn,
+                styles.calendarDateCardBtn,
                 {
-                  backgroundColor: `${c2}15`,
-                  borderColor: c2,
+                  backgroundColor: customDate ? `${c2}18` : (palette.isDark ? '#0F172A' : '#F8FAFC'),
+                  borderColor: customDate ? c2 : palette.border,
                 },
               ]}
             >
-              <Ionicons name="calendar" size={17} color={c2} style={{ marginRight: 8 }} />
-              <Text style={[styles.calendarPickerBtnText, { color: c2, fontFamily: subtitleFont }]}>
-                {customDate ? `Fecha seleccionada: ${customDate}` : 'Elegir en Calendario 🗓️'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <View
+                  style={[
+                    styles.calendarIconCircle,
+                    {
+                      backgroundColor: customDate ? c2 : `${c2}22`,
+                    },
+                  ]}
+                >
+                  <Ionicons name="calendar" size={18} color={customDate ? '#FFFFFF' : c2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.calendarCardTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                    {customDate ? `Fecha: ${customDate}` : 'Elegir fecha en Calendario'}
+                  </Text>
+                  <Text style={[styles.calendarCardSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                    {customDate ? 'Día confirmado para entrenar' : 'Toca para abrir el calendario mensual'}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={customDate ? c2 : palette.textSub} />
             </TouchableOpacity>
-
-            <TextInput
-              value={customDate}
-              onChangeText={setCustomDate}
-              placeholder="O escribe otra fecha personalizada (ej. Viernes 15 Nov)..."
-              placeholderTextColor={palette.textSub}
-              style={[
-                styles.formInput,
-                {
-                  backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                  color: palette.text,
-                  borderColor: customDate ? c2 : palette.border,
-                  fontFamily: bodyFont,
-                },
-              ]}
-            />
 
             {/* 3. Selector de Hora con Flechas e Inputs (Hora, Minutos, AM/PM) */}
             <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont }]}>
@@ -1889,17 +1890,16 @@ function ChallengeModal({
   const [customDate, setCustomDate] = useState('');
   const [showCalendar, setShowCalendar] = useState(false);
 
-  const [selectedVariable, setSelectedVariable] = useState<ChallengeVariable>('muscle_weight');
+  const [selectedVariable, setSelectedVariable] = useState<ChallengeVariable>('strength');
   const [selectedMuscle, setSelectedMuscle] = useState('Pecho (Bench Press)');
   const [customMuscle, setCustomMuscle] = useState('');
-  const [targetValue, setTargetValue] = useState('100 kg');
   const [message, setMessage] = useState('');
 
-  const CHALLENGE_VARIABLES: { id: ChallengeVariable; label: string; icon: string; defaultVal: string }[] = [
-    { id: 'calories', label: 'Calorías quemadas', icon: 'flame', defaultVal: '500 kcal' },
-    { id: 'muscle_weight', label: 'Peso levantado por determinado músculo', icon: 'barbell', defaultVal: '100 kg' },
-    { id: 'total_weight', label: 'Peso total levantado (Volumen)', icon: 'speedometer', defaultVal: '8,000 kg' },
-    { id: 'time_running', label: 'Tiempo (Running / Cardio)', icon: 'stopwatch', defaultVal: '25 min' },
+  const CHALLENGE_VARIABLES: { id: ChallengeVariable; label: string; icon: string; desc: string }[] = [
+    { id: 'calories', label: 'Calorías', icon: 'flame', desc: 'Compara calorías quemadas en la fecha' },
+    { id: 'strength', label: 'Fuerza', icon: 'barbell', desc: 'Compara carga máxima o PR levantado por músculo' },
+    { id: 'total_weight', label: 'Peso total levantado (volumen)', icon: 'speedometer', desc: 'Compara el volumen total acumulado (kg)' },
+    { id: 'time_running', label: 'Tiempo (running/cardio)', icon: 'stopwatch', desc: 'Compara resistencia y duración de cardio/running' },
   ];
 
   const MUSCLE_CHOICES = [
@@ -1926,9 +1926,8 @@ function ChallengeModal({
       details: {
         targetDate: finalDate,
         variableType: selectedVariable,
-        variableLabel: varItem?.label || 'Reto de Entrenamiento',
-        muscleOrExercise: selectedVariable === 'muscle_weight' ? (customMuscle.trim() || selectedMuscle) : undefined,
-        targetValue: targetValue.trim() || undefined,
+        variableLabel: varItem?.label || 'Reto de Duelo',
+        muscleOrExercise: (selectedVariable === 'strength' || selectedVariable === 'muscle_weight') ? (customMuscle.trim() || selectedMuscle) : undefined,
         message: message.trim() || undefined,
       },
     });
@@ -1995,22 +1994,39 @@ function ChallengeModal({
               })}
             </View>
 
-            {/* Botón Calendario */}
+            {/* Botón moderno de Calendario para escoger la fecha */}
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => setShowCalendar(true)}
               style={[
-                styles.calendarPickerBtn,
+                styles.calendarDateCardBtn,
                 {
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  borderColor: '#EF4444',
+                  backgroundColor: customDate ? 'rgba(239, 68, 68, 0.15)' : (palette.isDark ? '#0F172A' : '#F8FAFC'),
+                  borderColor: customDate ? '#EF4444' : palette.border,
                 },
               ]}
             >
-              <Ionicons name="calendar" size={17} color="#EF4444" style={{ marginRight: 8 }} />
-              <Text style={[styles.calendarPickerBtnText, { color: '#EF4444', fontFamily: subtitleFont }]}>
-                {customDate ? `Fecha elegida: ${customDate}` : 'Elegir en Calendario 🗓️'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <View
+                  style={[
+                    styles.calendarIconCircle,
+                    {
+                      backgroundColor: customDate ? '#EF4444' : 'rgba(239, 68, 68, 0.18)',
+                    },
+                  ]}
+                >
+                  <Ionicons name="calendar" size={18} color={customDate ? '#FFFFFF' : '#EF4444'} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.calendarCardTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                    {customDate ? `Fecha: ${customDate}` : 'Elegir fecha en Calendario'}
+                  </Text>
+                  <Text style={[styles.calendarCardSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                    {customDate ? 'Día pactado para el duelo' : 'Toca para abrir el calendario de retos'}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={customDate ? '#EF4444' : palette.textSub} />
             </TouchableOpacity>
 
             {/* 2. Variable a Medir */}
@@ -2026,7 +2042,6 @@ function ChallengeModal({
                     activeOpacity={0.8}
                     onPress={() => {
                       setSelectedVariable(v.id);
-                      setTargetValue(v.defaultVal);
                     }}
                     style={[
                       styles.choiceChip,
@@ -2034,7 +2049,7 @@ function ChallengeModal({
                         flexDirection: 'row',
                         alignItems: 'center',
                         justifyContent: 'flex-start',
-                        paddingVertical: 10,
+                        paddingVertical: 12,
                         paddingHorizontal: 12,
                         backgroundColor: isSelected ? '#EF4444' : palette.isDark ? '#0F172A' : '#F1F5F9',
                         borderColor: isSelected ? '#EF4444' : palette.border,
@@ -2043,26 +2058,38 @@ function ChallengeModal({
                   >
                     <Ionicons
                       name={v.icon as any}
-                      size={18}
+                      size={20}
                       color={isSelected ? '#FFFFFF' : '#EF4444'}
-                      style={{ marginRight: 8 }}
+                      style={{ marginRight: 10 }}
                     />
-                    <Text
-                      style={[
-                        styles.choiceText,
-                        { color: isSelected ? '#FFFFFF' : palette.text, fontFamily: subtitleFont, flex: 1 },
-                      ]}
-                    >
-                      {v.label}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.choiceText,
+                          { color: isSelected ? '#FFFFFF' : palette.text, fontFamily: subtitleFont, fontSize: 14 },
+                        ]}
+                      >
+                        {v.label}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: isSelected ? 'rgba(255,255,255,0.85)' : palette.textSub,
+                          fontFamily: bodyFont,
+                          marginTop: 1,
+                        }}
+                      >
+                        {v.desc}
+                      </Text>
+                    </View>
                     {isSelected && <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />}
                   </TouchableOpacity>
                 );
               })}
             </View>
 
-            {/* Sub-selector para peso por músculo */}
-            {selectedVariable === 'muscle_weight' && (
+            {/* Sub-selector para fuerza por músculo */}
+            {(selectedVariable === 'strength' || selectedVariable === 'muscle_weight') && (
               <View style={[styles.subOptionsContainer, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)', marginTop: 10 }]}>
                 <Text style={[styles.subOptionsTitle, { color: '#EF4444', fontFamily: subtitleFont }]}>
                   🏋️ Selecciona el Músculo / Ejercicio a Retar:
@@ -2118,29 +2145,24 @@ function ChallengeModal({
               </View>
             )}
 
-            {/* 3. Marca / Meta a Superar */}
-            <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont, marginTop: 14 }]}>
-              3. Marca / Meta Propuesta
-            </Text>
-            <TextInput
-              value={targetValue}
-              onChangeText={setTargetValue}
-              placeholder="Ej. 100 kg, 500 kcal, 25 min..."
-              placeholderTextColor={palette.textSub}
-              style={[
-                styles.formInput,
-                {
-                  backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                  color: palette.text,
-                  borderColor: palette.border,
-                  fontFamily: dataFont || bodyFont,
-                },
-              ]}
-            />
+            {/* Banner Informativo de Duelo 1 vs 1 y XP */}
+            <View style={[styles.duelInfoBanner, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)', marginTop: 14 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <Ionicons name="trophy" size={17} color="#EF4444" />
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#EF4444', fontFamily: subtitleFont }}>
+                  Duelo Cara a Cara (1 vs 1)
+                </Text>
+              </View>
+              <Text style={{ fontSize: 12, color: palette.text, fontFamily: bodyFont, lineHeight: 17 }}>
+                El sistema comparará automáticamente las métricas de ambos atletas en la fecha elegida:{'\n'}
+                • <Text style={{ color: '#10B981', fontWeight: '800' }}>Ganador: +50 XP</Text>{'\n'}
+                • <Text style={{ color: '#EF4444', fontWeight: '800' }}>Perdedor: -25 XP</Text>
+              </Text>
+            </View>
 
-            {/* 4. Mensaje Motivacional */}
+            {/* 3. Mensaje Motivacional */}
             <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont, marginTop: 14 }]}>
-              4. Mensaje del Reto (Desafío cara a cara)
+              3. Mensaje del Reto (Desafío cara a cara)
             </Text>
             <TextInput
               value={message}
@@ -2237,12 +2259,15 @@ function NotificationsModal({
   subtitleFont?: string;
   bodyFont?: string;
 }) {
+  const [activeTab, setActiveTab] = useState<'requests' | 'invites' | 'activity'>('requests');
+
   const friendRequests = notifications.filter((n) => n.type === 'friend_request' && n.status === 'pending');
   const workoutInvites = notifications.filter((n) => n.type === 'workout_invite' && n.status === 'pending');
   const challenges = notifications.filter((n) => n.type === 'challenge' && n.status === 'pending');
   const activityUpdates = notifications.filter((n) => n.type === 'activity' || n.status !== 'pending');
 
   const totalPending = friendRequests.length + workoutInvites.length + challenges.length;
+  const invitesCount = workoutInvites.length + challenges.length;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -2266,292 +2291,427 @@ function NotificationsModal({
             </TouchableOpacity>
           </View>
 
+          {/* Variant Button Triple: Solicitudes | Invitaciones | Actividad */}
+          <View
+            style={[
+              styles.notifSegmentedWrap,
+              {
+                backgroundColor: palette.isDark ? '#0F172A' : '#F1F5F9',
+                borderColor: palette.border,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setActiveTab('requests')}
+              style={[
+                styles.notifSegmentBtn,
+                activeTab === 'requests' && [styles.notifSegmentBtnActive, { backgroundColor: c1 }],
+              ]}
+            >
+              <Text
+                style={[
+                  styles.notifSegmentBtnText,
+                  {
+                    color: activeTab === 'requests' ? '#FFFFFF' : palette.textSub,
+                    fontFamily: subtitleFont,
+                  },
+                ]}
+              >
+                Solicitudes
+              </Text>
+              {friendRequests.length > 0 && (
+                <View
+                  style={[
+                    styles.notifTabBadge,
+                    {
+                      backgroundColor: activeTab === 'requests' ? '#FFFFFF' : c1,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.notifTabBadgeText,
+                      { color: activeTab === 'requests' ? c1 : '#FFFFFF' },
+                    ]}
+                  >
+                    {friendRequests.length}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setActiveTab('invites')}
+              style={[
+                styles.notifSegmentBtn,
+                activeTab === 'invites' && [styles.notifSegmentBtnActive, { backgroundColor: c1 }],
+              ]}
+            >
+              <Text
+                style={[
+                  styles.notifSegmentBtnText,
+                  {
+                    color: activeTab === 'invites' ? '#FFFFFF' : palette.textSub,
+                    fontFamily: subtitleFont,
+                  },
+                ]}
+              >
+                Invitaciones
+              </Text>
+              {invitesCount > 0 && (
+                <View
+                  style={[
+                    styles.notifTabBadge,
+                    {
+                      backgroundColor: activeTab === 'invites' ? '#FFFFFF' : '#EF4444',
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.notifTabBadgeText,
+                      { color: activeTab === 'invites' ? '#EF4444' : '#FFFFFF' },
+                    ]}
+                  >
+                    {invitesCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setActiveTab('activity')}
+              style={[
+                styles.notifSegmentBtn,
+                activeTab === 'activity' && [styles.notifSegmentBtnActive, { backgroundColor: c1 }],
+              ]}
+            >
+              <Text
+                style={[
+                  styles.notifSegmentBtnText,
+                  {
+                    color: activeTab === 'activity' ? '#FFFFFF' : palette.textSub,
+                    fontFamily: subtitleFont,
+                  },
+                ]}
+              >
+                Actividad
+              </Text>
+              {activityUpdates.length > 0 && (
+                <View
+                  style={[
+                    styles.notifTabBadge,
+                    {
+                      backgroundColor: activeTab === 'activity' ? '#FFFFFF' : palette.textSub,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.notifTabBadgeText,
+                      { color: activeTab === 'activity' ? palette.text : '#FFFFFF' },
+                    ]}
+                  >
+                    {activityUpdates.length}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-            {/* 1. SOLICITUDES DE AMISTAD RECIBIDAS */}
-            {friendRequests.length > 0 && (
+            {/* PESTAÑA 1: SOLICITUDES DE AMISTAD */}
+            {activeTab === 'requests' && (
               <View style={styles.notifSection}>
-                <View style={styles.notifSectionHeader}>
-                  <Text style={[styles.notifSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-                    🤝 Solicitudes de Amistad ({friendRequests.length})
-                  </Text>
-                </View>
-
-                {friendRequests.map((req) => (
-                  <View
-                    key={req.id}
-                    style={[
-                      styles.notifItemCard,
-                      {
-                        backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                        borderColor: palette.border,
-                      },
-                    ]}
-                  >
-                    <View style={styles.notifItemTop}>
-                      <View style={[styles.friendAvatar, { backgroundColor: req.senderColor }]}>
-                        <Text style={styles.friendAvatarText}>{req.senderInitials}</Text>
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
-                          {req.senderName}
-                        </Text>
-                        <Text style={[styles.friendNickBadge, { color: c1, fontFamily: subtitleFont }]}>
-                          {req.senderNickname} · Nvl {req.senderLevel} ({req.senderRank})
-                        </Text>
-                        <Text style={[styles.notifDateText, { color: palette.textSub, fontFamily: bodyFont }]}>
-                          {req.date}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text style={[styles.notifMessageText, { color: palette.text, fontFamily: bodyFont }]}>
-                      {req.message}
+                {friendRequests.length === 0 ? (
+                  <View style={[styles.emptyBox, { backgroundColor: palette.cardBg, borderColor: palette.border, paddingVertical: 28 }]}>
+                    <Ionicons name="people-outline" size={42} color={c1} />
+                    <Text style={[styles.emptyTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Sin solicitudes de amistad
                     </Text>
-
-                    {/* Botones Aceptar y Rechazar */}
-                    <View style={styles.notifActionsRow}>
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => onRejectFriend(req.id)}
-                        style={[styles.notifRejectBtn, { borderColor: palette.border }]}
-                      >
-                        <Ionicons name="close-circle-outline" size={16} color="#EF4444" style={{ marginRight: 4 }} />
-                        <Text style={[styles.notifRejectBtnText, { fontFamily: subtitleFont }]}>Rechazar</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={() => onAcceptFriend(req.id)}
-                        style={[styles.notifAcceptBtn, { backgroundColor: '#10B981' }]}
-                      >
-                        <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
-                        <Text style={[styles.notifAcceptBtnText, { fontFamily: subtitleFont }]}>Aceptar Amistad</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <Text style={[styles.emptySubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      No tienes solicitudes de amistad pendientes por responder.
+                    </Text>
                   </View>
-                ))}
-              </View>
-            )}
-
-            {/* 2. INVITACIONES A ENTRENAR RECIBIDAS */}
-            {workoutInvites.length > 0 && (
-              <View style={styles.notifSection}>
-                <View style={styles.notifSectionHeader}>
-                  <Text style={[styles.notifSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-                    🏋️‍♂️ Invitaciones a Entrenar ({workoutInvites.length})
-                  </Text>
-                </View>
-
-                {workoutInvites.map((inv) => (
-                  <View
-                    key={inv.id}
-                    style={[
-                      styles.notifItemCard,
-                      {
-                        backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                        borderColor: palette.border,
-                      },
-                    ]}
-                  >
-                    <View style={styles.notifItemTop}>
-                      <View style={[styles.friendAvatar, { backgroundColor: inv.senderColor }]}>
-                        <Text style={styles.friendAvatarText}>{inv.senderInitials}</Text>
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
-                          {inv.senderName}
-                        </Text>
-                        <Text style={[styles.friendNickBadge, { color: c2, fontFamily: subtitleFont }]}>
-                          {inv.senderNickname} · {inv.date}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {inv.workoutDetails && (
-                      <View style={[styles.inviteDetailsBox, { backgroundColor: `${c1}12`, borderColor: `${c1}30` }]}>
-                        <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: subtitleFont }]}>
-                          Modalidad: <Text style={{ color: c1, fontWeight: '900' }}>{inv.workoutDetails.workoutType}</Text>
-                        </Text>
-                        <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
-                          📅 Cuándo: {inv.workoutDetails.dateTime}
-                        </Text>
-                        {inv.workoutDetails.location && (
-                          <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
-                            📍 Lugar: {inv.workoutDetails.location}
-                          </Text>
-                        )}
-                        {inv.workoutDetails.note && (
-                          <Text style={[styles.inviteDetailNote, { color: palette.textSub, fontFamily: bodyFont }]}>
-                            "{inv.workoutDetails.note}"
-                          </Text>
-                        )}
-                      </View>
-                    )}
-
-                    {/* Botones Aceptar y Rechazar */}
-                    <View style={styles.notifActionsRow}>
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => onRejectWorkout(inv.id)}
-                        style={[styles.notifRejectBtn, { borderColor: palette.border }]}
-                      >
-                        <Ionicons name="close-circle-outline" size={16} color="#EF4444" style={{ marginRight: 4 }} />
-                        <Text style={[styles.notifRejectBtnText, { fontFamily: subtitleFont }]}>Declinar</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={() => onAcceptWorkout(inv.id)}
-                        style={[styles.notifAcceptBtn, { backgroundColor: c1 }]}
-                      >
-                        <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
-                        <Text style={[styles.notifAcceptBtnText, { fontFamily: subtitleFont }]}>Aceptar Entrenamiento</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* 3. RETOS Y DESAFÍOS RECIBIDOS */}
-            {challenges.length > 0 && (
-              <View style={styles.notifSection}>
-                <View style={styles.notifSectionHeader}>
-                  <Text style={[styles.notifSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-                    ⚔️ Retos y Desafíos Recibidos ({challenges.length})
-                  </Text>
-                </View>
-
-                {challenges.map((chal) => (
-                  <View
-                    key={chal.id}
-                    style={[
-                      styles.notifItemCard,
-                      {
-                        backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                        borderColor: '#EF4444',
-                        borderWidth: 1.5,
-                      },
-                    ]}
-                  >
-                    <View style={styles.notifItemTop}>
-                      <View style={[styles.friendAvatar, { backgroundColor: chal.senderColor }]}>
-                        <Text style={styles.friendAvatarText}>{chal.senderInitials}</Text>
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                ) : (
+                  friendRequests.map((req) => (
+                    <View
+                      key={req.id}
+                      style={[
+                        styles.notifItemCard,
+                        {
+                          backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                          borderColor: palette.border,
+                        },
+                      ]}
+                    >
+                      <View style={styles.notifItemTop}>
+                        <View style={[styles.friendAvatar, { backgroundColor: req.senderColor }]}>
+                          <Text style={styles.friendAvatarText}>{req.senderInitials}</Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
                           <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
-                            {chal.senderName}
+                            {req.senderName}
                           </Text>
-                          <View style={styles.challengeBadge}>
-                            <Text style={styles.challengeBadgeText}>⚔️ RETO</Text>
+                          <Text style={[styles.friendNickBadge, { color: c1, fontFamily: subtitleFont }]}>
+                            {req.senderNickname} · Nvl {req.senderLevel} ({req.senderRank})
+                          </Text>
+                          <Text style={[styles.notifDateText, { color: palette.textSub, fontFamily: bodyFont }]}>
+                            {req.date}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={[styles.notifMessageText, { color: palette.text, fontFamily: bodyFont }]}>
+                        {req.message}
+                      </Text>
+
+                      {/* Botones Aceptar y Rechazar */}
+                      <View style={styles.notifActionsRow}>
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={() => onRejectFriend(req.id)}
+                          style={[styles.notifRejectBtn, { borderColor: palette.border }]}
+                        >
+                          <Ionicons name="close-circle-outline" size={16} color="#EF4444" style={{ marginRight: 4 }} />
+                          <Text style={[styles.notifRejectBtnText, { fontFamily: subtitleFont }]}>Rechazar</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          activeOpacity={0.85}
+                          onPress={() => onAcceptFriend(req.id)}
+                          style={[styles.notifAcceptBtn, { backgroundColor: '#10B981' }]}
+                        >
+                          <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                          <Text style={[styles.notifAcceptBtnText, { fontFamily: subtitleFont }]}>Aceptar Amistad</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {/* PESTAÑA 2: INVITACIONES A ENTRENAR Y RETOS */}
+            {activeTab === 'invites' && (
+              <View style={styles.notifSection}>
+                {workoutInvites.length === 0 && challenges.length === 0 ? (
+                  <View style={[styles.emptyBox, { backgroundColor: palette.cardBg, borderColor: palette.border, paddingVertical: 28 }]}>
+                    <Ionicons name="barbell-outline" size={42} color={c2} />
+                    <Text style={[styles.emptyTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      Sin invitaciones ni retos
+                    </Text>
+                    <Text style={[styles.emptySubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      No tienes invitaciones de entreno ni desafíos cara a cara pendientes.
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* Invitaciones de Entrenamiento */}
+                    {workoutInvites.map((inv) => (
+                      <View
+                        key={inv.id}
+                        style={[
+                          styles.notifItemCard,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: palette.border,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <View style={styles.notifItemTop}>
+                          <View style={[styles.friendAvatar, { backgroundColor: inv.senderColor }]}>
+                            <Text style={styles.friendAvatarText}>{inv.senderInitials}</Text>
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
+                              {inv.senderName}
+                            </Text>
+                            <Text style={[styles.friendNickBadge, { color: c2, fontFamily: subtitleFont }]}>
+                              {inv.senderNickname} · {inv.date}
+                            </Text>
                           </View>
                         </View>
-                        <Text style={[styles.friendNickBadge, { color: '#EF4444', fontFamily: subtitleFont }]}>
-                          {chal.senderNickname} · {chal.date}
-                        </Text>
+
+                        {inv.workoutDetails && (
+                          <View style={[styles.inviteDetailsBox, { backgroundColor: `${c1}12`, borderColor: `${c1}30` }]}>
+                            <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: subtitleFont }]}>
+                              Modalidad: <Text style={{ color: c1, fontWeight: '900' }}>{inv.workoutDetails.workoutType}</Text>
+                            </Text>
+                            <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
+                              📅 Cuándo: {inv.workoutDetails.dateTime}
+                            </Text>
+                            {inv.workoutDetails.location && (
+                              <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
+                                📍 Lugar: {inv.workoutDetails.location}
+                              </Text>
+                            )}
+                            {inv.workoutDetails.note && (
+                              <Text style={[styles.inviteDetailNote, { color: palette.textSub, fontFamily: bodyFont }]}>
+                                "{inv.workoutDetails.note}"
+                              </Text>
+                            )}
+                          </View>
+                        )}
+
+                        {/* Botones Aceptar y Rechazar */}
+                        <View style={styles.notifActionsRow}>
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => onRejectWorkout(inv.id)}
+                            style={[styles.notifRejectBtn, { borderColor: palette.border }]}
+                          >
+                            <Ionicons name="close-circle-outline" size={16} color="#EF4444" style={{ marginRight: 4 }} />
+                            <Text style={[styles.notifRejectBtnText, { fontFamily: subtitleFont }]}>Declinar</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            onPress={() => onAcceptWorkout(inv.id)}
+                            style={[styles.notifAcceptBtn, { backgroundColor: c1 }]}
+                          >
+                            <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                            <Text style={[styles.notifAcceptBtnText, { fontFamily: subtitleFont }]}>Aceptar Entrenamiento</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                    </View>
+                    ))}
 
-                    {chal.challengeDetails && (
-                      <View style={[styles.inviteDetailsBox, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
-                        <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: subtitleFont }]}>
-                          🎯 Variable a medir:{' '}
-                          <Text style={{ color: '#EF4444', fontWeight: '900' }}>
-                            {chal.challengeDetails.variableLabel}
-                          </Text>
-                        </Text>
-                        {chal.challengeDetails.muscleOrExercise && (
-                          <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
-                            🏋️ Músculo/Ejercicio: <Text style={{ fontWeight: '800' }}>{chal.challengeDetails.muscleOrExercise}</Text>
-                          </Text>
+                    {/* Retos y Desafíos */}
+                    {challenges.map((chal) => (
+                      <View
+                        key={chal.id}
+                        style={[
+                          styles.notifItemCard,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: '#EF4444',
+                            borderWidth: 1.5,
+                            marginBottom: 10,
+                          },
+                        ]}
+                      >
+                        <View style={styles.notifItemTop}>
+                          <View style={[styles.friendAvatar, { backgroundColor: chal.senderColor }]}>
+                            <Text style={styles.friendAvatarText}>{chal.senderInitials}</Text>
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
+                                {chal.senderName}
+                              </Text>
+                              <View style={styles.challengeBadge}>
+                                <Text style={styles.challengeBadgeText}>⚔️ RETO</Text>
+                              </View>
+                            </View>
+                            <Text style={[styles.friendNickBadge, { color: '#EF4444', fontFamily: subtitleFont }]}>
+                              {chal.senderNickname} · {chal.date}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {chal.challengeDetails && (
+                          <View style={[styles.inviteDetailsBox, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
+                            <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: subtitleFont }]}>
+                              🎯 Variable a medir:{' '}
+                              <Text style={{ color: '#EF4444', fontWeight: '900' }}>
+                                {chal.challengeDetails.variableLabel}
+                              </Text>
+                            </Text>
+                            {chal.challengeDetails.muscleOrExercise && (
+                              <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
+                                🏋️ Músculo/Ejercicio: <Text style={{ fontWeight: '800' }}>{chal.challengeDetails.muscleOrExercise}</Text>
+                              </Text>
+                            )}
+                            <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
+                              🗓️ Fecha del reto: {chal.challengeDetails.targetDate}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                              <Ionicons name="trophy-outline" size={14} color="#10B981" />
+                              <Text style={{ fontSize: 11, color: '#10B981', fontFamily: subtitleFont }}>
+                                Duelo 1 vs 1: +50 XP victoria / -25 XP derrota
+                              </Text>
+                            </View>
+                            {(chal.challengeDetails.message || chal.message) && (
+                              <Text style={[styles.inviteDetailNote, { color: palette.textSub, fontFamily: bodyFont, fontStyle: 'italic', marginTop: 4 }]}>
+                                "{chal.challengeDetails.message || chal.message}"
+                              </Text>
+                            )}
+                          </View>
                         )}
-                        {chal.challengeDetails.targetValue && (
-                          <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
-                            📊 Marca a superar: <Text style={{ color: '#F59E0B', fontWeight: '800' }}>{chal.challengeDetails.targetValue}</Text>
-                          </Text>
-                        )}
-                        <Text style={[styles.inviteDetailLine, { color: palette.text, fontFamily: bodyFont }]}>
-                          🗓️ Fecha del reto: {chal.challengeDetails.targetDate}
-                        </Text>
-                        {(chal.challengeDetails.message || chal.message) && (
-                          <Text style={[styles.inviteDetailNote, { color: palette.textSub, fontFamily: bodyFont, fontStyle: 'italic', marginTop: 4 }]}>
-                            "{chal.challengeDetails.message || chal.message}"
-                          </Text>
-                        )}
+
+                        {/* Botones Aceptar y Rechazar Reto */}
+                        <View style={styles.notifActionsRow}>
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => onRejectChallenge(chal.id)}
+                            style={[styles.notifRejectBtn, { borderColor: palette.border }]}
+                          >
+                            <Ionicons name="close-circle-outline" size={16} color="#EF4444" style={{ marginRight: 4 }} />
+                            <Text style={[styles.notifRejectBtnText, { fontFamily: subtitleFont }]}>Declinar</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            onPress={() => onAcceptChallenge(chal.id)}
+                            style={[styles.notifAcceptBtn, { backgroundColor: '#EF4444' }]}
+                          >
+                            <Ionicons name="flame" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                            <Text style={[styles.notifAcceptBtnText, { fontFamily: subtitleFont }]}>Aceptar Reto ⚔️</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                    )}
-
-                    {/* Botones Aceptar y Rechazar Reto */}
-                    <View style={styles.notifActionsRow}>
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => onRejectChallenge(chal.id)}
-                        style={[styles.notifRejectBtn, { borderColor: palette.border }]}
-                      >
-                        <Ionicons name="close-circle-outline" size={16} color="#EF4444" style={{ marginRight: 4 }} />
-                        <Text style={[styles.notifRejectBtnText, { fontFamily: subtitleFont }]}>Declinar</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={() => onAcceptChallenge(chal.id)}
-                        style={[styles.notifAcceptBtn, { backgroundColor: '#EF4444' }]}
-                      >
-                        <Ionicons name="flame" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
-                        <Text style={[styles.notifAcceptBtnText, { fontFamily: subtitleFont }]}>Aceptar Reto ⚔️</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
+                    ))}
+                  </>
+                )}
               </View>
             )}
 
-            {/* 3. ACTIVIDAD RECIENTE & MENSAJES */}
-            <View style={styles.notifSection}>
-              <View style={styles.notifSectionHeader}>
-                <Text style={[styles.notifSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-                  ⚡ Actividad de la Comunidad
-                </Text>
-              </View>
-
-              {activityUpdates.length === 0 && totalPending === 0 ? (
-                <View style={[styles.emptyBox, { backgroundColor: palette.cardBg, borderColor: palette.border, paddingVertical: 28 }]}>
-                  <Ionicons name="checkmark-done-circle-outline" size={44} color="#10B981" />
-                  <Text style={[styles.emptyTitle, { color: palette.text, fontFamily: titleFont }]}>
-                    ¡Todo al día!
-                  </Text>
-                  <Text style={[styles.emptySubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    No tienes mensajes ni solicitudes de amistad pendientes.
-                  </Text>
-                </View>
-              ) : (
-                activityUpdates.map((act) => (
-                  <View
-                    key={act.id}
-                    style={[
-                      styles.activityItemRow,
-                      {
-                        backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
-                        borderColor: palette.border,
-                      },
-                    ]}
-                  >
-                    <View style={[styles.activityDotIcon, { backgroundColor: `${c2}20` }]}>
-                      <Ionicons name="flame" size={16} color={c2} />
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={[styles.activityMessageText, { color: palette.text, fontFamily: bodyFont }]}>
-                        {act.message}
-                      </Text>
-                      <Text style={[styles.notifDateText, { color: palette.textSub, fontFamily: bodyFont }]}>
-                        {act.date}
-                      </Text>
-                    </View>
+            {/* PESTAÑA 3: ACTIVIDAD DE LA COMUNIDAD */}
+            {activeTab === 'activity' && (
+              <View style={styles.notifSection}>
+                {activityUpdates.length === 0 ? (
+                  <View style={[styles.emptyBox, { backgroundColor: palette.cardBg, borderColor: palette.border, paddingVertical: 28 }]}>
+                    <Ionicons name="checkmark-done-circle-outline" size={42} color="#10B981" />
+                    <Text style={[styles.emptyTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      ¡Todo al día!
+                    </Text>
+                    <Text style={[styles.emptySubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      No hay actividad reciente en la comunidad por el momento.
+                    </Text>
                   </View>
-                ))
-              )}
-            </View>
+                ) : (
+                  activityUpdates.map((act) => (
+                    <View
+                      key={act.id}
+                      style={[
+                        styles.activityItemRow,
+                        {
+                          backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                          borderColor: palette.border,
+                        },
+                      ]}
+                    >
+                      <View style={[styles.activityDotIcon, { backgroundColor: `${c2}20` }]}>
+                        <Ionicons name="flame" size={16} color={c2} />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={[styles.activityMessageText, { color: palette.text, fontFamily: bodyFont }]}>
+                          {act.message}
+                        </Text>
+                        <Text style={[styles.notifDateText, { color: palette.textSub, fontFamily: bodyFont }]}>
+                          {act.date}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
 
             {/* Marcar todas como leídas */}
             {notifications.length > 0 && (
@@ -3118,12 +3278,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderStyle: 'dashed',
     marginVertical: 8,
   },
   calendarPickerBtnText: {
     fontSize: 13,
     fontWeight: '800',
+  },
+  calendarDateCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginVertical: 8,
+  },
+  calendarIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  calendarCardSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  duelInfoBanner: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 6,
   },
 
   // Challenge Modal Styles
@@ -3745,6 +3935,45 @@ const styles = StyleSheet.create({
   },
 
   // Notifications Modal
+  notifSegmentedWrap: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: 14,
+  },
+  notifSegmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    gap: 5,
+  },
+  notifSegmentBtnActive: {
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  notifSegmentBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  notifTabBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    minWidth: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifTabBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
   notificationsModalCard: {
     maxHeight: '88%',
     borderTopLeftRadius: 26,

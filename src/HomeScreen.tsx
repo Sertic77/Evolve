@@ -2169,6 +2169,31 @@ function XpInfoModal({
               </View>
             </View>
 
+            {/* 8. Duelos y Retos entre Atletas (1 vs 1) */}
+            <View style={[xpStyles.metricCard, { backgroundColor: palette.bg, borderColor: '#EF4444', borderWidth: 1.5 }]}>
+              <View style={[xpStyles.metricIconWrap, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                <Ionicons name="flame" size={20} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={xpStyles.metricHeaderRow}>
+                  <Text style={[xpStyles.metricTitle, { color: palette.text }]}>
+                    8. Duelos y Retos entre Atletas (1 vs 1)
+                  </Text>
+                  <View style={[xpStyles.priorityBadge, { backgroundColor: 'rgba(239, 68, 68, 0.18)' }]}>
+                    <Text style={[xpStyles.priorityBadgeText, { color: '#EF4444' }]}>PvP / Retos</Text>
+                  </View>
+                </View>
+                <Text style={[xpStyles.metricPoints, { color: '#EF4444' }]}>
+                  🏆 Ganador: +50 XP  |  💀 Perdedor: -25 XP
+                </Text>
+                <Text style={[xpStyles.metricExpl, { color: palette.textSub }]}>
+                  Al retar a un amigo o aceptar un reto en la comunidad (Calorías, Fuerza, Peso total levantado o Tiempo), el sistema compara automáticamente los datos registrados por ambos en la fecha acordada:{`\n`}
+                  • <Text style={{ fontWeight: '800', color: '#10B981' }}>El Atleta Ganador </Text>se lleva <Text style={{ fontWeight: '800', color: '#10B981' }}>+50 XP</Text> de victoria.{`\n`}
+                  • <Text style={{ fontWeight: '800', color: '#EF4444' }}>El Atleta Derrotado </Text>pierde <Text style={{ fontWeight: '800', color: '#EF4444' }}>-25 XP</Text>, añadiendo riesgo y motivación a cada duelo.
+                </Text>
+              </View>
+            </View>
+
             {/* Escalafón de Rangos */}
             <View style={[xpStyles.ranksCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
               <Text style={[xpStyles.ranksCardTitle, { color: palette.text }]}>

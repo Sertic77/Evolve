@@ -321,6 +321,7 @@ export type FriendUser = {
 
 export type ChallengeVariable =
   | 'calories'
+  | 'strength'
   | 'muscle_weight'
   | 'total_weight'
   | 'time_running';
@@ -752,10 +753,9 @@ export const INITIAL_NOTIFICATIONS: FriendNotification[] = [
     message: '¿Te atreves a superar mi marca en sentadilla este fin de semana?',
     challengeDetails: {
       targetDate: 'Este Sábado',
-      variableType: 'muscle_weight',
-      variableLabel: 'Peso levantado por determinado músculo',
+      variableType: 'strength',
+      variableLabel: 'Fuerza',
       muscleOrExercise: 'Piernas (Sentadilla)',
-      targetValue: '120 kg',
       message: '¡A ver si tus piernas aguantan el peso pesado!',
     },
   },
@@ -2126,7 +2126,7 @@ export const useStore = create<State>()(
                 date: 'Ahora mismo',
                 read: true,
                 status: 'accepted',
-                message: `Retaste a ${challenge.friendName} (${challenge.friendNickname}) en ${challenge.details.variableLabel}${challenge.details.muscleOrExercise ? ' [' + challenge.details.muscleOrExercise + ']' : ''} para ${challenge.details.targetDate}.`,
+                message: `Retaste a ${challenge.friendName} (${challenge.friendNickname}) en ${challenge.details.variableLabel}${challenge.details.muscleOrExercise ? ' [' + challenge.details.muscleOrExercise + ']' : ''} para ${challenge.details.targetDate} (Duelo 1 vs 1: +50 XP / -25 XP).`,
               },
               ...s.friendNotifications,
             ],
