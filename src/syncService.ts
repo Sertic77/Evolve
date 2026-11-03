@@ -30,6 +30,10 @@ export const USER_DATA_SYNC_KEYS = [
   'sleepLogs',
   'userProfile',
   'privacySettings',
+  'friends',
+  'friendNotifications',
+  'sentWorkoutInvites',
+  'sentChallenges',
   'activePaletteId',
   'customPalettes',
   'deletedPaletteIds',
@@ -105,15 +109,11 @@ export async function syncSocialFromDatabase(customToken?: string): Promise<void
     ]);
 
     if (friendsRes.status === 'fulfilled' && Array.isArray(friendsRes.value?.friends)) {
-      if (friendsRes.value.friends.length > 0) {
-        state.setFriendsFromDb(friendsRes.value.friends);
-      }
+      state.setFriendsFromDb(friendsRes.value.friends);
     }
 
     if (notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value?.notifications)) {
-      if (notifsRes.value.notifications.length > 0) {
-        state.setNotificationsFromDb(notifsRes.value.notifications);
-      }
+      state.setNotificationsFromDb(notifsRes.value.notifications);
     }
   } catch (err) {
     console.warn('Advertencia al sincronizar datos sociales de la base de datos:', err);

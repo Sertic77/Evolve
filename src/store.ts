@@ -11,6 +11,7 @@ import {
   apiRespondChallenge,
   apiMarkNotificationsRead,
   apiRemoveFriend,
+  apiAddFriend,
 } from './api';
 /* ==========================================================
    TIPOS DE COMIDA
@@ -2018,9 +2019,14 @@ export const useStore = create<State>()(
       sentChallenges: [],
 
       addFriend: (friend) =>
-        set((s) => ({
-          friends: s.friends.some((f) => f.id === friend.id) ? s.friends : [...s.friends, friend],
-        })),
+        set((s) => {
+          if (s.authToken) {
+            apiAddFriend(s.authToken, { friendId: friend.id, friendNickname: friend.nickname }).catch(() => {});
+          }
+          return {
+            friends: s.friends.some((f) => f.id === friend.id) ? s.friends : [...s.friends, friend],
+          };
+        }),
 
       removeFriend: (friendId) =>
         set((s) => {
@@ -2064,6 +2070,7 @@ export const useStore = create<State>()(
 
           if (s.authToken) {
             apiRespondFriendRequest(s.authToken, notificationId, true).catch(() => {});
+            apiAddFriend(s.authToken, { friendId: notif.senderId, friendNickname: notif.senderNickname }).catch(() => {});
           }
 
           return {
@@ -2214,8 +2221,16 @@ export const useStore = create<State>()(
               receiverId: user.id,
               receiverNickname: user.nickname,
             }).catch(() => {});
+            apiAddFriend(s.authToken, {
+              friendId: user.id,
+              friendNickname: user.nickname,
+            }).catch(() => {});
           }
+          const already = s.friends.some((f) => f.id === user.id);
+          const updatedFriends = already ? s.friends : [...s.friends, user];
+
           return {
+            friends: updatedFriends,
             friendNotifications: [
               {
                 id: 'req-' + Date.now(),
@@ -2230,7 +2245,7 @@ export const useStore = create<State>()(
                 date: 'Ahora mismo',
                 read: true,
                 status: 'accepted',
-                message: `Enviaste solicitud de amistad a ${user.name} (${user.nickname}).`,
+                message: `Agregaste a ${user.name} (${user.nickname}) a tus amigos.`,
               },
               ...s.friendNotifications,
             ],
@@ -2450,6 +2465,11 @@ export const useStore = create<State>()(
           if (records.deletedPaletteIds && Array.isArray(records.deletedPaletteIds)) updates.deletedPaletteIds = records.deletedPaletteIds;
           if (records.typography && typeof records.typography === 'object') updates.typography = records.typography;
           if (records.homeWidgets && typeof records.homeWidgets === 'object') updates.homeWidgets = records.homeWidgets;
+          if (records.privacySettings && typeof records.privacySettings === 'object') updates.privacySettings = records.privacySettings;
+          if (records.friends && Array.isArray(records.friends)) updates.friends = records.friends;
+          if (records.friendNotifications && Array.isArray(records.friendNotifications)) updates.friendNotifications = records.friendNotifications;
+          if (records.sentWorkoutInvites && Array.isArray(records.sentWorkoutInvites)) updates.sentWorkoutInvites = records.sentWorkoutInvites;
+          if (records.sentChallenges && Array.isArray(records.sentChallenges)) updates.sentChallenges = records.sentChallenges;
           return updates;
         }),
       resetUserData: () =>

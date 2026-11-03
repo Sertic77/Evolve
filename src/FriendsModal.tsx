@@ -90,6 +90,8 @@ export function FriendsModal({
   const sendFriendRequestTo = useStore((s) => s.sendFriendRequestTo);
   const sendChallenge = useStore((s) => s.sendChallenge);
   const respondChallenge = useStore((s) => s.respondChallenge);
+  const authUser = useStore((s) => s.authUser);
+  const authToken = useStore((s) => s.authToken);
 
   // Estados locales
   const [activeTab, setActiveTab] = useState<'friends' | 'discover'>('friends');
@@ -100,9 +102,9 @@ export function FriendsModal({
   const [selectedFriendForInvite, setSelectedFriendForInvite] = useState<FriendUser | null>(null);
   const [selectedFriendForChallenge, setSelectedFriendForChallenge] = useState<FriendUser | null>(null);
   const [sentRequests, setSentRequests] = useState<Record<string, boolean>>({});
-  const [dbUsers, setDbUsers] = useState<Array<{ id: string; name: string; nickname: string }>>([]);
+  const [dbUsers, setDbUsers] = useState<any[]>([]);
 
-  // Cargar usuarios de la base de datos
+  // Cargar usuarios reales de la base de datos y sincronizar amigos
   useEffect(() => {
     let isMounted = true;
     if (visible) {
@@ -110,7 +112,11 @@ export function FriendsModal({
     }
     const fetchDbUsers = async () => {
       try {
-        const res = await fetch(`${getServerUrl()}/api/users`);
+        const headers: Record<string, string> = {};
+        if (authToken) {
+          headers.Authorization = `Bearer ${authToken}`;
+        }
+        const res = await fetch(`${getServerUrl()}/api/users`, { headers });
         if (res.ok) {
           const data = await res.json();
           if (isMounted && data.users && Array.isArray(data.users)) {
@@ -118,14 +124,14 @@ export function FriendsModal({
           }
         }
       } catch {
-        // En caso de que no haya conexión con backend, usa los locales
+        // En caso de que no haya conexión con backend
       }
     };
     fetchDbUsers();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [visible, authToken]);
 
   // Notificaciones no leídas y pendientes
   const unreadNotifs = friendNotifications.filter(
@@ -140,42 +146,52 @@ export function FriendsModal({
     return f.name.toLowerCase().includes(q) || f.nickname.toLowerCase().includes(q);
   });
 
-  // Filtrado de usuarios para descubrir (de la BD y presets locales)
+  // Filtrado de usuarios para descubrir ÚNICAMENTE desde la base de datos (cuentas reales existentes)
+  const currentNick = (authUser?.nickname ? `@${authUser.nickname.replace('@', '')}` : '').toLowerCase();
+  const currentId = authUser?.id;
+  const currentEmail = authUser?.email?.toLowerCase();
   const friendNicks = new Set(friends.map((f) => f.nickname.toLowerCase()));
-  const allDiscoverable: FriendUser[] = [...DISCOVERABLE_USERS];
+  const friendIds = new Set(friends.map((f) => f.id));
 
-  // Integrar usuarios que vinieron de la BD si no están aún en discoverable
-  dbUsers.forEach((dbU) => {
-    const cleanNick = dbU.nickname.startsWith('@') ? dbU.nickname : `@${dbU.nickname}`;
-    const alreadyExists = allDiscoverable.some(
-      (u) => u.nickname.toLowerCase() === cleanNick.toLowerCase()
-    );
-    if (!alreadyExists && !friendNicks.has(cleanNick.toLowerCase())) {
-      allDiscoverable.push({
-        id: dbU.id,
-        name: dbU.name,
-        nickname: cleanNick,
-        streak: 8,
-        level: 15,
-        rank: 'Atleta Activo',
-        todayWorkout: 'Entrenamiento Registrado 🔥',
-        color: '#6366F1',
-        initials: dbU.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase(),
-        metrics: {
-          currentWeight: 76,
-          bodyFat: 14.8,
-          avgCalories: 2600,
-          avgProtein: 165,
-          prs: [{ exercise: 'Press Banca', weight: 95, reps: 5, date: '2026-10-22' }],
-          recentWorkouts: [{ id: 'w-db-1', date: 'Ayer', title: 'Fuerza General', durationMinutes: 60, exercises: ['Sentadilla', 'Press Militar'], totalSets: 14 }],
-          activeGoal: 'Superar sus límites este año',
-        },
-      });
-    }
+  const allDiscoverable: FriendUser[] = [];
+
+  // Integrar únicamente las cuentas que existen en la base de datos
+  dbUsers.forEach((dbU: any) => {
+    const cleanNick = dbU.nickname ? (dbU.nickname.startsWith('@') ? dbU.nickname : `@${dbU.nickname}`) : '';
+    const isMe =
+      (currentId && dbU.id === currentId) ||
+      (currentNick && cleanNick.toLowerCase() === currentNick) ||
+      (currentEmail && dbU.email && dbU.email.toLowerCase() === currentEmail);
+
+    if (isMe) return; // No mostrarse a uno mismo en sugerencias
+    if (friendIds.has(dbU.id) || friendNicks.has(cleanNick.toLowerCase())) return; // Ya es amigo
+
+    const initials = dbU.name ? dbU.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : 'AT';
+
+    allDiscoverable.push({
+      id: dbU.id,
+      name: dbU.name || 'Atleta Evolve',
+      nickname: cleanNick,
+      streak: typeof dbU.streak === 'number' ? dbU.streak : 10,
+      level: typeof dbU.level === 'number' ? dbU.level : 15,
+      rank: dbU.rank || dbU.rankTitle || 'Atleta Activo',
+      todayWorkout: 'Entrenamiento Registrado 🔥',
+      color: '#6366F1',
+      initials,
+      avatarUri: dbU.avatarUrl || undefined,
+      metrics: {
+        currentWeight: 76,
+        bodyFat: 14.8,
+        avgCalories: 2600,
+        avgProtein: 165,
+        prs: [{ exercise: 'Press Banca', weight: 95, reps: 5, date: '2026-10-22' }],
+        recentWorkouts: [{ id: `w-db-${dbU.id}`, date: 'Ayer', title: 'Fuerza General', durationMinutes: 60, exercises: ['Sentadilla', 'Press Militar'], totalSets: 14 }],
+        activeGoal: 'Superar sus límites este año',
+      },
+    });
   });
 
   const filteredDiscover = allDiscoverable.filter((u) => {
-    if (friendNicks.has(u.nickname.toLowerCase())) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return u.name.toLowerCase().includes(q) || u.nickname.toLowerCase().includes(q);
@@ -185,13 +201,13 @@ export function FriendsModal({
   const highestStreak = friends.length > 0 ? Math.max(...friends.map((f) => f.streak)) : 0;
   const activeTodayCount = friends.filter((f) => f.todayWorkout && !f.todayWorkout.includes('Descanso')).length;
 
-  // Enviar solicitud a usuario
+  // Enviar solicitud o agregar amigo directamente
   const handleSendRequest = (user: FriendUser) => {
     sendFriendRequestTo(user);
     setSentRequests((prev) => ({ ...prev, [user.nickname]: true }));
     Alert.alert(
-      '¡Solicitud Enviada! 🤝',
-      `Le hemos enviado una solicitud de amistad a ${user.name} (${user.nickname}). Podrán ver sus perfiles e invitarse a entrenar una vez la acepte.`
+      '¡Amigo Agregado! 🤝',
+      `${user.name} (${user.nickname}) ha sido agregado a tus amigos y guardado en tu cuenta de la base de datos.`
     );
   };
 

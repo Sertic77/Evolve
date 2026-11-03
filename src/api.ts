@@ -243,6 +243,26 @@ export async function apiGetUsers(token?: string, query?: string): Promise<DbUse
   return data.users || [];
 }
 
+export async function apiAddFriend(
+  token: string,
+  payload: { friendId?: string; friendNickname?: string },
+): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${getServerUrl()}/api/friends/add`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al agregar amigo.');
+  }
+  return data;
+}
+
 export async function apiSendFriendRequest(
   token: string,
   payload: { receiverNickname?: string; receiverId?: string; message?: string },

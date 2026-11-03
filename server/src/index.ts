@@ -721,68 +721,151 @@ app.post('/api/friends/request/:id/respond', authMiddleware, async (req: Authent
     const { id } = req.params;
     const { accept } = req.body;
 
-    const request = await prisma.friendRequest.findUnique({
+    let request = await prisma.friendRequest.findUnique({
       where: { id },
       include: { sender: true, receiver: true },
     });
 
-    if (!request || request.receiverId !== userId) {
-      return res.status(404).json({ error: 'Solicitud no encontrada o no te pertenece.' });
+    if (!request) {
+      // 1. Buscar por notificación
+      const notif = await prisma.notification.findUnique({ where: { id } });
+      if (notif && notif.referenceId) {
+        request = await prisma.friendRequest.findUnique({
+          where: { id: notif.referenceId },
+          include: { sender: true, receiver: true },
+        });
+      }
     }
 
-    if (accept) {
-      await prisma.friendRequest.update({
-        where: { id },
-        data: { status: 'accepted' },
+    if (!request) {
+      // 2. Buscar por senderId y receiverId
+      request = await prisma.friendRequest.findFirst({
+        where: { senderId: id, receiverId: userId },
+        include: { sender: true, receiver: true },
+      });
+    }
+
+    if (request && request.receiverId === userId) {
+      if (accept) {
+        await prisma.friendRequest.update({
+          where: { id: request.id },
+          data: { status: 'accepted' },
+        });
+
+        const [uA, uB] =
+          request.senderId < request.receiverId
+            ? [request.senderId, request.receiverId]
+            : [request.receiverId, request.senderId];
+
+        await prisma.friendship.upsert({
+          where: { userAId_userBId: { userAId: uA, userBId: uB } },
+          create: { userAId: uA, userBId: uB },
+          update: {},
+        });
+
+        // Notificación de confirmación para el remitente
+        const receiverNick = request.receiver.nickname ? `@${request.receiver.nickname}` : '';
+        await prisma.notification.create({
+          data: {
+            userId: request.senderId,
+            senderId: userId,
+            type: 'activity',
+            referenceId: request.id,
+            title: '¡Solicitud aceptada! 🤝',
+            message: `${request.receiver.name} (${receiverNick}) aceptó tu solicitud de amistad. ¡Ahora pueden retarse y entrenar juntos!`,
+            read: false,
+          },
+        });
+      } else {
+        await prisma.friendRequest.update({
+          where: { id: request.id },
+          data: { status: 'rejected' },
+        });
+      }
+
+      // Marcar la notificación correspondiente como leída
+      await prisma.notification.updateMany({
+        where: {
+          userId,
+          OR: [{ referenceId: request.id }, { id }],
+        },
+        data: { read: true },
       });
 
-      const [uA, uB] =
-        request.senderId < request.receiverId
-          ? [request.senderId, request.receiverId]
-          : [request.receiverId, request.senderId];
+      return res.json({
+        success: true,
+        status: accept ? 'accepted' : 'rejected',
+      });
+    }
 
+    // Fallback: si no había registro formal de FriendRequest pero existe el usuario remitente
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (targetUser && accept) {
+      const [uA, uB] = userId < targetUser.id ? [userId, targetUser.id] : [targetUser.id, userId];
       await prisma.friendship.upsert({
         where: { userAId_userBId: { userAId: uA, userBId: uB } },
         create: { userAId: uA, userBId: uB },
         update: {},
       });
-
-      // Notificación de confirmación para el remitente
-      const receiverNick = request.receiver.nickname ? `@${request.receiver.nickname}` : '';
-      await prisma.notification.create({
-        data: {
-          userId: request.senderId,
-          senderId: userId,
-          type: 'activity',
-          referenceId: id,
-          title: '¡Solicitud aceptada! 🤝',
-          message: `${request.receiver.name} (${receiverNick}) aceptó tu solicitud de amistad. ¡Ahora pueden retarse y entrenar juntos!`,
-          read: false,
-        },
-      });
-    } else {
-      await prisma.friendRequest.update({
-        where: { id },
-        data: { status: 'rejected' },
-      });
+      return res.json({ success: true, status: 'accepted' });
     }
 
-    // Marcar la notificación correspondiente como leída
-    await prisma.notification.updateMany({
-      where: {
-        userId,
-        referenceId: id,
-      },
-      data: { read: true },
-    });
-
-    return res.json({
-      success: true,
-      status: accept ? 'accepted' : 'rejected',
-    });
+    return res.status(404).json({ error: 'Solicitud no encontrada o no te pertenece.' });
   } catch (error) {
     console.error('Error en /api/friends/request/:id/respond:', error);
     return res.status(500).json({ error: 'Error al responder solicitud.' });
+  }
+});
+
+// AGREGAR AMIGO DIRECTAMENTE EN LA BASE DE DATOS
+app.post('/api/friends/add', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'No autenticado' });
+
+    const { friendId, friendNickname } = req.body;
+    let targetUser = null;
+
+    if (friendId) {
+      targetUser = await prisma.user.findUnique({ where: { id: friendId } });
+    }
+    if (!targetUser && friendNickname) {
+      const cleanNick = String(friendNickname).trim().replace('@', '');
+      targetUser = await prisma.user.findUnique({ where: { nickname: cleanNick } });
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado en la base de datos.' });
+    }
+
+    if (targetUser.id === userId) {
+      return res.status(400).json({ error: 'No puedes agregarte a ti mismo como amigo.' });
+    }
+
+    const [uA, uB] = userId < targetUser.id ? [userId, targetUser.id] : [targetUser.id, userId];
+    await prisma.friendship.upsert({
+      where: { userAId_userBId: { userAId: uA, userBId: uB } },
+      create: { userAId: uA, userBId: uB },
+      update: {},
+    });
+
+    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+    const userNick = currentUser?.nickname ? `@${currentUser.nickname}` : '';
+    await prisma.notification.create({
+      data: {
+        userId: targetUser.id,
+        senderId: userId,
+        type: 'activity',
+        title: '¡Nuevo amigo conectado! 🤝',
+        message: `${currentUser?.name || 'Un atleta'} (${userNick}) se conectó contigo como amigo en Evolve.`,
+        read: false,
+      },
+    });
+
+    return res.json({ success: true, message: 'Amistad guardada exitosamente en la base de datos.' });
+  } catch (err) {
+    console.error('Error en /api/friends/add:', err);
+    return res.status(500).json({ error: 'Error al agregar amigo en la base de datos.' });
   }
 });
 
@@ -792,7 +875,7 @@ app.get('/api/friends', authMiddleware, async (req: AuthenticatedRequest, res: R
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'No autenticado' });
 
-    const friendships = await prisma.friendship.findMany({
+    let friendships = await prisma.friendship.findMany({
       where: {
         OR: [{ userAId: userId }, { userBId: userId }],
       },
@@ -824,6 +907,45 @@ app.get('/api/friends', authMiddleware, async (req: AuthenticatedRequest, res: R
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Si aún no hay filas en Friendship, verificar si hay respaldo en UserData y auto-sincronizar
+    if (friendships.length === 0) {
+      const savedFriendsData = await prisma.userData.findUnique({
+        where: { userId_dataType: { userId, dataType: 'friends' } },
+      });
+      if (savedFriendsData && savedFriendsData.payload) {
+        try {
+          const parsed = JSON.parse(savedFriendsData.payload);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            for (const f of parsed) {
+              const matched = await prisma.user.findFirst({
+                where: {
+                  OR: [
+                    { id: f.id },
+                    { nickname: f.nickname ? f.nickname.replace('@', '') : undefined },
+                  ],
+                },
+              });
+              if (matched && matched.id !== userId) {
+                const [uA, uB] = userId < matched.id ? [userId, matched.id] : [matched.id, userId];
+                await prisma.friendship.upsert({
+                  where: { userAId_userBId: { userAId: uA, userBId: uB } },
+                  create: { userAId: uA, userBId: uB },
+                  update: {},
+                });
+              }
+            }
+            friendships = await prisma.friendship.findMany({
+              where: { OR: [{ userAId: userId }, { userBId: userId }] },
+              include: { userA: true, userB: true },
+              orderBy: { createdAt: 'desc' },
+            });
+          }
+        } catch {
+          // continuar
+        }
+      }
+    }
 
     // Formatear la lista de amigos extrayendo el otro usuario
     const friends = await Promise.all(
@@ -1279,6 +1401,32 @@ app.post('/api/sync/push', authMiddleware, async (req: AuthenticatedRequest, res
     });
 
     await prisma.$transaction(updates);
+
+    // Auto-sincronizar relaciones Friendship si se enviaron amigos
+    if (records.friends && Array.isArray(records.friends)) {
+      for (const f of records.friends) {
+        if (f.id && f.id !== userId) {
+          const cleanNick = f.nickname ? String(f.nickname).replace('@', '') : undefined;
+          const matched = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { id: f.id },
+                { nickname: cleanNick },
+              ],
+            },
+          });
+          if (matched && matched.id !== userId) {
+            const [uA, uB] = userId < matched.id ? [userId, matched.id] : [matched.id, userId];
+            await prisma.friendship.upsert({
+              where: { userAId_userBId: { userAId: uA, userBId: uB } },
+              create: { userAId: uA, userBId: uB },
+              update: {},
+            });
+          }
+        }
+      }
+    }
+
     return res.json({ success: true, count: updates.length, syncedAt: new Date().toISOString() });
   } catch (error) {
     console.error('Error en /api/sync/push:', error);
