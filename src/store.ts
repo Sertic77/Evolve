@@ -2083,20 +2083,22 @@ export const useStore = create<State>()(
 
           return {
             friends: updatedFriends,
-            friendNotifications: s.friendNotifications.map((n) =>
-              n.id === notificationId ? { ...n, status: 'accepted', read: true } : n
+            friendNotifications: s.friendNotifications.filter(
+              (n) => n.id !== notificationId && !(notif.senderId && n.senderId === notif.senderId && n.type === 'friend_request')
             ),
           };
         }),
 
       rejectFriendRequest: (notificationId) =>
         set((s) => {
+          const notif = s.friendNotifications.find((n) => n.id === notificationId);
+          const senderId = notif?.senderId;
           if (s.authToken) {
             apiRespondFriendRequest(s.authToken, notificationId, false).catch(() => {});
           }
           return {
-            friendNotifications: s.friendNotifications.map((n) =>
-              n.id === notificationId ? { ...n, status: 'rejected', read: true } : n
+            friendNotifications: s.friendNotifications.filter(
+              (n) => n.id !== notificationId && !(senderId && n.senderId === senderId && n.type === 'friend_request')
             ),
           };
         }),

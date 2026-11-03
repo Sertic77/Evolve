@@ -738,12 +738,16 @@ export function FriendsModal({
             onClose={() => setShowNotificationsModal(false)}
             onAcceptFriend={(notifId) => {
               acceptFriendRequest(notifId);
-              syncSocialFromDatabase();
+              setTimeout(() => {
+                syncSocialFromDatabase();
+              }, 350);
               Alert.alert('¡Nuevo Amigo Agregado! 🎉', 'Ahora son amigos. Puedes observar sus métricas e invitarlo a entrenar.');
             }}
             onRejectFriend={(notifId) => {
               rejectFriendRequest(notifId);
-              syncSocialFromDatabase();
+              setTimeout(() => {
+                syncSocialFromDatabase();
+              }, 350);
               Alert.alert('Solicitud Rechazada', 'Has rechazado la solicitud de amistad.');
             }}
             onAcceptWorkout={(notifId) => {
@@ -2386,7 +2390,17 @@ function NotificationsModal({
     }
   }, [visible]);
 
-  const friendRequests = notifications.filter((n) => n.type === 'friend_request' && n.status === 'pending');
+  // Deduplicar solicitudes de amistad por remitente para evitar repeticiones visuales
+  const seenRequestSenders = new Set<string>();
+  const friendRequests = notifications.filter((n) => {
+    if (n.type === 'friend_request' && n.status === 'pending') {
+      const key = n.senderId || n.senderNickname || n.id;
+      if (seenRequestSenders.has(key)) return false;
+      seenRequestSenders.add(key);
+      return true;
+    }
+    return false;
+  });
   const workoutInvites = notifications.filter((n) => n.type === 'workout_invite' && n.status === 'pending');
   const challenges = notifications.filter((n) => n.type === 'challenge' && n.status === 'pending');
   const activityUpdates = notifications.filter((n) => n.type === 'activity' || n.status !== 'pending');

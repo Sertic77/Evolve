@@ -619,7 +619,21 @@ app.post('/api/friends/request', authMiddleware, async (req: AuthenticatedReques
     const sender = await prisma.user.findUnique({ where: { id: senderId } });
     if (!sender) return res.status(404).json({ error: 'Remitente no encontrado.' });
 
-    // Crear o actualizar solicitud de amistad
+    // Verificar si ya existe una solicitud pendiente
+    const existingReq = await prisma.friendRequest.findUnique({
+      where: {
+        senderId_receiverId: {
+          senderId,
+          receiverId: targetUser.id,
+        },
+      },
+    });
+
+    if (existingReq && existingReq.status === 'pending') {
+      return res.status(400).json({ error: 'Ya tienes una solicitud de amistad pendiente con este usuario.' });
+    }
+
+    // Crear o actualizar solicitud de amistad a estado pending
     const friendRequest = await prisma.friendRequest.upsert({
       where: {
         senderId_receiverId: {
@@ -639,7 +653,16 @@ app.post('/api/friends/request', authMiddleware, async (req: AuthenticatedReques
       },
     });
 
-    // Crear notificación para el receptor
+    // Limpiar notificaciones previas de friend_request de este remitente para no duplicar jamás
+    await prisma.notification.deleteMany({
+      where: {
+        userId: targetUser.id,
+        senderId: sender.id,
+        type: 'friend_request',
+      },
+    });
+
+    // Crear UNA SOLA notificación limpia para el receptor
     const senderNick = sender.nickname ? `@${sender.nickname}` : `@${sender.email.split('@')[0]}`;
     await prisma.notification.create({
       data: {
@@ -805,13 +828,16 @@ app.post('/api/friends/request/:id/respond', authMiddleware, async (req: Authent
         });
       }
 
-      // Marcar la notificación correspondiente como leída
-      await prisma.notification.updateMany({
+      // Eliminar definitivamente todas las notificaciones de friend_request de este remitente para el receptor
+      await prisma.notification.deleteMany({
         where: {
           userId,
-          OR: [{ referenceId: request.id }, { id }],
+          OR: [
+            { referenceId: request.id },
+            { id },
+            { senderId: request.senderId, type: 'friend_request' },
+          ],
         },
-        data: { read: true },
       });
 
       return res.json({
@@ -820,7 +846,15 @@ app.post('/api/friends/request/:id/respond', authMiddleware, async (req: Authent
       });
     }
 
-    // Fallback: si no había registro formal de FriendRequest pero existe el usuario remitente
+    // Fallback: si no había registro formal de FriendRequest pero existe una notificación huérfana
+    await prisma.notification.deleteMany({
+      where: {
+        userId,
+        OR: [{ id }, { senderId: id, type: 'friend_request' }],
+      },
+    });
+
+    // Fallback: si se intentó aceptar directamente pasando el ID de usuario
     const targetUser = await prisma.user.findUnique({ where: { id } });
     if (targetUser && accept) {
       const [uA, uB] = userId < targetUser.id ? [userId, targetUser.id] : [targetUser.id, userId];
@@ -832,7 +866,7 @@ app.post('/api/friends/request/:id/respond', authMiddleware, async (req: Authent
       return res.json({ success: true, status: 'accepted' });
     }
 
-    return res.status(404).json({ error: 'Solicitud no encontrada o no te pertenece.' });
+    return res.json({ success: true, status: accept ? 'accepted' : 'rejected' });
   } catch (error) {
     console.error('Error en /api/friends/request/:id/respond:', error);
     return res.status(500).json({ error: 'Error al responder solicitud.' });
@@ -1305,15 +1339,51 @@ app.get('/api/notifications', authMiddleware, async (req: AuthenticatedRequest, 
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'No autenticado' });
 
-    const notifications = await prisma.notification.findMany({
+    const rawNotifications = await prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      take: 60,
+      take: 80,
     });
+
+    // Deduplicar solicitudes y auto-limpiar notificaciones obsoletas de la BD
+    const seenFriendRequestSenders = new Set<string>();
+    const validNotifications: any[] = [];
+
+    for (const n of rawNotifications) {
+      if (n.type === 'friend_request') {
+        // Si ya hay una notificación más reciente de este remitente, borrar el duplicado de la BD
+        if (seenFriendRequestSenders.has(n.senderId)) {
+          await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+          continue;
+        }
+
+        // Buscar estado de la solicitud en FriendRequest
+        let fr = null;
+        if (n.referenceId) {
+          fr = await prisma.friendRequest.findUnique({ where: { id: n.referenceId } });
+        }
+        if (!fr) {
+          fr = await prisma.friendRequest.findFirst({
+            where: { senderId: n.senderId, receiverId: userId },
+          });
+        }
+
+        // Si ya no existe o no está pendiente (fue rechazada o aceptada previamente)
+        if (!fr || fr.status !== 'pending') {
+          await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+          continue;
+        }
+
+        seenFriendRequestSenders.add(n.senderId);
+        validNotifications.push({ ...n, calculatedStatus: fr.status });
+      } else {
+        validNotifications.push({ ...n, calculatedStatus: 'pending' });
+      }
+    }
 
     // Enriquecer datos con info de sender
     const enriched = await Promise.all(
-      notifications.map(async (n) => {
+      validNotifications.map(async (n) => {
         const sender = await prisma.user.findUnique({
           where: { id: n.senderId },
           select: {
@@ -1370,7 +1440,7 @@ app.get('/api/notifications', authMiddleware, async (req: AuthenticatedRequest, 
           senderRank: sender?.rankTitle || 'Atleta',
           date: new Date(n.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
           read: n.read,
-          status: 'pending',
+          status: n.calculatedStatus || 'pending',
           message: n.message,
           workoutDetails,
           challengeDetails,
