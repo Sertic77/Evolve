@@ -2,7 +2,16 @@ import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import {
+  apiSendFriendRequest,
+  apiRespondFriendRequest,
+  apiSendWorkoutInvite,
+  apiRespondWorkoutInvite,
+  apiSendChallenge,
+  apiRespondChallenge,
+  apiMarkNotificationsRead,
+  apiRemoveFriend,
+} from './api';
 /* ==========================================================
    TIPOS DE COMIDA
 ========================================================== */
@@ -1425,7 +1434,8 @@ type State = {
   respondChallenge: (notificationId: string, accept: boolean) => void;
   markNotificationsAsRead: () => void;
   sendFriendRequestTo: (user: FriendUser) => void;
-
+  setFriendsFromDb: (friends: FriendUser[]) => void;
+  setNotificationsFromDb: (notifications: FriendNotification[]) => void;
   // Personalización
   activePaletteId: string;
   customPalettes: ColorPalette[];
@@ -2013,9 +2023,14 @@ export const useStore = create<State>()(
         })),
 
       removeFriend: (friendId) =>
-        set((s) => ({
-          friends: s.friends.filter((f) => f.id !== friendId),
-        })),
+        set((s) => {
+          if (s.authToken) {
+            apiRemoveFriend(s.authToken, friendId).catch(() => {});
+          }
+          return {
+            friends: s.friends.filter((f) => f.id !== friendId),
+          };
+        }),
 
       acceptFriendRequest: (notificationId) =>
         set((s) => {
@@ -2047,6 +2062,10 @@ export const useStore = create<State>()(
           const alreadyFriend = s.friends.some((f) => f.id === newFriend.id);
           const updatedFriends = alreadyFriend ? s.friends : [...s.friends, newFriend];
 
+          if (s.authToken) {
+            apiRespondFriendRequest(s.authToken, notificationId, true).catch(() => {});
+          }
+
           return {
             friends: updatedFriends,
             friendNotifications: s.friendNotifications.map((n) =>
@@ -2056,11 +2075,16 @@ export const useStore = create<State>()(
         }),
 
       rejectFriendRequest: (notificationId) =>
-        set((s) => ({
-          friendNotifications: s.friendNotifications.map((n) =>
-            n.id === notificationId ? { ...n, status: 'rejected', read: true } : n
-          ),
-        })),
+        set((s) => {
+          if (s.authToken) {
+            apiRespondFriendRequest(s.authToken, notificationId, false).catch(() => {});
+          }
+          return {
+            friendNotifications: s.friendNotifications.map((n) =>
+              n.id === notificationId ? { ...n, status: 'rejected', read: true } : n
+            ),
+          };
+        }),
 
       sendWorkoutInvite: (invite) =>
         set((s) => {
@@ -2070,6 +2094,16 @@ export const useStore = create<State>()(
             status: 'pending',
             createdAt: new Date().toISOString(),
           };
+          if (s.authToken && invite.friendId) {
+            apiSendWorkoutInvite(s.authToken, {
+              receiverId: invite.friendId,
+              workoutType: invite.workoutType,
+              targetDate: invite.date,
+              targetTime: invite.time,
+              location: invite.location,
+              note: invite.note,
+            }).catch(() => {});
+          }
           return {
             sentWorkoutInvites: [newInvite, ...(s.sentWorkoutInvites || [])],
             friendNotifications: [
@@ -2094,11 +2128,16 @@ export const useStore = create<State>()(
         }),
 
       respondWorkoutInvite: (notificationId, accept) =>
-        set((s) => ({
-          friendNotifications: s.friendNotifications.map((n) =>
-            n.id === notificationId ? { ...n, status: accept ? 'accepted' : 'rejected', read: true } : n
-          ),
-        })),
+        set((s) => {
+          if (s.authToken) {
+            apiRespondWorkoutInvite(s.authToken, notificationId, accept).catch(() => {});
+          }
+          return {
+            friendNotifications: s.friendNotifications.map((n) =>
+              n.id === notificationId ? { ...n, status: accept ? 'accepted' : 'rejected', read: true } : n
+            ),
+          };
+        }),
 
       sendChallenge: (challenge) =>
         set((s) => {
@@ -2111,6 +2150,16 @@ export const useStore = create<State>()(
             status: 'pending',
             createdAt: new Date().toISOString(),
           };
+          if (s.authToken && challenge.friendId) {
+            apiSendChallenge(s.authToken, {
+              receiverId: challenge.friendId,
+              targetDate: challenge.details.targetDate,
+              variableType: challenge.details.variableType,
+              variableLabel: challenge.details.variableLabel,
+              muscleOrExercise: challenge.details.muscleOrExercise,
+              message: challenge.details.message,
+            }).catch(() => {});
+          }
           return {
             sentChallenges: [newChallenge, ...(s.sentChallenges || [])],
             friendNotifications: [
@@ -2135,22 +2184,37 @@ export const useStore = create<State>()(
         }),
 
       respondChallenge: (notificationId, accept) =>
-        set((s) => ({
-          friendNotifications: s.friendNotifications.map((n) =>
-            n.id === notificationId
-              ? { ...n, status: accept ? 'accepted' : 'rejected', read: true }
-              : n
-          ),
-        })),
+        set((s) => {
+          if (s.authToken) {
+            apiRespondChallenge(s.authToken, notificationId, accept).catch(() => {});
+          }
+          return {
+            friendNotifications: s.friendNotifications.map((n) =>
+              n.id === notificationId
+                ? { ...n, status: accept ? 'accepted' : 'rejected', read: true }
+                : n
+            ),
+          };
+        }),
 
       markNotificationsAsRead: () =>
-        set((s) => ({
-          friendNotifications: s.friendNotifications.map((n) => ({ ...n, read: true })),
-        })),
+        set((s) => {
+          if (s.authToken) {
+            apiMarkNotificationsRead(s.authToken).catch(() => {});
+          }
+          return {
+            friendNotifications: s.friendNotifications.map((n) => ({ ...n, read: true })),
+          };
+        }),
 
       sendFriendRequestTo: (user) =>
         set((s) => {
-          // Agrega notificación de actividad y registra
+          if (s.authToken) {
+            apiSendFriendRequest(s.authToken, {
+              receiverId: user.id,
+              receiverNickname: user.nickname,
+            }).catch(() => {});
+          }
           return {
             friendNotifications: [
               {
@@ -2172,6 +2236,9 @@ export const useStore = create<State>()(
             ],
           };
         }),
+
+      setFriendsFromDb: (friends) => set({ friends }),
+      setNotificationsFromDb: (notifications) => set({ friendNotifications: notifications }),
 
       // Personalización
       activePaletteId: 'default',

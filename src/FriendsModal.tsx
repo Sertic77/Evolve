@@ -26,6 +26,7 @@ import {
   ChallengeVariable,
 } from './store';
 import { getServerUrl } from './api';
+import { syncSocialFromDatabase } from './syncService';
 
 /* ==========================================================
    TIPOS DE ENTRENAMIENTO & GRUPOS MUSCULARES
@@ -104,6 +105,9 @@ export function FriendsModal({
   // Cargar usuarios de la base de datos
   useEffect(() => {
     let isMounted = true;
+    if (visible) {
+      syncSocialFromDatabase();
+    }
     const fetchDbUsers = async () => {
       try {
         const res = await fetch(`${getServerUrl()}/api/users`);

@@ -12,21 +12,35 @@ model User {
   email        String        @unique
   passwordHash String?
   name         String
-  nickname     String?
+  nickname     String?       @unique
   provider     String        @default("email") // email, google, apple
   providerId   String?
   avatarUrl    String?
+  streak       Int           @default(0)
+  level        Int           @default(1)
+  rankTitle    String        @default("Iniciado Fitness")
+  totalXp      Int           @default(0)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  dataRecords  UserData[]
-  sessions     UserSession[]
+
+  dataRecords            UserData[]
+  sessions               UserSession[]
+  notifications          Notification[]
+  sentFriendRequests     FriendRequest[]     @relation("SentRequests")
+  receivedFriendRequests FriendRequest[]     @relation("ReceivedRequests")
+  friendshipsA           Friendship[]        @relation("FriendshipsA")
+  friendshipsB           Friendship[]        @relation("FriendshipsB")
+  sentWorkoutInvites     WorkoutInvitation[] @relation("SentWorkouts")
+  receivedWorkoutInvites WorkoutInvitation[] @relation("ReceivedWorkouts")
+  sentChallenges         Challenge[]         @relation("SentChallenges")
+  receivedChallenges     Challenge[]         @relation("ReceivedChallenges")
 }
 
 model UserData {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dataType  String   // workouts, meals, supplements, weight, health, settings
+  dataType  String   // workouts, meals, supplements, weight, health, goals, settings, etc.
   payload   String   // JSON stringificado con los datos completos
   updatedAt DateTime @updatedAt
 
@@ -40,4 +54,80 @@ model UserSession {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model FriendRequest {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  sender     User     @relation("SentRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  status     String   @default("pending") // pending, accepted, rejected, cancelled
+  message    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([senderId, receiverId])
+}
+
+model Friendship {
+  id        String   @id @default(uuid())
+  userAId   String
+  userBId   String
+  userA     User     @relation("FriendshipsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB     User     @relation("FriendshipsB", fields: [userBId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userAId, userBId])
+}
+
+model WorkoutInvitation {
+  id             String   @id @default(uuid())
+  senderId       String
+  receiverId     String
+  sender         User     @relation("SentWorkouts", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver       User     @relation("ReceivedWorkouts", fields: [receiverId], references: [id], onDelete: Cascade)
+  workoutType    String   // weights, cardio, calisthenics, etc.
+  muscleDivision String?  // ppl, torso_pierna, full_body, etc.
+  targetDate     String   // ej. 2026-11-05
+  targetTime     String   // ej. 06:30 PM
+  location       String?  // lugar opcional
+  note           String?  // nota opcional
+  status         String   @default("pending") // pending, accepted, rejected, completed
+  xpAwarded      Boolean  @default(false)     // true cuando ambos registran entrenamiento y reciben +40 XP
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Challenge {
+  id               String   @id @default(uuid())
+  senderId         String
+  receiverId       String
+  sender           User     @relation("SentChallenges", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver         User     @relation("ReceivedChallenges", fields: [receiverId], references: [id], onDelete: Cascade)
+  targetDate       String   // ej. 2026-11-05
+  variableType     String   // calories, strength, total_weight, time_running
+  variableLabel    String   // Calorías, Fuerza, etc.
+  muscleOrExercise String?  // ejercicio o músculo si es fuerza
+  message          String?  // mensaje desafiante
+  status           String   @default("pending") // pending, accepted, rejected, completed
+  senderScore      Float?
+  receiverScore    Float?
+  winnerId         String?
+  xpSettled        Boolean  @default(false)     // true cuando se liquidaron los +50 XP / -25 XP
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String   // Destinatario
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  senderId    String   // Remitente de la acción
+  type        String   // friend_request, workout_invite, challenge, activity
+  referenceId String?  // ID de la entidad asociada
+  title       String
+  message     String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }

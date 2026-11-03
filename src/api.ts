@@ -66,6 +66,10 @@ export interface AuthResponse {
     nickname?: string;
     provider: string;
     avatarUrl?: string;
+    streak?: number;
+    level?: number;
+    rankTitle?: string;
+    totalXp?: number;
     createdAt?: string;
   };
 }
@@ -143,7 +147,15 @@ export async function apiGetMe(token: string): Promise<AuthResponse['user']> {
 
 export async function apiUpdateProfile(
   token: string,
-  data: { name?: string; nickname?: string; avatarUrl?: string },
+  data: {
+    name?: string;
+    nickname?: string;
+    avatarUrl?: string;
+    streak?: number;
+    level?: number;
+    rankTitle?: string;
+    totalXp?: number;
+  },
 ): Promise<AuthResponse['user']> {
   const res = await fetch(`${getServerUrl()}/api/auth/profile`, {
     method: 'PUT',
@@ -194,4 +206,249 @@ export async function apiSyncPull(token: string): Promise<Record<string, any>> {
     throw new Error(data.error || 'Error al obtener datos del servidor.');
   }
   return data.records || {};
+}
+
+/* ==========================================================
+   MÓDULO SOCIAL & AMIGOS (BASE DE DATOS RELACIONAL)
+========================================================== */
+
+export interface DbUserItem {
+  id: string;
+  name: string;
+  nickname: string;
+  email: string;
+  avatarUrl?: string;
+  streak: number;
+  level: number;
+  rank: string;
+  totalXp: number;
+}
+
+export async function apiGetUsers(token?: string, query?: string): Promise<DbUserItem[]> {
+  const q = query ? `?q=${encodeURIComponent(query)}` : '';
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${getServerUrl()}/api/users${q}`, {
+    method: 'GET',
+    headers,
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al buscar usuarios en el servidor.');
+  }
+  return data.users || [];
+}
+
+export async function apiSendFriendRequest(
+  token: string,
+  payload: { receiverNickname?: string; receiverId?: string; message?: string },
+): Promise<{ success: boolean; request: any }> {
+  const res = await fetch(`${getServerUrl()}/api/friends/request`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al enviar solicitud de amistad.');
+  }
+  return data;
+}
+
+export async function apiGetFriendRequests(token: string): Promise<{ received: any[]; sent: any[] }> {
+  const res = await fetch(`${getServerUrl()}/api/friends/requests`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al obtener solicitudes de amistad.');
+  }
+  return data;
+}
+
+export async function apiRespondFriendRequest(
+  token: string,
+  requestId: string,
+  accept: boolean,
+): Promise<{ success: boolean; status: string }> {
+  const res = await fetch(`${getServerUrl()}/api/friends/request/${requestId}/respond`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ accept }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al responder a la solicitud de amistad.');
+  }
+  return data;
+}
+
+export async function apiGetFriends(token: string): Promise<{ friends: any[] }> {
+  const res = await fetch(`${getServerUrl()}/api/friends`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al cargar lista de amigos.');
+  }
+  return data;
+}
+
+export async function apiRemoveFriend(token: string, friendId: string): Promise<{ success: boolean }> {
+  const res = await fetch(`${getServerUrl()}/api/friends/${friendId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al eliminar amigo.');
+  }
+  return data;
+}
+
+export async function apiSendWorkoutInvite(
+  token: string,
+  payload: {
+    receiverId: string;
+    workoutType: string;
+    muscleDivision?: string;
+    targetDate: string;
+    targetTime: string;
+    location?: string;
+    note?: string;
+  },
+): Promise<{ success: boolean; invitation: any }> {
+  const res = await fetch(`${getServerUrl()}/api/workouts/invite`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al enviar invitación de entrenamiento.');
+  }
+  return data;
+}
+
+export async function apiRespondWorkoutInvite(
+  token: string,
+  inviteId: string,
+  accept: boolean,
+): Promise<{ success: boolean }> {
+  const res = await fetch(`${getServerUrl()}/api/workouts/invite/${inviteId}/respond`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ accept }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al responder invitación.');
+  }
+  return data;
+}
+
+export async function apiSendChallenge(
+  token: string,
+  payload: {
+    receiverId: string;
+    targetDate: string;
+    variableType: string;
+    variableLabel: string;
+    muscleOrExercise?: string;
+    message?: string;
+  },
+): Promise<{ success: boolean; challenge: any }> {
+  const res = await fetch(`${getServerUrl()}/api/challenges`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al enviar reto de duelo.');
+  }
+  return data;
+}
+
+export async function apiRespondChallenge(
+  token: string,
+  challengeId: string,
+  accept: boolean,
+): Promise<{ success: boolean }> {
+  const res = await fetch(`${getServerUrl()}/api/challenges/${challengeId}/respond`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ accept }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al responder reto.');
+  }
+  return data;
+}
+
+export async function apiGetNotifications(token: string): Promise<{ notifications: any[] }> {
+  const res = await fetch(`${getServerUrl()}/api/notifications`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al obtener notificaciones.');
+  }
+  return data;
+}
+
+export async function apiMarkNotificationsRead(
+  token: string,
+  notificationIds?: string[],
+): Promise<{ success: boolean }> {
+  const res = await fetch(`${getServerUrl()}/api/notifications/read`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ notificationIds }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al marcar notificaciones como leídas.');
+  }
+  return data;
 }

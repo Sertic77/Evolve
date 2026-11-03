@@ -1,12 +1,18 @@
 import { AppState, AppStateStatus } from 'react-native';
 import { useStore } from './store';
-import { apiSyncPush, apiSyncPull, apiUpdateProfile } from './api';
+import {
+  apiSyncPush,
+  apiSyncPull,
+  apiUpdateProfile,
+  apiGetFriends,
+  apiGetNotifications,
+} from './api';
 
 let syncTimeout: any = null;
 let isSyncing = false;
 let isInitialized = false;
 
-// Llaves de datos del usuario que se deben guardar en la base de datos
+// Llaves de datos del usuario que se deben guardar en la base de datos (UserData)
 export const USER_DATA_SYNC_KEYS = [
   'ingredients',
   'savedMeals',
@@ -23,6 +29,7 @@ export const USER_DATA_SYNC_KEYS = [
   'healthLogs',
   'sleepLogs',
   'userProfile',
+  'privacySettings',
   'activePaletteId',
   'customPalettes',
   'deletedPaletteIds',
@@ -83,6 +90,37 @@ export async function pushUserDataToDatabase(): Promise<{ success: boolean; erro
 }
 
 /**
+ * Sincroniza amigos y notificaciones relacionales directamente desde la base de datos
+ */
+export async function syncSocialFromDatabase(customToken?: string): Promise<void> {
+  const state = useStore.getState();
+  const token = customToken || state.authToken;
+
+  if (!token || !state.isAuthenticated) return;
+
+  try {
+    const [friendsRes, notifsRes] = await Promise.allSettled([
+      apiGetFriends(token),
+      apiGetNotifications(token),
+    ]);
+
+    if (friendsRes.status === 'fulfilled' && Array.isArray(friendsRes.value?.friends)) {
+      if (friendsRes.value.friends.length > 0) {
+        state.setFriendsFromDb(friendsRes.value.friends);
+      }
+    }
+
+    if (notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value?.notifications)) {
+      if (notifsRes.value.notifications.length > 0) {
+        state.setNotificationsFromDb(notifsRes.value.notifications);
+      }
+    }
+  } catch (err) {
+    console.warn('Advertencia al sincronizar datos sociales de la base de datos:', err);
+  }
+}
+
+/**
  * Descarga y sincroniza toda la data del usuario desde la base de datos
  */
 export async function pullUserDataFromDatabase(): Promise<{ success: boolean; count: number; error?: string }> {
@@ -102,12 +140,15 @@ export async function pullUserDataFromDatabase(): Promise<{ success: boolean; co
       // El usuario ya tiene datos en la BD: aplicamos su información
       state.applyRemoteData(records);
       state.setSyncStatus('saved', new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      return { success: true, count: keysCount };
     } else {
       // Es un usuario nuevo o sin registros previos en BD: inicializamos su BD con el estado actual
       await pushUserDataToDatabase();
-      return { success: true, count: 0 };
     }
+
+    // Sincronizar además relaciones de amigos y notificaciones
+    await syncSocialFromDatabase(token);
+
+    return { success: true, count: keysCount };
   } catch (err: any) {
     console.error('Error al descargar datos de la base de datos:', err);
     state.setSyncStatus('error', undefined, err.message || 'Error de conexión');
@@ -182,4 +223,7 @@ export function initSyncService() {
       flushPendingSync();
     }
   });
+
+  // Carga inicial social de la base de datos
+  syncSocialFromDatabase();
 }
