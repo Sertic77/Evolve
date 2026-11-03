@@ -1110,10 +1110,26 @@ app.post('/api/workouts/invite', authMiddleware, async (req: AuthenticatedReques
     const sender = await prisma.user.findUnique({ where: { id: senderId } });
     if (!sender) return res.status(404).json({ error: 'Remitente no encontrado.' });
 
+    // Resolver atleta destinatario por id o nickname (@nickname)
+    let targetUser = await prisma.user.findUnique({ where: { id: receiverId } });
+    if (!targetUser) {
+      const cleanNick = String(receiverId).trim().replace('@', '');
+      targetUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ id: receiverId }, { nickname: cleanNick }, { nickname: `@${cleanNick}` }],
+        },
+      });
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Atleta destinatario no encontrado.' });
+    }
+    const targetUserId = targetUser.id;
+
     const invitation = await prisma.workoutInvitation.create({
       data: {
         senderId,
-        receiverId,
+        receiverId: targetUserId,
         workoutType,
         muscleDivision: muscleDivision || null,
         targetDate,
@@ -1127,7 +1143,7 @@ app.post('/api/workouts/invite', authMiddleware, async (req: AuthenticatedReques
     const senderNick = sender.nickname ? `@${sender.nickname}` : '';
     await prisma.notification.create({
       data: {
-        userId: receiverId,
+        userId: targetUserId,
         senderId,
         type: 'workout_invite',
         referenceId: invitation.id,
@@ -1177,17 +1193,28 @@ app.post('/api/workouts/invite/:id/respond', authMiddleware, async (req: Authent
     const { id } = req.params;
     const { accept } = req.body;
 
-    const invite = await prisma.workoutInvitation.findUnique({
+    let invite = await prisma.workoutInvitation.findUnique({
       where: { id },
       include: { sender: true, receiver: true },
     });
+
+    if (!invite) {
+      // Buscar si el id corresponde a la notificación
+      const notif = await prisma.notification.findUnique({ where: { id } });
+      if (notif && notif.referenceId) {
+        invite = await prisma.workoutInvitation.findUnique({
+          where: { id: notif.referenceId },
+          include: { sender: true, receiver: true },
+        });
+      }
+    }
 
     if (!invite || invite.receiverId !== userId) {
       return res.status(404).json({ error: 'Invitación no encontrada.' });
     }
 
     const updated = await prisma.workoutInvitation.update({
-      where: { id },
+      where: { id: invite.id },
       data: { status: accept ? 'accepted' : 'rejected' },
     });
 
@@ -1196,7 +1223,7 @@ app.post('/api/workouts/invite/:id/respond', authMiddleware, async (req: Authent
         userId: invite.senderId,
         senderId: userId,
         type: 'activity',
-        referenceId: id,
+        referenceId: invite.id,
         title: accept ? '¡Entrenamiento Confirmado! 🎯' : 'Invitación declinada',
         message: `${invite.receiver.name} ${accept ? 'aceptó entrenar juntos el ' + invite.targetDate : 'no podrá asistir a la sesión'}.`,
         read: false,
@@ -1204,7 +1231,10 @@ app.post('/api/workouts/invite/:id/respond', authMiddleware, async (req: Authent
     });
 
     await prisma.notification.updateMany({
-      where: { userId, referenceId: id },
+      where: {
+        userId,
+        OR: [{ referenceId: invite.id }, { id }],
+      },
       data: { read: true },
     });
 
@@ -1229,10 +1259,26 @@ app.post('/api/challenges', authMiddleware, async (req: AuthenticatedRequest, re
     const sender = await prisma.user.findUnique({ where: { id: senderId } });
     if (!sender) return res.status(404).json({ error: 'Remitente no encontrado.' });
 
+    // Resolver atleta destinatario por id o nickname (@nickname)
+    let targetUser = await prisma.user.findUnique({ where: { id: receiverId } });
+    if (!targetUser) {
+      const cleanNick = String(receiverId).trim().replace('@', '');
+      targetUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ id: receiverId }, { nickname: cleanNick }, { nickname: `@${cleanNick}` }],
+        },
+      });
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Atleta destinatario no encontrado.' });
+    }
+    const targetUserId = targetUser.id;
+
     const challenge = await prisma.challenge.create({
       data: {
         senderId,
-        receiverId,
+        receiverId: targetUserId,
         targetDate,
         variableType,
         variableLabel,
@@ -1245,7 +1291,7 @@ app.post('/api/challenges', authMiddleware, async (req: AuthenticatedRequest, re
     const senderNick = sender.nickname ? `@${sender.nickname}` : '';
     await prisma.notification.create({
       data: {
-        userId: receiverId,
+        userId: targetUserId,
         senderId,
         type: 'challenge',
         referenceId: challenge.id,
@@ -1295,17 +1341,28 @@ app.post('/api/challenges/:id/respond', authMiddleware, async (req: Authenticate
     const { id } = req.params;
     const { accept } = req.body;
 
-    const challenge = await prisma.challenge.findUnique({
+    let challenge = await prisma.challenge.findUnique({
       where: { id },
       include: { sender: true, receiver: true },
     });
+
+    if (!challenge) {
+      // Buscar si el id corresponde a la notificación
+      const notif = await prisma.notification.findUnique({ where: { id } });
+      if (notif && notif.referenceId) {
+        challenge = await prisma.challenge.findUnique({
+          where: { id: notif.referenceId },
+          include: { sender: true, receiver: true },
+        });
+      }
+    }
 
     if (!challenge || challenge.receiverId !== userId) {
       return res.status(404).json({ error: 'Reto no encontrado.' });
     }
 
     const updated = await prisma.challenge.update({
-      where: { id },
+      where: { id: challenge.id },
       data: { status: accept ? 'accepted' : 'rejected' },
     });
 
@@ -1314,7 +1371,7 @@ app.post('/api/challenges/:id/respond', authMiddleware, async (req: Authenticate
         userId: challenge.senderId,
         senderId: userId,
         type: 'activity',
-        referenceId: id,
+        referenceId: challenge.id,
         title: accept ? '⚔️ ¡Reto Aceptado!' : 'Reto Declinado',
         message: `${challenge.receiver.name} ${accept ? 'aceptó el duelo para el ' + challenge.targetDate + '. ¡A darlo todo!' : 'declinó tu reto'}.`,
         read: false,
@@ -1322,7 +1379,10 @@ app.post('/api/challenges/:id/respond', authMiddleware, async (req: Authenticate
     });
 
     await prisma.notification.updateMany({
-      where: { userId, referenceId: id },
+      where: {
+        userId,
+        OR: [{ referenceId: challenge.id }, { id }],
+      },
       data: { read: true },
     });
 
@@ -1376,6 +1436,18 @@ app.get('/api/notifications', authMiddleware, async (req: AuthenticatedRequest, 
 
         seenFriendRequestSenders.add(n.senderId);
         validNotifications.push({ ...n, calculatedStatus: fr.status });
+      } else if (n.type === 'workout_invite') {
+        let inv = null;
+        if (n.referenceId) {
+          inv = await prisma.workoutInvitation.findUnique({ where: { id: n.referenceId } });
+        }
+        validNotifications.push({ ...n, calculatedStatus: inv ? inv.status : 'pending' });
+      } else if (n.type === 'challenge') {
+        let ch = null;
+        if (n.referenceId) {
+          ch = await prisma.challenge.findUnique({ where: { id: n.referenceId } });
+        }
+        validNotifications.push({ ...n, calculatedStatus: ch ? ch.status : 'pending' });
       } else {
         validNotifications.push({ ...n, calculatedStatus: 'pending' });
       }

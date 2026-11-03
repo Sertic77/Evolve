@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -51,7 +51,47 @@ const MUSCLE_DIVISIONS = [
   { id: 'back_triceps', label: 'Espalda & Tríceps', emoji: '🏔️' },
 ];
 
-const QUICK_DATES = ['Hoy', 'Mañana', 'Sábado', 'Domingo'];
+export interface TrainingDateSuggestion {
+  index: number;
+  label: string;
+  dateStr: string;
+  dateObj: Date;
+}
+
+export function getTrainingDateSuggestions(): TrainingDateSuggestion[] {
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+  ];
+  const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+  const now = new Date();
+  const list: TrainingDateSuggestion[] = [];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const day = d.getDate();
+    const month = monthNames[d.getMonth()];
+    const year = d.getFullYear();
+    const dayOfWeek = dayNames[d.getDay()];
+
+    let label = '';
+    if (i === 0) label = 'Hoy';
+    else if (i === 1) label = 'Mañana';
+    else label = `${dayOfWeek} ${day}`;
+
+    const dateStr = `${day} de ${month} ${year}`;
+
+    list.push({
+      index: i,
+      label,
+      dateStr,
+      dateObj: d,
+    });
+  }
+
+  return list;
+}
 
 /* ==========================================================
    COMPONENTE PRINCIPAL: SECCIÓN AMIGOS & COMUNIDAD
@@ -714,6 +754,9 @@ export function FriendsModal({
             onSend={(inviteData) => {
               sendWorkoutInvite(inviteData);
               setSelectedFriendForInvite(null);
+              setTimeout(() => {
+                syncSocialFromDatabase();
+              }, 400);
               Alert.alert(
                 '¡Invitación Enviada! 🚀',
                 `Has invitado a ${selectedFriendForInvite.name} (${selectedFriendForInvite.nickname}) a entrenar ${inviteData.workoutType} el ${inviteData.date} a las ${inviteData.time}. Le llegará a sus notificaciones.`
@@ -752,14 +795,32 @@ export function FriendsModal({
             }}
             onAcceptWorkout={(notifId) => {
               respondWorkoutInvite(notifId, true);
+              setTimeout(() => {
+                syncSocialFromDatabase();
+              }, 350);
               Alert.alert('¡Entrenamiento Aceptado! 🏋️‍♂️', 'La sesión conjunta quedó confirmada.');
             }}
-            onRejectWorkout={(notifId) => respondWorkoutInvite(notifId, false)}
+            onRejectWorkout={(notifId) => {
+              respondWorkoutInvite(notifId, false);
+              setTimeout(() => {
+                syncSocialFromDatabase();
+              }, 350);
+              Alert.alert('Invitación Declinada', 'Has declinado la invitación a entrenar.');
+            }}
             onAcceptChallenge={(notifId) => {
               respondChallenge(notifId, true);
+              setTimeout(() => {
+                syncSocialFromDatabase();
+              }, 350);
               Alert.alert('¡Reto Aceptado! ⚔️🔥', '¡Que empiece el duelo! Lo darás todo en el entrenamiento.');
             }}
-            onRejectChallenge={(notifId) => respondChallenge(notifId, false)}
+            onRejectChallenge={(notifId) => {
+              respondChallenge(notifId, false);
+              setTimeout(() => {
+                syncSocialFromDatabase();
+              }, 350);
+              Alert.alert('Reto Declinado', 'Has declinado el reto.');
+            }}
             onMarkAllAsRead={markNotificationsAsRead}
             c1={c1}
             c2={c2}
@@ -781,6 +842,9 @@ export function FriendsModal({
             onSend={(challengeData) => {
               sendChallenge(challengeData);
               setSelectedFriendForChallenge(null);
+              setTimeout(() => {
+                syncSocialFromDatabase();
+              }, 400);
               Alert.alert(
                 '¡Reto Enviado! ⚔️',
                 `Has desafiado a ${challengeData.friendName} (${challengeData.friendNickname}) a competir en ${challengeData.details.variableLabel}. ¡Le llegará la notificación para aceptar el reto!`
@@ -1460,8 +1524,12 @@ function InviteWorkoutModal({
   const [selectedType, setSelectedType] = useState('Pesas / Fuerza');
   const [selectedDivision, setSelectedDivision] = useState(MUSCLE_DIVISIONS[0].label);
   const [customDivision, setCustomDivision] = useState('');
-  const [selectedDate, setSelectedDate] = useState('Hoy');
-  const [customDate, setCustomDate] = useState('');
+
+  // 7 sugerencias de fecha (Hoy, Mañana + 5 días) sincronizadas con el calendario
+  const dateSuggestions = useMemo(() => getTrainingDateSuggestions(), []);
+  const [selectedDateIndex, setSelectedDateIndex] = useState<number | null>(0); // Default: Hoy
+  const [selectedDateFormatted, setSelectedDateFormatted] = useState(dateSuggestions[0].dateStr);
+  const [calendarDate, setCalendarDate] = useState<Date>(dateSuggestions[0].dateObj);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
 
   // Estados interactivos para selector de hora con flechas
@@ -1483,7 +1551,7 @@ function InviteWorkoutModal({
   const formattedTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
 
   const handleSend = () => {
-    const finalDate = customDate.trim() || selectedDate;
+    const finalDate = selectedDateFormatted;
     const finalType =
       selectedType === 'Pesas / Fuerza'
         ? `Pesas (${customDivision.trim() || selectedDivision})`
@@ -1495,7 +1563,7 @@ function InviteWorkoutModal({
     }
 
     onSend({
-      friendId: friend.nickname,
+      friendId: friend.id || friend.nickname,
       friendName: friend.name,
       workoutType: finalType,
       date: finalDate,
@@ -1625,18 +1693,19 @@ function InviteWorkoutModal({
 
             {/* 2. Fecha */}
             <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont }]}>
-              2. Fecha de Entrenamiento
+              2. Fecha de Entrenamiento (Sugerencias dinámicas)
             </Text>
             <View style={styles.chipsWrap}>
-              {QUICK_DATES.map((d) => {
-                const isSelected = selectedDate === d && !customDate;
+              {dateSuggestions.map((d, idx) => {
+                const isSelected = selectedDateIndex === idx;
                 return (
                   <TouchableOpacity
-                    key={d}
+                    key={d.label + idx}
                     activeOpacity={0.8}
                     onPress={() => {
-                      setSelectedDate(d);
-                      setCustomDate('');
+                      setSelectedDateIndex(idx);
+                      setSelectedDateFormatted(d.dateStr);
+                      setCalendarDate(d.dateObj);
                     }}
                     style={[
                       styles.choiceChip,
@@ -1655,7 +1724,7 @@ function InviteWorkoutModal({
                         },
                       ]}
                     >
-                      {d}
+                      {d.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1669,8 +1738,8 @@ function InviteWorkoutModal({
               style={[
                 styles.calendarDateCardBtn,
                 {
-                  backgroundColor: customDate ? `${c2}18` : (palette.isDark ? '#0F172A' : '#F8FAFC'),
-                  borderColor: customDate ? c2 : palette.border,
+                  backgroundColor: `${c2}18`,
+                  borderColor: c2,
                 },
               ]}
             >
@@ -1679,22 +1748,28 @@ function InviteWorkoutModal({
                   style={[
                     styles.calendarIconCircle,
                     {
-                      backgroundColor: customDate ? c2 : `${c2}22`,
+                      backgroundColor: c2,
                     },
                   ]}
                 >
-                  <Ionicons name="calendar" size={18} color={customDate ? '#FFFFFF' : c2} />
+                  <Ionicons name="calendar" size={18} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.calendarCardTitle, { color: palette.text, fontFamily: subtitleFont }]}>
-                    {customDate ? `Fecha: ${customDate}` : 'Elegir fecha en Calendario'}
+                    {selectedDateIndex !== null && selectedDateIndex >= 0 && selectedDateIndex < dateSuggestions.length
+                      ? `${dateSuggestions[selectedDateIndex].label} (${selectedDateFormatted})`
+                      : `Fecha: ${selectedDateFormatted}`}
                   </Text>
                   <Text style={[styles.calendarCardSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    {customDate ? 'Día confirmado para entrenar' : 'Toca para abrir el calendario mensual'}
+                    {selectedDateIndex === 0
+                      ? 'Hoy fijado en el calendario · Toca para cambiar'
+                      : selectedDateIndex === 1
+                      ? 'Mañana fijado en el calendario · Toca para cambiar'
+                      : 'Fecha fijada en el calendario · Toca para abrir mes'}
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={customDate ? c2 : palette.textSub} />
+              <Ionicons name="chevron-forward" size={18} color={c2} />
             </TouchableOpacity>
 
             {/* 3. Selector de Hora con Flechas e Inputs (Hora, Minutos, AM/PM) */}
@@ -1840,9 +1915,18 @@ function InviteWorkoutModal({
       {/* Modal Selector de Calendario */}
       <CalendarDatePickerModal
         visible={showCalendarPicker}
+        initialDate={calendarDate}
         onClose={() => setShowCalendarPicker(false)}
-        onSelectDate={(dateFormatted) => {
-          setCustomDate(dateFormatted);
+        onSelectDate={(chosenStr, chosenObj) => {
+          setSelectedDateFormatted(chosenStr);
+          setCalendarDate(chosenObj);
+          const matchIdx = dateSuggestions.findIndex(
+            (s) =>
+              s.dateObj.getFullYear() === chosenObj.getFullYear() &&
+              s.dateObj.getMonth() === chosenObj.getMonth() &&
+              s.dateObj.getDate() === chosenObj.getDate()
+          );
+          setSelectedDateIndex(matchIdx >= 0 ? matchIdx : null);
           setShowCalendarPicker(false);
         }}
         palette={palette}
@@ -1863,6 +1947,7 @@ function InviteWorkoutModal({
 ========================================================== */
 function CalendarDatePickerModal({
   visible,
+  initialDate,
   onClose,
   onSelectDate,
   palette,
@@ -1872,15 +1957,22 @@ function CalendarDatePickerModal({
   bodyFont,
 }: {
   visible: boolean;
+  initialDate?: Date;
   onClose: () => void;
-  onSelectDate: (dateStr: string) => void;
+  onSelectDate: (dateStr: string, dateObj: Date) => void;
   palette: ColorPalette;
   primaryColor: string;
   titleFont?: string;
   subtitleFont?: string;
   bodyFont?: string;
 }) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(initialDate || new Date());
+
+  useEffect(() => {
+    if (visible && initialDate) {
+      setCurrentDate(initialDate);
+    }
+  }, [visible, initialDate]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -1933,25 +2025,40 @@ function CalendarDatePickerModal({
               if (day === null) {
                 return <View key={`empty-${idx}`} style={styles.calendarDayCell} />;
               }
+              const isSelected = Boolean(
+                initialDate &&
+                initialDate.getFullYear() === year &&
+                initialDate.getMonth() === month &&
+                initialDate.getDate() === day
+              );
               const isToday = isCurrentMonthToday && today.getDate() === day;
               return (
                 <TouchableOpacity
                   key={`day-${day}`}
                   activeOpacity={0.75}
                   onPress={() => {
+                    const chosenObj = new Date(year, month, day);
                     const formatted = `${day} de ${monthNames[month]} ${year}`;
-                    onSelectDate(formatted);
+                    onSelectDate(formatted, chosenObj);
                     onClose();
                   }}
                   style={[
                     styles.calendarDayCell,
-                    isToday && { backgroundColor: `${primaryColor}25`, borderColor: primaryColor, borderWidth: 1.5, borderRadius: 20 },
+                    isSelected
+                      ? { backgroundColor: primaryColor, borderRadius: 20 }
+                      : isToday
+                      ? { backgroundColor: `${primaryColor}25`, borderColor: primaryColor, borderWidth: 1.5, borderRadius: 20 }
+                      : undefined,
                   ]}
                 >
                   <Text
                     style={[
                       styles.calendarDayNumber,
-                      { color: isToday ? primaryColor : palette.text, fontFamily: isToday ? subtitleFont : bodyFont },
+                      {
+                        color: isSelected ? '#FFFFFF' : isToday ? primaryColor : palette.text,
+                        fontFamily: isSelected || isToday ? subtitleFont : bodyFont,
+                        fontWeight: isSelected ? '900' : 'normal',
+                      },
                     ]}
                   >
                     {day}
@@ -2009,8 +2116,11 @@ function ChallengeModal({
   bodyFont?: string;
   dataFont?: string;
 }) {
-  const [selectedDate, setSelectedDate] = useState('Hoy');
-  const [customDate, setCustomDate] = useState('');
+  // 7 sugerencias de fecha (Hoy, Mañana + 5 días) sincronizadas con el calendario
+  const dateSuggestions = useMemo(() => getTrainingDateSuggestions(), []);
+  const [selectedDateIndex, setSelectedDateIndex] = useState<number | null>(0); // Default: Hoy
+  const [selectedDateFormatted, setSelectedDateFormatted] = useState(dateSuggestions[0].dateStr);
+  const [calendarDate, setCalendarDate] = useState<Date>(dateSuggestions[0].dateObj);
   const [showCalendar, setShowCalendar] = useState(false);
 
   const [selectedVariable, setSelectedVariable] = useState<ChallengeVariable>('strength');
@@ -2036,14 +2146,14 @@ function ChallengeModal({
   ];
 
   const handleSend = () => {
-    const finalDate = customDate.trim() || selectedDate;
+    const finalDate = selectedDateFormatted;
     if (!finalDate) {
       Alert.alert('Falta la fecha', 'Por favor selecciona la fecha del reto.');
       return;
     }
     const varItem = CHALLENGE_VARIABLES.find((v) => v.id === selectedVariable);
     onSend({
-      friendId: friend.nickname,
+      friendId: friend.id || friend.nickname,
       friendName: friend.name,
       friendNickname: friend.nickname,
       details: {
@@ -2083,18 +2193,19 @@ function ChallengeModal({
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
             {/* 1. Fecha del Reto */}
             <Text style={[styles.formLabel, { color: palette.text, fontFamily: subtitleFont }]}>
-              1. Fecha de Reto
+              1. Fecha de Reto (Sugerencias dinámicas)
             </Text>
             <View style={styles.chipsWrap}>
-              {['Hoy', 'Mañana', 'Fin de Semana', 'Próximo Lunes'].map((d) => {
-                const isSelected = selectedDate === d && !customDate;
+              {dateSuggestions.map((d, idx) => {
+                const isSelected = selectedDateIndex === idx;
                 return (
                   <TouchableOpacity
-                    key={d}
+                    key={d.label + idx}
                     activeOpacity={0.8}
                     onPress={() => {
-                      setSelectedDate(d);
-                      setCustomDate('');
+                      setSelectedDateIndex(idx);
+                      setSelectedDateFormatted(d.dateStr);
+                      setCalendarDate(d.dateObj);
                     }}
                     style={[
                       styles.choiceChip,
@@ -2110,7 +2221,7 @@ function ChallengeModal({
                         { color: isSelected ? '#FFFFFF' : palette.text, fontFamily: subtitleFont },
                       ]}
                     >
-                      {d}
+                      {d.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -2124,8 +2235,8 @@ function ChallengeModal({
               style={[
                 styles.calendarDateCardBtn,
                 {
-                  backgroundColor: customDate ? 'rgba(239, 68, 68, 0.15)' : (palette.isDark ? '#0F172A' : '#F8FAFC'),
-                  borderColor: customDate ? '#EF4444' : palette.border,
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  borderColor: '#EF4444',
                 },
               ]}
             >
@@ -2134,22 +2245,28 @@ function ChallengeModal({
                   style={[
                     styles.calendarIconCircle,
                     {
-                      backgroundColor: customDate ? '#EF4444' : 'rgba(239, 68, 68, 0.18)',
+                      backgroundColor: '#EF4444',
                     },
                   ]}
                 >
-                  <Ionicons name="calendar" size={18} color={customDate ? '#FFFFFF' : '#EF4444'} />
+                  <Ionicons name="calendar" size={18} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.calendarCardTitle, { color: palette.text, fontFamily: subtitleFont }]}>
-                    {customDate ? `Fecha: ${customDate}` : 'Elegir fecha en Calendario'}
+                    {selectedDateIndex !== null && selectedDateIndex >= 0 && selectedDateIndex < dateSuggestions.length
+                      ? `${dateSuggestions[selectedDateIndex].label} (${selectedDateFormatted})`
+                      : `Fecha: ${selectedDateFormatted}`}
                   </Text>
                   <Text style={[styles.calendarCardSub, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    {customDate ? 'Día pactado para el duelo' : 'Toca para abrir el calendario de retos'}
+                    {selectedDateIndex === 0
+                      ? 'Hoy pactado para el duelo · Toca para cambiar'
+                      : selectedDateIndex === 1
+                      ? 'Mañana pactado para el duelo · Toca para cambiar'
+                      : 'Día pactado para el duelo · Toca para abrir calendario'}
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={customDate ? '#EF4444' : palette.textSub} />
+              <Ionicons name="chevron-forward" size={18} color="#EF4444" />
             </TouchableOpacity>
 
             {/* 2. Variable a Medir */}
@@ -2332,9 +2449,18 @@ function ChallengeModal({
 
       <CalendarDatePickerModal
         visible={showCalendar}
+        initialDate={calendarDate}
         onClose={() => setShowCalendar(false)}
-        onSelectDate={(d) => {
-          setCustomDate(d);
+        onSelectDate={(chosenStr, chosenObj) => {
+          setSelectedDateFormatted(chosenStr);
+          setCalendarDate(chosenObj);
+          const matchIdx = dateSuggestions.findIndex(
+            (s) =>
+              s.dateObj.getFullYear() === chosenObj.getFullYear() &&
+              s.dateObj.getMonth() === chosenObj.getMonth() &&
+              s.dateObj.getDate() === chosenObj.getDate()
+          );
+          setSelectedDateIndex(matchIdx >= 0 ? matchIdx : null);
           setShowCalendar(false);
         }}
         palette={palette}
