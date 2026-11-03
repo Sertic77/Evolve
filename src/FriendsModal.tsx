@@ -25,7 +25,7 @@ import {
   ChallengeDetails,
   ChallengeVariable,
 } from './store';
-import { getServerUrl } from './api';
+import { getServerUrl, apiGetFriendRequests } from './api';
 import { syncSocialFromDatabase } from './syncService';
 
 /* ==========================================================
@@ -92,6 +92,8 @@ export function FriendsModal({
   const respondChallenge = useStore((s) => s.respondChallenge);
   const authUser = useStore((s) => s.authUser);
   const authToken = useStore((s) => s.authToken);
+  const pendingSentRequestUserIds = useStore((s) => s.pendingSentRequestUserIds) || [];
+  const setPendingSentRequestUserIds = useStore((s) => s.setPendingSentRequestUserIds);
 
   // Estados locales
   const [activeTab, setActiveTab] = useState<'friends' | 'discover'>('friends');
@@ -101,10 +103,9 @@ export function FriendsModal({
   const [selectedFriendForProfile, setSelectedFriendForProfile] = useState<FriendUser | null>(null);
   const [selectedFriendForInvite, setSelectedFriendForInvite] = useState<FriendUser | null>(null);
   const [selectedFriendForChallenge, setSelectedFriendForChallenge] = useState<FriendUser | null>(null);
-  const [sentRequests, setSentRequests] = useState<Record<string, boolean>>({});
   const [dbUsers, setDbUsers] = useState<any[]>([]);
 
-  // Cargar usuarios reales de la base de datos y sincronizar amigos
+  // Cargar usuarios reales de la base de datos y sincronizar amigos y solicitudes
   useEffect(() => {
     let isMounted = true;
     if (visible) {
@@ -124,10 +125,35 @@ export function FriendsModal({
           }
         }
       } catch {
-        // En caso de que no haya conexión con backend
+        // Silencioso
       }
     };
+
+    const fetchRequests = async () => {
+      if (authToken) {
+        try {
+          const data = await apiGetFriendRequests(authToken);
+          if (isMounted && data && Array.isArray(data.sent)) {
+            const activePendingIds: string[] = [];
+            data.sent.forEach((r: any) => {
+              if (r.receiver?.id) activePendingIds.push(r.receiver.id);
+              if (r.receiver?.nickname) {
+                const clean = r.receiver.nickname.startsWith('@') ? r.receiver.nickname : `@${r.receiver.nickname}`;
+                activePendingIds.push(clean);
+                activePendingIds.push(r.receiver.nickname);
+              }
+            });
+            setPendingSentRequestUserIds(activePendingIds);
+          }
+        } catch {
+          // Silencioso
+        }
+      }
+    };
+
     fetchDbUsers();
+    fetchRequests();
+
     return () => {
       isMounted = false;
     };
@@ -201,13 +227,12 @@ export function FriendsModal({
   const highestStreak = friends.length > 0 ? Math.max(...friends.map((f) => f.streak)) : 0;
   const activeTodayCount = friends.filter((f) => f.todayWorkout && !f.todayWorkout.includes('Descanso')).length;
 
-  // Enviar solicitud o agregar amigo directamente
+  // Enviar solicitud de amistad (espera respuesta y validación del otro usuario)
   const handleSendRequest = (user: FriendUser) => {
     sendFriendRequestTo(user);
-    setSentRequests((prev) => ({ ...prev, [user.nickname]: true }));
     Alert.alert(
-      '¡Amigo Agregado! 🤝',
-      `${user.name} (${user.nickname}) ha sido agregado a tus amigos y guardado en tu cuenta de la base de datos.`
+      '¡Solicitud Enviada! 🤝',
+      `Le has enviado una solicitud de amistad a ${user.name} (${user.nickname}). Debe aceptarla para que aparezca en tu lista de amigos.`
     );
   };
 
@@ -555,7 +580,12 @@ export function FriendsModal({
                 </View>
               ) : (
                 filteredDiscover.map((user) => {
-                  const isSent = !!sentRequests[user.nickname];
+                  const isSent = pendingSentRequestUserIds.some(
+                    (id) =>
+                      id === user.id ||
+                      id.toLowerCase() === user.nickname.toLowerCase() ||
+                      id.toLowerCase() === user.nickname.replace('@', '').toLowerCase()
+                  );
                   return (
                     <View
                       key={user.nickname}
@@ -597,7 +627,7 @@ export function FriendsModal({
                         ]}
                       >
                         <Ionicons
-                          name={isSent ? 'checkmark-circle' : 'person-add-outline'}
+                          name={isSent ? 'time-outline' : 'person-add-outline'}
                           size={15}
                           color={isSent ? palette.textSub : '#FFFFFF'}
                           style={{ marginRight: 4 }}
@@ -611,7 +641,7 @@ export function FriendsModal({
                             },
                           ]}
                         >
-                          {isSent ? 'Enviada' : 'Agregar'}
+                          {isSent ? 'Solicitud enviada' : 'Agregar'}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -681,9 +711,14 @@ export function FriendsModal({
             onClose={() => setShowNotificationsModal(false)}
             onAcceptFriend={(notifId) => {
               acceptFriendRequest(notifId);
+              syncSocialFromDatabase();
               Alert.alert('¡Nuevo Amigo Agregado! 🎉', 'Ahora son amigos. Puedes observar sus métricas e invitarlo a entrenar.');
             }}
-            onRejectFriend={(notifId) => rejectFriendRequest(notifId)}
+            onRejectFriend={(notifId) => {
+              rejectFriendRequest(notifId);
+              syncSocialFromDatabase();
+              Alert.alert('Solicitud Rechazada', 'Has rechazado la solicitud de amistad.');
+            }}
             onAcceptWorkout={(notifId) => {
               respondWorkoutInvite(notifId, true);
               Alert.alert('¡Entrenamiento Aceptado! 🏋️‍♂️', 'La sesión conjunta quedó confirmada.');

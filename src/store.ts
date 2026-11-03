@@ -1435,6 +1435,8 @@ type State = {
   respondChallenge: (notificationId: string, accept: boolean) => void;
   markNotificationsAsRead: () => void;
   sendFriendRequestTo: (user: FriendUser) => void;
+  pendingSentRequestUserIds: string[];
+  setPendingSentRequestUserIds: (ids: string[]) => void;
   setFriendsFromDb: (friends: FriendUser[]) => void;
   setNotificationsFromDb: (notifications: FriendNotification[]) => void;
   // Personalización
@@ -2017,6 +2019,8 @@ export const useStore = create<State>()(
       friendNotifications: [],
       sentWorkoutInvites: [],
       sentChallenges: [],
+      pendingSentRequestUserIds: [],
+      setPendingSentRequestUserIds: (ids) => set({ pendingSentRequestUserIds: ids }),
 
       addFriend: (friend) =>
         set((s) => {
@@ -2221,16 +2225,16 @@ export const useStore = create<State>()(
               receiverId: user.id,
               receiverNickname: user.nickname,
             }).catch(() => {});
-            apiAddFriend(s.authToken, {
-              friendId: user.id,
-              friendNickname: user.nickname,
-            }).catch(() => {});
           }
-          const already = s.friends.some((f) => f.id === user.id);
-          const updatedFriends = already ? s.friends : [...s.friends, user];
+
+          const targetKey = user.id || user.nickname;
+          const cleanNick = user.nickname.startsWith('@') ? user.nickname : `@${user.nickname}`;
+          const nextPending = Array.from(
+            new Set([...(s.pendingSentRequestUserIds || []), targetKey, user.nickname, cleanNick, user.id].filter(Boolean))
+          );
 
           return {
-            friends: updatedFriends,
+            pendingSentRequestUserIds: nextPending,
             friendNotifications: [
               {
                 id: 'req-' + Date.now(),
@@ -2238,14 +2242,14 @@ export const useStore = create<State>()(
                 senderId: 'me',
                 senderName: 'Tú',
                 senderNickname: '@yo',
-                senderColor: '#10B981',
+                senderColor: '#3B82F6',
                 senderInitials: 'TÚ',
                 senderLevel: 1,
                 senderRank: 'Atleta',
                 date: 'Ahora mismo',
                 read: true,
                 status: 'accepted',
-                message: `Agregaste a ${user.name} (${user.nickname}) a tus amigos.`,
+                message: `Enviaste solicitud de amistad a ${user.name} (${user.nickname}). Esperando su respuesta.`,
               },
               ...s.friendNotifications,
             ],
@@ -2421,6 +2425,7 @@ export const useStore = create<State>()(
           friendNotifications: [],
           sentWorkoutInvites: [],
           sentChallenges: [],
+          pendingSentRequestUserIds: [],
           activePaletteId: 'default',
           customPalettes: [],
           deletedPaletteIds: [],
@@ -2470,6 +2475,7 @@ export const useStore = create<State>()(
           if (records.friendNotifications && Array.isArray(records.friendNotifications)) updates.friendNotifications = records.friendNotifications;
           if (records.sentWorkoutInvites && Array.isArray(records.sentWorkoutInvites)) updates.sentWorkoutInvites = records.sentWorkoutInvites;
           if (records.sentChallenges && Array.isArray(records.sentChallenges)) updates.sentChallenges = records.sentChallenges;
+          if (records.pendingSentRequestUserIds && Array.isArray(records.pendingSentRequestUserIds)) updates.pendingSentRequestUserIds = records.pendingSentRequestUserIds;
           return updates;
         }),
       resetUserData: () =>
@@ -2539,6 +2545,7 @@ export const useStore = create<State>()(
         friendNotifications: Array.isArray(persistedState?.friendNotifications) ? (persistedState.friendNotifications as FriendNotification[]).filter((n: FriendNotification) => !n.id.startsWith('notif-chal-demo') && !n.id.startsWith('notif-1') && !n.id.startsWith('notif-2') && !n.id.startsWith('notif-act-1')) : (currentState.friendNotifications || []),
         sentWorkoutInvites: Array.isArray(persistedState?.sentWorkoutInvites) ? persistedState.sentWorkoutInvites : (currentState.sentWorkoutInvites || []),
         sentChallenges: Array.isArray(persistedState?.sentChallenges) ? persistedState.sentChallenges : [],
+        pendingSentRequestUserIds: Array.isArray(persistedState?.pendingSentRequestUserIds) ? persistedState.pendingSentRequestUserIds : [],
         activePaletteId: persistedState?.activePaletteId || 'default',
         customPalettes: Array.isArray(persistedState?.customPalettes) ? persistedState.customPalettes : [],
         deletedPaletteIds: Array.isArray(persistedState?.deletedPaletteIds) ? persistedState.deletedPaletteIds : [],

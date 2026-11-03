@@ -6,6 +6,7 @@ import {
   apiUpdateProfile,
   apiGetFriends,
   apiGetNotifications,
+  apiGetFriendRequests,
 } from './api';
 
 let syncTimeout: any = null;
@@ -34,6 +35,7 @@ export const USER_DATA_SYNC_KEYS = [
   'friendNotifications',
   'sentWorkoutInvites',
   'sentChallenges',
+  'pendingSentRequestUserIds',
   'activePaletteId',
   'customPalettes',
   'deletedPaletteIds',
@@ -103,9 +105,10 @@ export async function syncSocialFromDatabase(customToken?: string): Promise<void
   if (!token || !state.isAuthenticated) return;
 
   try {
-    const [friendsRes, notifsRes] = await Promise.allSettled([
+    const [friendsRes, notifsRes, reqsRes] = await Promise.allSettled([
       apiGetFriends(token),
       apiGetNotifications(token),
+      apiGetFriendRequests(token),
     ]);
 
     if (friendsRes.status === 'fulfilled' && Array.isArray(friendsRes.value?.friends)) {
@@ -114,6 +117,19 @@ export async function syncSocialFromDatabase(customToken?: string): Promise<void
 
     if (notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value?.notifications)) {
       state.setNotificationsFromDb(notifsRes.value.notifications);
+    }
+
+    if (reqsRes.status === 'fulfilled' && Array.isArray(reqsRes.value?.sent)) {
+      const activePending: string[] = [];
+      reqsRes.value.sent.forEach((r: any) => {
+        if (r.receiver?.id) activePending.push(r.receiver.id);
+        if (r.receiver?.nickname) {
+          const clean = r.receiver.nickname.startsWith('@') ? r.receiver.nickname : `@${r.receiver.nickname}`;
+          activePending.push(clean);
+          activePending.push(r.receiver.nickname);
+        }
+      });
+      state.setPendingSentRequestUserIds(activePending);
     }
   } catch (err) {
     console.warn('Advertencia al sincronizar datos sociales de la base de datos:', err);

@@ -781,6 +781,28 @@ app.post('/api/friends/request/:id/respond', authMiddleware, async (req: Authent
           where: { id: request.id },
           data: { status: 'rejected' },
         });
+
+        const [uA, uB] =
+          request.senderId < request.receiverId
+            ? [request.senderId, request.receiverId]
+            : [request.receiverId, request.senderId];
+        await prisma.friendship.deleteMany({
+          where: { userAId: uA, userBId: uB },
+        });
+
+        // Notificación para el remitente informando que la solicitud fue declinada
+        const receiverNick = request.receiver.nickname ? `@${request.receiver.nickname}` : '';
+        await prisma.notification.create({
+          data: {
+            userId: request.senderId,
+            senderId: userId,
+            type: 'activity',
+            referenceId: request.id,
+            title: 'Solicitud no aceptada',
+            message: `${request.receiver.name} (${receiverNick}) no aceptó tu solicitud de amistad.`,
+            read: false,
+          },
+        });
       }
 
       // Marcar la notificación correspondiente como leída
