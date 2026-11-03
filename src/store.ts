@@ -2038,7 +2038,7 @@ export const useStore = create<State>()(
             apiRemoveFriend(s.authToken, friendId).catch(() => {});
           }
           return {
-            friends: s.friends.filter((f) => f.id !== friendId),
+            friends: s.friends.filter((f) => f.id !== friendId && f.nickname !== friendId),
           };
         }),
 

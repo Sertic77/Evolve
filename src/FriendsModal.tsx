@@ -94,6 +94,7 @@ export function FriendsModal({
   const authToken = useStore((s) => s.authToken);
   const pendingSentRequestUserIds = useStore((s) => s.pendingSentRequestUserIds) || [];
   const setPendingSentRequestUserIds = useStore((s) => s.setPendingSentRequestUserIds);
+  const removeFriend = useStore((s) => s.removeFriend);
 
   // Estados locales
   const [activeTab, setActiveTab] = useState<'friends' | 'discover'>('friends');
@@ -103,6 +104,7 @@ export function FriendsModal({
   const [selectedFriendForProfile, setSelectedFriendForProfile] = useState<FriendUser | null>(null);
   const [selectedFriendForInvite, setSelectedFriendForInvite] = useState<FriendUser | null>(null);
   const [selectedFriendForChallenge, setSelectedFriendForChallenge] = useState<FriendUser | null>(null);
+  const [friendForMenu, setFriendForMenu] = useState<FriendUser | null>(null);
   const [dbUsers, setDbUsers] = useState<any[]>([]);
 
   // Cargar usuarios reales de la base de datos y sincronizar amigos y solicitudes
@@ -480,9 +482,25 @@ export function FriendsModal({
                         </View>
                       </View>
 
-                      {/* Pill de Racha */}
-                      <View style={[styles.streakPill, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-                        <Text style={styles.streakPillText}>🔥 {friend.streak}d</Text>
+                      {/* Pill de Racha y Botón de Opciones (3 puntitos) */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={[styles.streakPill, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+                          <Text style={styles.streakPillText}>🔥 {friend.streak}d</Text>
+                        </View>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          onPress={() => setFriendForMenu(friend)}
+                          style={[
+                            styles.friendMenuBtn,
+                            {
+                              borderColor: palette.border,
+                              backgroundColor: palette.isDark ? '#1E293B' : '#F1F5F9',
+                            },
+                          ]}
+                        >
+                          <Ionicons name="ellipsis-vertical" size={16} color={palette.textSub} />
+                        </TouchableOpacity>
                       </View>
                     </View>
 
@@ -776,6 +794,43 @@ export function FriendsModal({
             onClose={() => setShowPrivacyModal(false)}
             c1={c1}
             c2={c2}
+            palette={palette}
+            titleFont={titleFont}
+            subtitleFont={subtitleFont}
+            bodyFont={bodyFont}
+          />
+        )}
+
+        {/* ==========================================================
+            POPUP 5: MENÚ DE OPCIONES DEL AMIGO (ELIMINAR DE MIS AMIGOS)
+        ========================================================== */}
+        {friendForMenu && (
+          <FriendOptionsActionModal
+            visible={!!friendForMenu}
+            friend={friendForMenu}
+            onClose={() => setFriendForMenu(null)}
+            onRemove={(friendToRemove) => {
+              Alert.alert(
+                '¿Eliminar de mis amigos? ⚠️',
+                `¿Estás seguro de que deseas eliminar a ${friendToRemove.name} (${friendToRemove.nickname})? Dejarán de estar conectados y no verán su actividad compartida.`,
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Sí, eliminar',
+                    style: 'destructive',
+                    onPress: () => {
+                      removeFriend(friendToRemove.id || friendToRemove.nickname);
+                      setFriendForMenu(null);
+                      syncSocialFromDatabase();
+                      Alert.alert(
+                        'Amigo eliminado 🗑️',
+                        `${friendToRemove.name} ha sido eliminado de tu lista de amigos.`
+                      );
+                    },
+                  },
+                ]
+              );
+            }}
             palette={palette}
             titleFont={titleFont}
             subtitleFont={subtitleFont}
@@ -2945,6 +3000,118 @@ function PrivacySettingsModal({
 }
 
 /* ==========================================================
+   POPUP 5: ACCIONES Y OPCIONES DE AMIGO (ELIMINAR DE MIS AMIGOS)
+========================================================== */
+function FriendOptionsActionModal({
+  visible,
+  friend,
+  onClose,
+  onRemove,
+  palette,
+  titleFont,
+  subtitleFont,
+  bodyFont,
+}: {
+  visible: boolean;
+  friend: FriendUser;
+  onClose: () => void;
+  onRemove: (friend: FriendUser) => void;
+  palette: any;
+  titleFont?: string;
+  subtitleFont?: string;
+  bodyFont?: string;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity
+        style={styles.actionModalBackdrop}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[
+            styles.actionModalSheet,
+            {
+              backgroundColor: palette.cardBg,
+              borderColor: palette.border,
+            },
+          ]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={styles.actionModalHandleBar} />
+
+          {/* Amigo Info Header */}
+          <View style={styles.actionModalHeader}>
+            <View style={[styles.friendAvatar, { backgroundColor: friend.color, width: 44, height: 44, borderRadius: 22 }]}>
+              <Text style={[styles.friendAvatarText, { fontSize: 15 }]}>{friend.initials}</Text>
+            </View>
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={[styles.actionModalName, { color: palette.text, fontFamily: titleFont }]} numberOfLines={1}>
+                {friend.name}
+              </Text>
+              <Text style={[styles.actionModalNick, { color: palette.textSub, fontFamily: subtitleFont }]} numberOfLines={1}>
+                {friend.nickname} · Nvl {friend.level} ({friend.rank})
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.actionModalCloseBtn}>
+              <Ionicons name="close" size={20} color={palette.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={[styles.actionModalDivider, { backgroundColor: palette.border }]} />
+
+          {/* Opciones */}
+          <View style={styles.actionModalOptionsList}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onRemove(friend)}
+              style={[
+                styles.actionModalOptionItem,
+                {
+                  backgroundColor: palette.isDark ? '#EF444415' : '#FEF2F2',
+                  borderColor: '#EF444430',
+                },
+              ]}
+            >
+              <View style={[styles.actionModalOptionIconCircle, { backgroundColor: '#EF444420' }]}>
+                <Ionicons name="trash-outline" size={20} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.actionModalOptionTitle, { color: '#EF4444', fontFamily: titleFont }]}>
+                  Eliminar de mis amigos
+                </Text>
+                <Text style={[styles.actionModalOptionSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                  Dejarán de estar conectados y no verán su actividad compartida.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Botón Cancelar */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={onClose}
+            style={[
+              styles.actionModalCancelBtn,
+              {
+                backgroundColor: palette.isDark ? '#1E293B' : '#F1F5F9',
+                borderColor: palette.border,
+              },
+            ]}
+          >
+            <Text style={[styles.actionModalCancelText, { color: palette.text, fontFamily: subtitleFont }]}>
+              Cancelar
+            </Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+/* ==========================================================
    ESTILOS GENERALES
 ========================================================== */
 const styles = StyleSheet.create({
@@ -4182,5 +4349,93 @@ const styles = StyleSheet.create({
   privacySecDesc: {
     fontSize: 10.5,
     marginTop: 2,
+  },
+
+  // 3-Dots Friend Options Menu & Action Sheet
+  friendMenuBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  actionModalSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+  },
+  actionModalHandleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(156, 163, 175, 0.4)',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  actionModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionModalName: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  actionModalNick: {
+    fontSize: 12.5,
+    marginTop: 2,
+  },
+  actionModalCloseBtn: {
+    padding: 6,
+  },
+  actionModalDivider: {
+    height: 1,
+    marginVertical: 14,
+  },
+  actionModalOptionsList: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  actionModalOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  actionModalOptionIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionModalOptionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  actionModalOptionSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  actionModalCancelBtn: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionModalCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

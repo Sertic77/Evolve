@@ -1027,14 +1027,52 @@ app.delete('/api/friends/:id', authMiddleware, async (req: AuthenticatedRequest,
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'No autenticado' });
 
-    const friendId = req.params.id;
-    const [uA, uB] = userId < friendId ? [userId, friendId] : [friendId, userId];
+    let targetId = req.params.id;
+    const cleanNick = targetId.replace('@', '');
+    const matched = await prisma.user.findFirst({
+      where: {
+        OR: [{ id: targetId }, { nickname: cleanNick }],
+      },
+    });
+
+    if (matched) {
+      targetId = matched.id;
+    }
+
+    const [uA, uB] = userId < targetId ? [userId, targetId] : [targetId, userId];
 
     await prisma.friendship.deleteMany({
       where: { userAId: uA, userBId: uB },
     });
 
-    return res.json({ success: true, message: 'Amigo eliminado correctamente.' });
+    // Limpiar solicitudes de amistad pasadas para permitir reconexión limpia
+    await prisma.friendRequest.deleteMany({
+      where: {
+        OR: [
+          { senderId: userId, receiverId: targetId },
+          { senderId: targetId, receiverId: userId },
+        ],
+      },
+    });
+
+    // Actualizar respaldo de UserData si existe
+    const savedRecord = await prisma.userData.findUnique({
+      where: { userId_dataType: { userId, dataType: 'friends' } },
+    });
+    if (savedRecord?.payload) {
+      try {
+        const parsed = JSON.parse(savedRecord.payload);
+        if (Array.isArray(parsed)) {
+          const updated = parsed.filter((f: any) => f.id !== targetId && f.nickname !== `@${cleanNick}`);
+          await prisma.userData.update({
+            where: { userId_dataType: { userId, dataType: 'friends' } },
+            data: { payload: JSON.stringify(updated) },
+          });
+        }
+      } catch {}
+    }
+
+    return res.json({ success: true, message: 'Amigo eliminado correctamente de la base de datos.' });
   } catch (error) {
     console.error('Error en /api/friends/:id:', error);
     return res.status(500).json({ error: 'Error al eliminar amigo.' });
