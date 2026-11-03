@@ -31,8 +31,6 @@ export const USER_DATA_SYNC_KEYS = [
   'sleepLogs',
   'userProfile',
   'privacySettings',
-  'friends',
-  'friendNotifications',
   'sentWorkoutInvites',
   'sentChallenges',
   'pendingSentRequestUserIds',
@@ -233,13 +231,26 @@ export function initSyncService() {
     }
   });
 
-  // Guardar inmediatamente si el usuario minimiza la app o cambia de pantalla
+  // Guardar inmediatamente si el usuario minimiza la app o recargar datos si vuelve
   AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
     if (nextAppState === 'background' || nextAppState === 'inactive') {
       flushPendingSync();
+    } else if (nextAppState === 'active') {
+      const s = useStore.getState();
+      if (s.isAuthenticated && s.authToken) {
+        syncSocialFromDatabase();
+      }
     }
   });
 
   // Carga inicial social de la base de datos
   syncSocialFromDatabase();
+
+  // Polling recurrente de relaciones sociales cada 10 segundos para mantener amigos y solicitudes en tiempo real
+  setInterval(() => {
+    const s = useStore.getState();
+    if (s.isAuthenticated && s.authToken) {
+      syncSocialFromDatabase();
+    }
+  }, 10000);
 }

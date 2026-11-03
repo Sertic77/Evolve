@@ -2037,8 +2037,12 @@ export const useStore = create<State>()(
           if (s.authToken) {
             apiRemoveFriend(s.authToken, friendId).catch(() => {});
           }
+          const cleanParam = (friendId || '').replace('@', '').toLowerCase();
           return {
-            friends: s.friends.filter((f) => f.id !== friendId && f.nickname !== friendId),
+            friends: s.friends.filter((f) => {
+              const cleanNick = (f.nickname || '').replace('@', '').toLowerCase();
+              return f.id !== friendId && f.nickname !== friendId && cleanNick !== cleanParam;
+            }),
           };
         }),
 
@@ -2471,8 +2475,6 @@ export const useStore = create<State>()(
           if (records.typography && typeof records.typography === 'object') updates.typography = records.typography;
           if (records.homeWidgets && typeof records.homeWidgets === 'object') updates.homeWidgets = records.homeWidgets;
           if (records.privacySettings && typeof records.privacySettings === 'object') updates.privacySettings = records.privacySettings;
-          if (records.friends && Array.isArray(records.friends)) updates.friends = records.friends;
-          if (records.friendNotifications && Array.isArray(records.friendNotifications)) updates.friendNotifications = records.friendNotifications;
           if (records.sentWorkoutInvites && Array.isArray(records.sentWorkoutInvites)) updates.sentWorkoutInvites = records.sentWorkoutInvites;
           if (records.sentChallenges && Array.isArray(records.sentChallenges)) updates.sentChallenges = records.sentChallenges;
           if (records.pendingSentRequestUserIds && Array.isArray(records.pendingSentRequestUserIds)) updates.pendingSentRequestUserIds = records.pendingSentRequestUserIds;

@@ -156,8 +156,17 @@ export function FriendsModal({
     fetchDbUsers();
     fetchRequests();
 
+    // Polling activo mientras el modal de amigos esté abierto para reflejar cambios en tiempo real
+    const livePoll = setInterval(() => {
+      if (isMounted) {
+        syncSocialFromDatabase();
+        fetchRequests();
+      }
+    }, 3500);
+
     return () => {
       isMounted = false;
+      clearInterval(livePoll);
     };
   }, [visible, authToken]);
 

@@ -930,45 +930,6 @@ app.get('/api/friends', authMiddleware, async (req: AuthenticatedRequest, res: R
       orderBy: { createdAt: 'desc' },
     });
 
-    // Si aún no hay filas en Friendship, verificar si hay respaldo en UserData y auto-sincronizar
-    if (friendships.length === 0) {
-      const savedFriendsData = await prisma.userData.findUnique({
-        where: { userId_dataType: { userId, dataType: 'friends' } },
-      });
-      if (savedFriendsData && savedFriendsData.payload) {
-        try {
-          const parsed = JSON.parse(savedFriendsData.payload);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            for (const f of parsed) {
-              const matched = await prisma.user.findFirst({
-                where: {
-                  OR: [
-                    { id: f.id },
-                    { nickname: f.nickname ? f.nickname.replace('@', '') : undefined },
-                  ],
-                },
-              });
-              if (matched && matched.id !== userId) {
-                const [uA, uB] = userId < matched.id ? [userId, matched.id] : [matched.id, userId];
-                await prisma.friendship.upsert({
-                  where: { userAId_userBId: { userAId: uA, userBId: uB } },
-                  create: { userAId: uA, userBId: uB },
-                  update: {},
-                });
-              }
-            }
-            friendships = await prisma.friendship.findMany({
-              where: { OR: [{ userAId: userId }, { userBId: userId }] },
-              include: { userA: true, userB: true },
-              orderBy: { createdAt: 'desc' },
-            });
-          }
-        } catch {
-          // continuar
-        }
-      }
-    }
-
     // Formatear la lista de amigos extrayendo el otro usuario
     const friends = await Promise.all(
       friendships.map(async (f) => {
@@ -1021,31 +982,41 @@ app.get('/api/friends', authMiddleware, async (req: AuthenticatedRequest, res: R
   }
 });
 
-// 5. ELIMINAR AMIGO
+// 5. ELIMINAR AMIGO (BILATERAL Y LIMPIEZA COMPLETA)
 app.delete('/api/friends/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'No autenticado' });
 
-    let targetId = req.params.id;
-    const cleanNick = targetId.replace('@', '');
+    const targetParam = req.params.id;
+    const cleanNick = targetParam.replace('@', '');
     const matched = await prisma.user.findFirst({
       where: {
-        OR: [{ id: targetId }, { nickname: cleanNick }],
+        OR: [
+          { id: targetParam },
+          { nickname: cleanNick },
+          { nickname: targetParam },
+        ],
       },
     });
 
-    if (matched) {
-      targetId = matched.id;
-    }
+    const targetId = matched ? matched.id : targetParam;
+    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
 
     const [uA, uB] = userId < targetId ? [userId, targetId] : [targetId, userId];
 
+    // 1. Eliminar la relación de amistad bidireccional en la tabla Friendship
     await prisma.friendship.deleteMany({
-      where: { userAId: uA, userBId: uB },
+      where: {
+        OR: [
+          { userAId: uA, userBId: uB },
+          { userAId: userId, userBId: targetId },
+          { userAId: targetId, userBId: userId },
+        ],
+      },
     });
 
-    // Limpiar solicitudes de amistad pasadas para permitir reconexión limpia
+    // 2. Limpiar todas las solicitudes de amistad previas entre ambos para permitir reconexión limpia
     await prisma.friendRequest.deleteMany({
       where: {
         OR: [
@@ -1055,24 +1026,36 @@ app.delete('/api/friends/:id', authMiddleware, async (req: AuthenticatedRequest,
       },
     });
 
-    // Actualizar respaldo de UserData si existe
-    const savedRecord = await prisma.userData.findUnique({
-      where: { userId_dataType: { userId, dataType: 'friends' } },
-    });
-    if (savedRecord?.payload) {
+    // 3. Limpiar respaldo de UserData en AMBOS usuarios (para que ninguno tenga al otro en caché)
+    const cleanUserNick = currentUser?.nickname?.replace('@', '').toLowerCase();
+    const cleanTargetNick = (matched?.nickname || cleanNick).replace('@', '').toLowerCase();
+
+    const purgeUserDataFriends = async (ownerId: string, removeId: string, removeNick?: string) => {
       try {
-        const parsed = JSON.parse(savedRecord.payload);
-        if (Array.isArray(parsed)) {
-          const updated = parsed.filter((f: any) => f.id !== targetId && f.nickname !== `@${cleanNick}`);
-          await prisma.userData.update({
-            where: { userId_dataType: { userId, dataType: 'friends' } },
-            data: { payload: JSON.stringify(updated) },
-          });
+        const record = await prisma.userData.findUnique({
+          where: { userId_dataType: { userId: ownerId, dataType: 'friends' } },
+        });
+        if (record?.payload) {
+          const parsed = JSON.parse(record.payload);
+          if (Array.isArray(parsed)) {
+            const cleanR = removeNick?.toLowerCase();
+            const updated = parsed.filter((f: any) => {
+              const fNick = (f.nickname || '').replace('@', '').toLowerCase();
+              return f.id !== removeId && (!cleanR || fNick !== cleanR);
+            });
+            await prisma.userData.update({
+              where: { userId_dataType: { userId: ownerId, dataType: 'friends' } },
+              data: { payload: JSON.stringify(updated) },
+            });
+          }
         }
       } catch {}
-    }
+    };
 
-    return res.json({ success: true, message: 'Amigo eliminado correctamente de la base de datos.' });
+    await purgeUserDataFriends(userId, targetId, cleanTargetNick);
+    await purgeUserDataFriends(targetId, userId, cleanUserNick);
+
+    return res.json({ success: true, message: 'Amigo eliminado bilateralmente de la base de datos.' });
   } catch (error) {
     console.error('Error en /api/friends/:id:', error);
     return res.status(500).json({ error: 'Error al eliminar amigo.' });
@@ -1461,31 +1444,6 @@ app.post('/api/sync/push', authMiddleware, async (req: AuthenticatedRequest, res
     });
 
     await prisma.$transaction(updates);
-
-    // Auto-sincronizar relaciones Friendship si se enviaron amigos
-    if (records.friends && Array.isArray(records.friends)) {
-      for (const f of records.friends) {
-        if (f.id && f.id !== userId) {
-          const cleanNick = f.nickname ? String(f.nickname).replace('@', '') : undefined;
-          const matched = await prisma.user.findFirst({
-            where: {
-              OR: [
-                { id: f.id },
-                { nickname: cleanNick },
-              ],
-            },
-          });
-          if (matched && matched.id !== userId) {
-            const [uA, uB] = userId < matched.id ? [userId, matched.id] : [matched.id, userId];
-            await prisma.friendship.upsert({
-              where: { userAId_userBId: { userAId: uA, userBId: uB } },
-              create: { userAId: uA, userBId: uB },
-              update: {},
-            });
-          }
-        }
-      }
-    }
 
     return res.json({ success: true, count: updates.length, syncedAt: new Date().toISOString() });
   } catch (error) {
