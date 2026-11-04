@@ -134,6 +134,36 @@ export async function apiResetPassword(payload: {
   return data;
 }
 
+export async function apiCheckNickname(
+  nickname: string,
+): Promise<{ available: boolean; nickname?: string; error?: string; message?: string }> {
+  try {
+    const clean = encodeURIComponent(nickname.trim().replace('@', ''));
+    const res = await fetch(`${getServerUrl()}/api/auth/check-nickname?nickname=${clean}`, {
+      method: 'GET',
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return { available: false, error: err.message || 'Error de conexión' };
+  }
+}
+
+export async function apiCheckEmail(
+  email: string,
+): Promise<{ exists: boolean; user?: any }> {
+  try {
+    const clean = encodeURIComponent(email.trim().toLowerCase());
+    const res = await fetch(`${getServerUrl()}/api/auth/check-email?email=${clean}`, {
+      method: 'GET',
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return { exists: false };
+  }
+}
+
 export async function apiLogin(payload: {
   email: string;
   password: string;
@@ -151,13 +181,24 @@ export async function apiLogin(payload: {
   return data;
 }
 
+export interface SocialAuthResponse extends Partial<AuthResponse> {
+  isNewUser?: boolean;
+  message?: string;
+  email?: string;
+  name?: string;
+  provider?: string;
+  providerId?: string;
+  avatarUrl?: string;
+  userProfile?: any;
+}
+
 export async function apiSocialLogin(payload: {
   provider: 'google' | 'apple';
   providerId: string;
   email: string;
   name: string;
   avatarUrl?: string;
-}): Promise<AuthResponse> {
+}): Promise<SocialAuthResponse> {
   const res = await fetch(`${getServerUrl()}/api/auth/social`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -167,6 +208,31 @@ export async function apiSocialLogin(payload: {
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || 'Error al autenticar con proveedor social.');
+  }
+  return data;
+}
+
+export async function apiSocialRegister(payload: {
+  provider: 'google' | 'apple';
+  providerId?: string;
+  email: string;
+  name: string;
+  nickname: string;
+  gender?: string;
+  height?: number;
+  birthDate?: string;
+  age?: number;
+  avatarUrl?: string;
+}): Promise<AuthResponse & { userProfile?: any }> {
+  const res = await fetch(`${getServerUrl()}/api/auth/social-register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al completar el registro del atleta.');
   }
   return data;
 }

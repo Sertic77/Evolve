@@ -294,13 +294,26 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
     }
 
-    const cleanNick = nickname
-      ? String(nickname).trim().replace('@', '').toLowerCase()
-      : cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+    const cleanNick = String(nickname || '').trim().replace('@', '');
+    if (!cleanNick) {
+      return res.status(400).json({ error: 'El apodo o nickname es obligatorio.' });
+    }
+    if (cleanNick.length < 3) {
+      return res.status(400).json({ error: 'El apodo debe tener al menos 3 caracteres.' });
+    }
 
-    // Verificar si el nickname ya existe
-    const existingNick = await prisma.user.findUnique({ where: { nickname: cleanNick } });
-    const finalNick = existingNick ? `${cleanNick}_${Math.floor(100 + Math.random() * 900)}` : cleanNick;
+    // Verificar si el nickname ya existe (búsqueda insensible a mayúsculas)
+    const existingNickUser = await prisma.$queryRaw<Array<{ id: string; nickname: string }>>`
+      SELECT id, nickname FROM "User" WHERE LOWER(nickname) = LOWER(${cleanNick}) LIMIT 1
+    `;
+    if (existingNickUser && existingNickUser.length > 0) {
+      return res.status(400).json({
+        error: `El nickname "@${cleanNick}" ya está en uso por otro atleta. Por favor elige otro apodo.`,
+      });
+    }
+
+    const heightNum = typeof height === 'number' ? height : (parseFloat(height) || 175);
+    const ageNum = typeof age === 'number' ? age : (parseInt(age, 10) || 24);
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
@@ -308,7 +321,7 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
         email: cleanEmail,
         passwordHash,
         name: String(name).trim(),
-        nickname: finalNick,
+        nickname: cleanNick,
         provider: 'email',
         streak: 0,
         level: 1,
@@ -320,11 +333,11 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
     // Guardar perfil inicial con género, altura, fecha de nacimiento y edad
     const userProfilePayload = {
       name: String(name).trim(),
-      nickname: finalNick,
+      nickname: cleanNick,
       gender: gender || 'Masculino',
-      height: typeof height === 'number' ? height : (parseFloat(height) || 175),
+      height: heightNum,
       birthDate: birthDate || undefined,
-      age: typeof age === 'number' ? age : (parseInt(age, 10) || 24),
+      age: ageNum,
     };
 
     try {
@@ -361,6 +374,54 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error en /api/auth/register:', error);
     return res.status(500).json({ error: 'Error interno del servidor al registrar usuario.' });
+  }
+});
+
+// COMPROBAR DISPONIBILIDAD DE NICKNAME
+app.get('/api/auth/check-nickname', async (req: Request, res: Response) => {
+  try {
+    const rawNick = req.query.nickname;
+    if (!rawNick) {
+      return res.status(400).json({ available: false, error: 'Nickname no proporcionado.' });
+    }
+    const cleanNick = String(rawNick).trim().replace('@', '');
+    if (cleanNick.length < 3) {
+      return res.json({ available: false, message: 'El apodo debe tener al menos 3 caracteres.' });
+    }
+    const matches = await prisma.$queryRaw<Array<{ id: string; nickname: string }>>`
+      SELECT id, nickname FROM "User" WHERE LOWER(nickname) = LOWER(${cleanNick}) LIMIT 1
+    `;
+    const available = !matches || matches.length === 0;
+    return res.json({
+      available,
+      nickname: cleanNick,
+      message: available ? 'Apodo disponible' : `El apodo "@${cleanNick}" ya está en uso.`,
+    });
+  } catch (error) {
+    console.error('Error en /api/auth/check-nickname:', error);
+    return res.status(500).json({ error: 'Error al comprobar disponibilidad del apodo.' });
+  }
+});
+
+// COMPROBAR EXISTENCIA DE CORREO
+app.get('/api/auth/check-email', async (req: Request, res: Response) => {
+  try {
+    const rawEmail = req.query.email;
+    if (!rawEmail) {
+      return res.status(400).json({ error: 'Correo no proporcionado.' });
+    }
+    const cleanEmail = String(rawEmail).trim().toLowerCase();
+    const user = await prisma.user.findUnique({
+      where: { email: cleanEmail },
+      select: { id: true, email: true, name: true, nickname: true, provider: true },
+    });
+    return res.json({
+      exists: !!user,
+      user: user || null,
+    });
+  } catch (error) {
+    console.error('Error en /api/auth/check-email:', error);
+    return res.status(500).json({ error: 'Error al verificar correo.' });
   }
 });
 
@@ -518,37 +579,40 @@ app.post('/api/auth/social', async (req: Request, res: Response) => {
     let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
 
     if (!user) {
-      const baseNick = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
-      const existingNick = await prisma.user.findUnique({ where: { nickname: baseNick } });
-      const finalNick = existingNick ? `${baseNick}_${Math.floor(100 + Math.random() * 900)}` : baseNick;
+      // Si el usuario no existe en la base de datos, requerir el formulario de registro de atleta
+      return res.json({
+        isNewUser: true,
+        message: 'Usuario no registrado. Completa tu perfil para acceder.',
+        email: cleanEmail,
+        name: name ? String(name).trim() : cleanEmail.split('@')[0],
+        provider: provider === 'apple' ? 'apple' : 'google',
+        providerId: providerId ? String(providerId) : undefined,
+        avatarUrl: avatarUrl ? String(avatarUrl) : undefined,
+      });
+    }
 
-      user = await prisma.user.create({
-        data: {
-          email: cleanEmail,
-          name: name ? String(name).trim() : cleanEmail.split('@')[0],
-          nickname: finalNick,
-          provider: provider === 'apple' ? 'apple' : 'google',
-          providerId: providerId ? String(providerId) : undefined,
-          avatarUrl: avatarUrl ? String(avatarUrl) : undefined,
-          streak: 0,
-          level: 1,
-          rankTitle: 'Iniciado Fitness',
-          totalXp: 0,
-        },
-      });
-    } else {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          providerId: providerId ? String(providerId) : user.providerId,
-          avatarUrl: avatarUrl ? String(avatarUrl) : user.avatarUrl,
-        },
-      });
+    // Si ya existe, actualizar providerId/avatar si aplica
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        providerId: providerId ? String(providerId) : user.providerId,
+        avatarUrl: avatarUrl ? String(avatarUrl) : user.avatarUrl,
+      },
+    });
+
+    // Obtener su userProfile si ya lo tiene guardado
+    const profileRecord = await prisma.userData.findUnique({
+      where: { userId_dataType: { userId: user.id, dataType: 'userProfile' } },
+    });
+    let parsedProfile = undefined;
+    if (profileRecord?.payload) {
+      try { parsedProfile = JSON.parse(profileRecord.payload); } catch {}
     }
 
     const token = generateToken(user);
 
     return res.json({
+      isNewUser: false,
       token,
       user: {
         id: user.id,
@@ -563,10 +627,108 @@ app.post('/api/auth/social', async (req: Request, res: Response) => {
         totalXp: user.totalXp,
         createdAt: user.createdAt,
       },
+      userProfile: parsedProfile,
     });
   } catch (error) {
     console.error('Error en /api/auth/social:', error);
     return res.status(500).json({ error: 'Error interno al autenticar con proveedor social.' });
+  }
+});
+
+// 3.1 REGISTRO SOCIAL CON DATOS BIOMÉTRICOS Y NICKNAME OBLIGATORIO
+app.post('/api/auth/social-register', async (req: Request, res: Response) => {
+  try {
+    const { provider, providerId, email, name, nickname, gender, height, birthDate, age, avatarUrl } = req.body;
+
+    if (!provider || !email || !name) {
+      return res.status(400).json({ error: 'Proveedor, correo y nombre son requeridos.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const existingUser = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Ya existe una cuenta registrada con este correo electrónico.' });
+    }
+
+    const cleanNick = String(nickname || '').trim().replace('@', '');
+    if (!cleanNick) {
+      return res.status(400).json({ error: 'El apodo o nickname es obligatorio.' });
+    }
+    if (cleanNick.length < 3) {
+      return res.status(400).json({ error: 'El apodo debe tener al menos 3 caracteres.' });
+    }
+
+    // Verificar disponibilidad del nickname
+    const existingNickUser = await prisma.$queryRaw<Array<{ id: string; nickname: string }>>`
+      SELECT id, nickname FROM "User" WHERE LOWER(nickname) = LOWER(${cleanNick}) LIMIT 1
+    `;
+    if (existingNickUser && existingNickUser.length > 0) {
+      return res.status(400).json({
+        error: `El nickname "@${cleanNick}" ya está en uso por otro atleta. Por favor elige otro apodo.`,
+      });
+    }
+
+    const heightNum = typeof height === 'number' ? height : (parseFloat(height) || 175);
+    const ageNum = typeof age === 'number' ? age : (parseInt(age, 10) || 24);
+
+    const user = await prisma.user.create({
+      data: {
+        email: cleanEmail,
+        name: String(name).trim(),
+        nickname: cleanNick,
+        provider: provider === 'apple' ? 'apple' : 'google',
+        providerId: providerId ? String(providerId) : undefined,
+        avatarUrl: avatarUrl ? String(avatarUrl) : undefined,
+        streak: 0,
+        level: 1,
+        rankTitle: 'Iniciado Fitness',
+        totalXp: 0,
+      },
+    });
+
+    const userProfilePayload = {
+      name: String(name).trim(),
+      nickname: cleanNick,
+      gender: gender || 'Masculino',
+      height: heightNum,
+      birthDate: birthDate || undefined,
+      age: ageNum,
+    };
+
+    try {
+      await prisma.userData.create({
+        data: {
+          userId: user.id,
+          dataType: 'userProfile',
+          payload: JSON.stringify(userProfilePayload),
+        },
+      });
+    } catch (e) {
+      console.warn('Advertencia al crear registro de userProfile en social-register:', e);
+    }
+
+    const token = generateToken(user);
+
+    return res.status(201).json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        nickname: user.nickname,
+        provider: user.provider,
+        avatarUrl: user.avatarUrl,
+        streak: user.streak,
+        level: user.level,
+        rankTitle: user.rankTitle,
+        totalXp: user.totalXp,
+        createdAt: user.createdAt,
+      },
+      userProfile: userProfilePayload,
+    });
+  } catch (error) {
+    console.error('Error en /api/auth/social-register:', error);
+    return res.status(500).json({ error: 'Error interno al registrar usuario con proveedor social.' });
   }
 });
 
