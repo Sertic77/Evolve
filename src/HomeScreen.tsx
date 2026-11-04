@@ -36,6 +36,7 @@ import {
   ActivityLevelKey,
   ACTIVITY_LEVEL_OPTIONS,
   calculateDailyCalorieTarget,
+  calculateAgeFromBirthDate,
   UserGoal,
   GoalType,
   DayMeasurements,
@@ -2959,7 +2960,19 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const [editName, setEditName] = useState(userProfile?.name || 'Sergio Tamayo');
   const [editNick, setEditNick] = useState(userProfile?.nickname || 'Sertic77');
   const [editHeight, setEditHeight] = useState(userProfile?.height ? String(userProfile.height) : '178');
+  const [editBirthDate, setEditBirthDate] = useState(userProfile?.birthDate || '2001-08-15');
   const [editGender, setEditGender] = useState<GenderOption>(userProfile?.gender || 'Masculino');
+  const editCalculatedAge = useMemo(() => calculateAgeFromBirthDate(editBirthDate), [editBirthDate]);
+
+  useEffect(() => {
+    if (visible && userProfile) {
+      setEditName(userProfile.name || '');
+      setEditNick(userProfile.nickname || '');
+      setEditHeight(userProfile.height ? String(userProfile.height) : '');
+      setEditBirthDate(userProfile.birthDate || '2001-08-15');
+      setEditGender(userProfile.gender || 'Masculino');
+    }
+  }, [visible, userProfile]);
 
   const handleSaveCustomPalette = () => {
     if (!newPaletteName.trim() || newColors.length < 2) return;
@@ -2985,10 +2998,13 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   };
 
   const handleSaveProfile = () => {
+    const ageNum = calculateAgeFromBirthDate(editBirthDate);
     setUserProfile({
       name: editName.trim(),
       nickname: editNick.trim().replace('@', ''),
       height: editHeight.trim() ? parseFloat(editHeight) || undefined : undefined,
+      birthDate: editBirthDate.trim(),
+      age: ageNum,
       gender: editGender,
     });
   };
@@ -3648,7 +3664,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     Perfil de Usuario
                   </Text>
                   <Text style={[modalStyles.accordionDesc, { color: palette.textSub }]}>
-                    {editName} (@{editNick.replace('@', '')}) · {editGender} · {editHeight ? `${editHeight} cm` : 'Sin altura'}
+                    {editName} (@{editNick.replace('@', '')}) · {editGender} · {editHeight ? `${editHeight} cm` : 'Sin altura'} · {editCalculatedAge} años
                   </Text>
                 </View>
                 <Ionicons
@@ -3715,6 +3731,40 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     keyboardType="numeric"
                   />
 
+                  <Text style={[modalStyles.formLabel, { color: palette.textSub, marginTop: 8 }]}>
+                    Fecha de Nacimiento (AAAA-MM-DD)
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TextInput
+                      style={[
+                        modalStyles.formInput,
+                        {
+                          flex: 1,
+                          backgroundColor: palette.bg,
+                          color: palette.text,
+                          borderColor: palette.border,
+                        },
+                      ]}
+                      value={editBirthDate}
+                      onChangeText={setEditBirthDate}
+                      onBlur={handleSaveProfile}
+                      placeholder="AAAA-MM-DD (Ej. 2001-08-15)"
+                      placeholderTextColor={palette.textSub}
+                      autoCapitalize="none"
+                    />
+                    <View
+                      style={[
+                        modalStyles.ageNoticeBadge,
+                        { backgroundColor: `${palette.primary}20`, borderColor: `${palette.primary}40` },
+                      ]}
+                    >
+                      <Ionicons name="calendar-outline" size={13} color={palette.primary} />
+                      <Text style={[modalStyles.ageNoticeText, { color: palette.primary }]}>
+                        {editCalculatedAge} años
+                      </Text>
+                    </View>
+                  </View>
+
                   <Text style={[modalStyles.formLabel, { color: palette.textSub, marginTop: 12 }]}>
                     Género
                   </Text>
@@ -3741,10 +3791,13 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                           ]}
                           onPress={() => {
                             setEditGender(g);
+                            const ageNum = calculateAgeFromBirthDate(editBirthDate);
                             setUserProfile({
                               name: editName.trim(),
                               nickname: editNick.trim().replace('@', ''),
                               height: editHeight.trim() ? parseFloat(editHeight) || undefined : undefined,
+                              birthDate: editBirthDate.trim(),
+                              age: ageNum,
                               gender: g,
                             });
                           }}
@@ -5567,6 +5620,19 @@ const modalStyles = StyleSheet.create({
   genderPillText: {
     fontSize: 12,
   },
+  ageNoticeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  ageNoticeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });
 
 /* ==========================================================
@@ -6608,7 +6674,11 @@ function GoalsModal({
     userProfile?.height ? String(userProfile.height) : '178'
   );
   const [calAge, setCalAge] = useState<string>(
-    userProfile?.age ? String(userProfile.age) : '24'
+    userProfile?.age
+      ? String(userProfile.age)
+      : userProfile?.birthDate
+      ? String(calculateAgeFromBirthDate(userProfile.birthDate))
+      : '24'
   );
   const [calWeight, setCalWeight] = useState<string>(String(initialWeight));
   const [calGender, setCalGender] = useState<GenderOption>(
@@ -6619,6 +6689,26 @@ function GoalsModal({
   );
   const [calTargetMode, setCalTargetMode] = useState<'maintenance' | 'deficit' | 'surplus'>('maintenance');
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      const h = userProfile?.height ? String(userProfile.height) : '178';
+      const a = userProfile?.age
+        ? String(userProfile.age)
+        : userProfile?.birthDate
+        ? String(calculateAgeFromBirthDate(userProfile.birthDate))
+        : '24';
+      const g = userProfile?.gender || 'Masculino';
+      const act = userProfile?.activityLevel || 'moderate';
+      const w = String(currentWeight || latestWeightFromLogs);
+
+      setCalHeight(h);
+      setCalAge(a);
+      setCalGender(g);
+      setCalActivity(act);
+      setCalWeight(w);
+    }
+  }, [visible, userProfile, currentWeight]);
 
   const calendarInitialDate = useMemo(() => {
     const parts = targetDate.split('-');
@@ -6642,7 +6732,9 @@ function GoalsModal({
     mode: 'maintenance' | 'deficit' | 'surplus' = calTargetMode
   ) => {
     const h = parseFloat(hStr.replace(',', '.')) || (userProfile?.height || 178);
-    const a = parseFloat(aStr.replace(',', '.')) || (userProfile?.age || 24);
+    const a =
+      parseFloat(aStr.replace(',', '.')) ||
+      (userProfile?.age || (userProfile?.birthDate ? calculateAgeFromBirthDate(userProfile.birthDate) : 24));
     const w = parseFloat(wStr.replace(',', '.')) || initialWeight;
     const calc = calculateDailyCalorieTarget(w, h, a, g, act);
     let target = calc.tdee;
@@ -6939,7 +7031,9 @@ function GoalsModal({
     let calMetadata: any = undefined;
     if (goalType === 'calories') {
       const h = parseFloat(calHeight.replace(',', '.')) || (userProfile?.height || 178);
-      const a = parseFloat(calAge.replace(',', '.')) || (userProfile?.age || 24);
+      const a =
+        parseFloat(calAge.replace(',', '.')) ||
+        (userProfile?.age || (userProfile?.birthDate ? calculateAgeFromBirthDate(userProfile.birthDate) : 24));
       const w = parseFloat(calWeight.replace(',', '.')) || initialWeight;
       const calc = calculateDailyCalorieTarget(w, h, a, calGender, calActivity);
       calMetadata = {

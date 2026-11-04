@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,13 +17,22 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useStore, getActivePalette } from './store';
-import { apiLogin, apiRegister, apiSocialLogin, getServerUrl, setServerUrl, checkServerHealth } from './api';
+import { useStore, getActivePalette, GenderOption, calculateAgeFromBirthDate } from './store';
+import {
+  apiLogin,
+  apiRegister,
+  apiSocialLogin,
+  apiForgotPassword,
+  apiResetPassword,
+  getServerUrl,
+  setServerUrl,
+  checkServerHealth,
+} from './api';
 import EvolveLogo from './EvolveLogo';
 import { pullUserDataFromDatabase } from './syncService';
 
 export default function AuthScreen() {
-  const { activePaletteId, customPalettes, deletedPaletteIds, setAuth } = useStore();
+  const { activePaletteId, customPalettes, deletedPaletteIds, setAuth, setUserProfile } = useStore();
   const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -34,6 +43,23 @@ export default function AuthScreen() {
   const [nickname, setNickname] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Nuevos campos obligatorios de perfil atlético para registro
+  const [gender, setGender] = useState<GenderOption>('Masculino');
+  const [height, setHeight] = useState('175');
+  const [birthDate, setBirthDate] = useState('2000-05-14');
+  const calculatedAge = useMemo(() => calculateAgeFromBirthDate(birthDate), [birthDate]);
+
+  // Estados para Recuperación de Contraseña Funcional
+  const [forgotModalOpen, setForgotModalOpen] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryStep, setRecoveryStep] = useState<1 | 2>(1);
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showRecoveryPassword, setShowRecoveryPassword] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [receivedCodeHint, setReceivedCodeHint] = useState<string | null>(null);
 
   // Modal para configurar URL del servidor
   const [serverModalOpen, setServerModalOpen] = useState(false);
@@ -89,6 +115,18 @@ export default function AuthScreen() {
         Alert.alert('Nombre requerido', 'Por favor ingresa tu nombre completo.');
         return;
       }
+      if (!height.trim() || isNaN(parseFloat(height)) || parseFloat(height) < 80 || parseFloat(height) > 260) {
+        Alert.alert('Altura inválida', 'Por favor ingresa tu altura en centímetros (ej. 175).');
+        return;
+      }
+      if (!birthDate.trim() || birthDate.split('-').length !== 3) {
+        Alert.alert('Fecha de nacimiento requerida', 'Por favor ingresa tu fecha de nacimiento en formato AAAA-MM-DD.');
+        return;
+      }
+      if (calculatedAge < 10 || calculatedAge > 115) {
+        Alert.alert('Fecha inválida', 'Por favor ingresa una fecha de nacimiento válida.');
+        return;
+      }
       if (password !== confirmPassword) {
         Alert.alert('Contraseñas no coinciden', 'La confirmación de la contraseña no coincide.');
         return;
@@ -106,13 +144,26 @@ export default function AuthScreen() {
         setAuth(res.token, res.user);
         pullUserDataFromDatabase().catch(() => {});
       } else {
+        const heightNum = parseFloat(height) || 175;
         const res = await apiRegister({
           email: cleanEmail,
           password,
           name: name.trim(),
           nickname: nickname.trim() || undefined,
+          gender,
+          height: heightNum,
+          birthDate: birthDate.trim(),
+          age: calculatedAge,
         });
         setAuth(res.token, res.user);
+        setUserProfile({
+          name: name.trim(),
+          nickname: res.user.nickname || nickname.trim(),
+          gender,
+          height: heightNum,
+          birthDate: birthDate.trim(),
+          age: calculatedAge,
+        });
         pullUserDataFromDatabase().catch(() => {});
       }
     } catch (err: any) {
@@ -122,6 +173,67 @@ export default function AuthScreen() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRequestRecoveryCode = async () => {
+    const clean = recoveryEmail.trim().toLowerCase();
+    if (!clean) {
+      Alert.alert('Correo requerido', 'Por favor ingresa el correo electrónico de tu cuenta.');
+      return;
+    }
+    setRecoveryLoading(true);
+    try {
+      const res = await apiForgotPassword(clean);
+      setReceivedCodeHint(res.resetCode || null);
+      if (res.resetCode) {
+        setRecoveryCode(res.resetCode);
+      }
+      setRecoveryStep(2);
+      Alert.alert(
+        'Código de Seguridad Generado',
+        `Tu código de recuperación es:\n\n🔑 ${res.resetCode || '123456'}\n\nIngrésalo junto a tu nueva contraseña para continuar.`,
+      );
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'No se pudo generar el código.');
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    const clean = recoveryEmail.trim().toLowerCase();
+    if (!recoveryCode.trim()) {
+      Alert.alert('Código requerido', 'Por favor ingresa el código de 6 dígitos.');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      Alert.alert('Contraseña corta', 'La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert('No coinciden', 'La confirmación de la contraseña no coincide.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+    try {
+      const res = await apiResetPassword({
+        email: clean,
+        code: recoveryCode.trim(),
+        newPassword,
+      });
+
+      Alert.alert('¡Contraseña Restablecida!', res.message);
+      setForgotModalOpen(false);
+      // Prellenar en el formulario principal para entrar con un toque
+      setEmail(clean);
+      setPassword(newPassword);
+      setMode('login');
+    } catch (err: any) {
+      Alert.alert('Error al restablecer', err.message || 'No fue posible restablecer la contraseña.');
+    } finally {
+      setRecoveryLoading(false);
     }
   };
 
@@ -275,6 +387,82 @@ export default function AuthScreen() {
                     autoCapitalize="none"
                   />
                 </View>
+
+                {/* Datos Biométricos Requeridos: Género, Altura y Fecha de Nacimiento */}
+                <Text style={[styles.inputLabel, { color: palette.textSub }]}>GÉNERO BIOLÓGICO</Text>
+                <View style={styles.genderRow}>
+                  {(['Masculino', 'Femenino'] as GenderOption[]).map((g) => {
+                    const isSel = gender === g;
+                    return (
+                      <Pressable
+                        key={g}
+                        style={[
+                          styles.genderBtn,
+                          {
+                            backgroundColor: isSel ? palette.primary : palette.bg,
+                            borderColor: isSel ? palette.primary : palette.border,
+                          },
+                        ]}
+                        onPress={() => setGender(g)}
+                      >
+                        <Ionicons
+                          name={g === 'Masculino' ? 'male' : 'female'}
+                          size={15}
+                          color={isSel ? '#FFFFFF' : palette.textSub}
+                        />
+                        <Text
+                          style={[
+                            styles.genderBtnText,
+                            { color: isSel ? '#FFFFFF' : palette.text },
+                          ]}
+                        >
+                          {g}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inputLabel, { color: palette.textSub }]}>ALTURA (CM)</Text>
+                    <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                      <Ionicons name="resize-outline" size={16} color={palette.primary} />
+                      <TextInput
+                        style={[styles.textInput, { color: palette.text }]}
+                        placeholder="Ej. 178"
+                        placeholderTextColor={palette.textSub}
+                        value={height}
+                        onChangeText={setHeight}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={{ flex: 1.35 }}>
+                    <Text style={[styles.inputLabel, { color: palette.textSub }]}>
+                      FECHA DE NACIMIENTO
+                    </Text>
+                    <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                      <Ionicons name="calendar-outline" size={16} color={palette.primary} />
+                      <TextInput
+                        style={[styles.textInput, { color: palette.text }]}
+                        placeholder="2000-05-14"
+                        placeholderTextColor={palette.textSub}
+                        value={birthDate}
+                        onChangeText={setBirthDate}
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Badge informativo de edad calculada */}
+                <View style={[styles.ageBadgeRow, { backgroundColor: `${palette.primary}15`, borderColor: `${palette.primary}35` }]}>
+                  <Ionicons name="sparkles" size={14} color={palette.primary} />
+                  <Text style={[styles.ageBadgeText, { color: palette.text }]}>
+                    Edad calculada: <Text style={{ fontWeight: '900', color: palette.primary }}>{calculatedAge} años</Text> (se usará en el cálculo calórico de Metas)
+                  </Text>
+                </View>
               </>
             )}
 
@@ -313,6 +501,26 @@ export default function AuthScreen() {
                 />
               </Pressable>
             </View>
+
+            {mode === 'login' && (
+              <Pressable
+                style={styles.forgotPasswordBtn}
+                onPress={() => {
+                  setRecoveryEmail(email.trim());
+                  setRecoveryStep(1);
+                  setRecoveryCode('');
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                  setReceivedCodeHint(null);
+                  setForgotModalOpen(true);
+                }}
+              >
+                <Ionicons name="key-outline" size={14} color={palette.primary} />
+                <Text style={[styles.forgotPasswordText, { color: palette.primary }]}>
+                  ¿Olvidaste tu contraseña?
+                </Text>
+              </Pressable>
+            )}
 
             {mode === 'register' && (
               <>
@@ -467,11 +675,222 @@ export default function AuthScreen() {
           </View>
         </Modal>
       )}
+      {/* MODAL DE RECUPERACIÓN DE CONTRASEÑA FUNCIONAL */}
+      {forgotModalOpen && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setForgotModalOpen(false)}>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+              <View style={styles.modalHeader}>
+                <Ionicons name="key" size={20} color={palette.primary} />
+                <Text style={[styles.modalTitle, { color: palette.text }]}>RECUPERAR CONTRASEÑA</Text>
+              </View>
+
+              <Text style={[styles.modalSubtitle, { color: palette.textSub }]}>
+                {recoveryStep === 1
+                  ? 'Ingresa tu correo registrado para generar un código seguro de verificación.'
+                  : `Ingresa el código de 6 dígitos generado para ${recoveryEmail} y define tu nueva contraseña.`}
+              </Text>
+
+              {recoveryStep === 1 ? (
+                <>
+                  <Text style={[styles.inputLabel, { color: palette.textSub, marginTop: 14 }]}>
+                    CORREO ELECTRÓNICO REGISTRADO
+                  </Text>
+                  <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                    <Ionicons name="mail-outline" size={17} color={palette.primary} />
+                    <TextInput
+                      style={[styles.textInput, { color: palette.text }]}
+                      placeholder="tu@correo.com"
+                      placeholderTextColor={palette.textSub}
+                      value={recoveryEmail}
+                      onChangeText={setRecoveryEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+
+                  <View style={styles.modalActionRow}>
+                    <Pressable
+                      style={[styles.modalCancelBtn, { borderColor: palette.border }]}
+                      onPress={() => setForgotModalOpen(false)}
+                      disabled={recoveryLoading}
+                    >
+                      <Text style={[styles.modalCancelText, { color: palette.textSub }]}>Cancelar</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[styles.modalSaveBtn, { backgroundColor: palette.primary }]}
+                      onPress={handleRequestRecoveryCode}
+                      disabled={recoveryLoading}
+                    >
+                      {recoveryLoading ? (
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                      ) : (
+                        <Text style={styles.modalSaveText}>Solicitar Código</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <>
+                  {receivedCodeHint && (
+                    <View style={[styles.recoveryCodeCard, { backgroundColor: `${palette.primary}15`, borderColor: `${palette.primary}40` }]}>
+                      <Ionicons name="shield-checkmark" size={16} color={palette.primary} />
+                      <Text style={[styles.recoveryCodeHint, { color: palette.text }]}>
+                        Código de seguridad: <Text style={{ fontWeight: '900', color: palette.primary }}>{receivedCodeHint}</Text>
+                      </Text>
+                    </View>
+                  )}
+
+                  <Text style={[styles.inputLabel, { color: palette.textSub, marginTop: 10 }]}>
+                    CÓDIGO DE VERIFICACIÓN (6 DÍGITOS)
+                  </Text>
+                  <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                    <Ionicons name="barcode-outline" size={17} color={palette.primary} />
+                    <TextInput
+                      style={[styles.textInput, { color: palette.text, letterSpacing: 2, fontWeight: '800' }]}
+                      placeholder="123456"
+                      placeholderTextColor={palette.textSub}
+                      value={recoveryCode}
+                      onChangeText={setRecoveryCode}
+                      keyboardType="numeric"
+                      maxLength={6}
+                    />
+                  </View>
+
+                  <Text style={[styles.inputLabel, { color: palette.textSub, marginTop: 10 }]}>
+                    NUEVA CONTRASEÑA
+                  </Text>
+                  <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                    <Ionicons name="lock-closed-outline" size={17} color={palette.primary} />
+                    <TextInput
+                      style={[styles.textInput, { color: palette.text }]}
+                      placeholder="Mínimo 6 caracteres"
+                      placeholderTextColor={palette.textSub}
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      secureTextEntry={!showRecoveryPassword}
+                      autoCapitalize="none"
+                    />
+                    <Pressable onPress={() => setShowRecoveryPassword((p) => !p)} hitSlop={8}>
+                      <Ionicons
+                        name={showRecoveryPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={17}
+                        color={palette.textSub}
+                      />
+                    </Pressable>
+                  </View>
+
+                  <Text style={[styles.inputLabel, { color: palette.textSub, marginTop: 10 }]}>
+                    CONFIRMAR NUEVA CONTRASEÑA
+                  </Text>
+                  <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                    <Ionicons name="shield-checkmark-outline" size={17} color={palette.primary} />
+                    <TextInput
+                      style={[styles.textInput, { color: palette.text }]}
+                      placeholder="Repite la nueva contraseña"
+                      placeholderTextColor={palette.textSub}
+                      value={confirmNewPassword}
+                      onChangeText={setConfirmNewPassword}
+                      secureTextEntry={!showRecoveryPassword}
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  <View style={styles.modalActionRow}>
+                    <Pressable
+                      style={[styles.modalCancelBtn, { borderColor: palette.border }]}
+                      onPress={() => setRecoveryStep(1)}
+                      disabled={recoveryLoading}
+                    >
+                      <Text style={[styles.modalCancelText, { color: palette.textSub }]}>Atrás</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[styles.modalSaveBtn, { backgroundColor: palette.primary }]}
+                      onPress={handleResetPassword}
+                      disabled={recoveryLoading}
+                    >
+                      {recoveryLoading ? (
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                      ) : (
+                        <Text style={styles.modalSaveText}>Restablecer</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  forgotPasswordBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  genderRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 6,
+  },
+  genderBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  genderBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  ageBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  ageBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  recoveryCodeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  recoveryCodeHint: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   root: {
     flex: 1,
   },

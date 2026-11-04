@@ -277,7 +277,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // 1. REGISTRO CON CORREO Y CONTRASEÑA
 app.post('/api/auth/register', async (req: Request, res: Response) => {
   try {
-    const { email, password, name, nickname } = req.body;
+    const { email, password, name, nickname, gender, height, birthDate, age } = req.body;
 
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'Correo, contraseña y nombre son obligatorios.' });
@@ -317,6 +317,28 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
       },
     });
 
+    // Guardar perfil inicial con género, altura, fecha de nacimiento y edad
+    const userProfilePayload = {
+      name: String(name).trim(),
+      nickname: finalNick,
+      gender: gender || 'Masculino',
+      height: typeof height === 'number' ? height : (parseFloat(height) || 175),
+      birthDate: birthDate || undefined,
+      age: typeof age === 'number' ? age : (parseInt(age, 10) || 24),
+    };
+
+    try {
+      await prisma.userData.create({
+        data: {
+          userId: user.id,
+          dataType: 'userProfile',
+          payload: JSON.stringify(userProfilePayload),
+        },
+      });
+    } catch (e) {
+      console.warn('Advertencia al crear registro de userProfile inicial:', e);
+    }
+
     const token = generateToken(user);
 
     return res.status(201).json({
@@ -334,10 +356,107 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
         totalXp: user.totalXp,
         createdAt: user.createdAt,
       },
+      userProfile: userProfilePayload,
     });
   } catch (error) {
     console.error('Error en /api/auth/register:', error);
     return res.status(500).json({ error: 'Error interno del servidor al registrar usuario.' });
+  }
+});
+
+// Almacén en memoria para códigos de recuperación de contraseña (con expiración de 15 minutos)
+const passwordResetCodes = new Map<string, { code: string; expiresAt: number }>();
+
+// 2.1 SOLICITAR CÓDIGO DE RECUPERACIÓN DE CONTRASEÑA
+app.post('/api/auth/forgot-password', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Ingresa tu correo electrónico registrado.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+
+    if (!user) {
+      return res.status(404).json({ error: 'No existe una cuenta registrada con este correo electrónico.' });
+    }
+
+    // Generar código numérico de 6 dígitos
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutos
+
+    passwordResetCodes.set(cleanEmail, { code: resetCode, expiresAt });
+
+    console.log(`🔑 Código de recuperación generado para ${cleanEmail}: ${resetCode}`);
+
+    return res.json({
+      success: true,
+      message: 'Código de recuperación generado exitosamente.',
+      email: cleanEmail,
+      resetCode, // Proporcionado para permitir verificación inmediata en el dispositivo
+    });
+  } catch (error) {
+    console.error('Error en /api/auth/forgot-password:', error);
+    return res.status(500).json({ error: 'Error interno al procesar la solicitud de recuperación.' });
+  }
+});
+
+// 2.2 RESTABLECER CONTRASEÑA CON CÓDIGO
+app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: 'Todos los campos son obligatorios (correo, código y nueva contraseña).' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanCode = String(code).trim();
+
+    const storedEntry = passwordResetCodes.get(cleanEmail);
+    if (!storedEntry) {
+      return res.status(400).json({ error: 'No hay ninguna solicitud de recuperación activa para este correo. Solicita un nuevo código.' });
+    }
+
+    if (Date.now() > storedEntry.expiresAt) {
+      passwordResetCodes.delete(cleanEmail);
+      return res.status(400).json({ error: 'El código de recuperación ha expirado. Por favor solicita uno nuevo.' });
+    }
+
+    if (storedEntry.code !== cleanCode) {
+      return res.status(400).json({ error: 'El código de recuperación es incorrecto. Verifica los 6 dígitos ingresados.' });
+    }
+
+    // Verificar que el usuario exista
+    const user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    // Hashear y actualizar nueva contraseña
+    const passwordHash = await bcrypt.hash(String(newPassword), 10);
+    await prisma.user.update({
+      where: { email: cleanEmail },
+      data: { passwordHash },
+    });
+
+    // Invalidar el código usado
+    passwordResetCodes.delete(cleanEmail);
+
+    console.log(`✅ Contraseña actualizada con éxito para: ${cleanEmail}`);
+
+    return res.json({
+      success: true,
+      message: 'Tu contraseña ha sido restablecida con éxito. Ya puedes iniciar sesión con tu nueva contraseña.',
+    });
+  } catch (error) {
+    console.error('Error en /api/auth/reset-password:', error);
+    return res.status(500).json({ error: 'Error interno al restablecer la contraseña.' });
   }
 });
 
@@ -1628,6 +1747,6 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log(`📡 Red Móvil:   http://0.0.0.0:${PORT}`);
   console.log(`===============================================`);
 
-  // Ejecutar seed de atletas de la comunidad
-  await seedCommunityAthletes();
+  // Seed de comunidad desactivado (solo usuarios registrados en base de datos)
+  // await seedCommunityAthletes();
 });

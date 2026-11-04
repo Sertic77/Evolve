@@ -79,7 +79,11 @@ export async function apiRegister(payload: {
   password: string;
   name: string;
   nickname?: string;
-}): Promise<AuthResponse> {
+  gender?: string;
+  height?: number;
+  birthDate?: string;
+  age?: number;
+}): Promise<AuthResponse & { userProfile?: any }> {
   const res = await fetch(`${getServerUrl()}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -89,6 +93,43 @@ export async function apiRegister(payload: {
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || 'Error al registrar la cuenta.');
+  }
+  return data;
+}
+
+export async function apiForgotPassword(email: string): Promise<{
+  success: boolean;
+  message: string;
+  email: string;
+  resetCode?: string;
+}> {
+  const res = await fetch(`${getServerUrl()}/api/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'No fue posible solicitar el código de recuperación.');
+  }
+  return data;
+}
+
+export async function apiResetPassword(payload: {
+  email: string;
+  code: string;
+  newPassword: string;
+}): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${getServerUrl()}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'No fue posible restablecer la contraseña.');
   }
   return data;
 }

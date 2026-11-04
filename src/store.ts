@@ -136,15 +136,35 @@ export type UserProfile = {
   nickname: string;
   height?: number; // en cm
   age?: number; // en años
+  birthDate?: string; // YYYY-MM-DD
   gender?: GenderOption;
   activityLevel?: ActivityLevelKey;
   avatarUri?: string;
 };
 
+export function calculateAgeFromBirthDate(birthDateStr?: string): number {
+  if (!birthDateStr) return 24;
+  const parts = birthDateStr.split('-');
+  if (parts.length !== 3) return 24;
+  const birthYear = parseInt(parts[0], 10);
+  const birthMonth = parseInt(parts[1], 10) - 1;
+  const birthDay = parseInt(parts[2], 10);
+  if (isNaN(birthYear) || isNaN(birthMonth) || isNaN(birthDay)) return 24;
+
+  const today = new Date();
+  let age = today.getFullYear() - birthYear;
+  const m = today.getMonth() - birthMonth;
+  if (m < 0 || (m === 0 && today.getDate() < birthDay)) {
+    age--;
+  }
+  return Math.max(1, age);
+}
+
 export const DEFAULT_USER_PROFILE: UserProfile = {
   name: 'Sergio Tamayo',
   nickname: 'Sertic77',
   height: 178,
+  birthDate: '2001-08-15',
   age: 24,
   gender: 'Masculino',
   activityLevel: 'moderate',
