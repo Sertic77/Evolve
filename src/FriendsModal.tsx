@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Switch,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,7 +30,7 @@ import {
   SEED_EXERCISES,
 } from './store';
 import { getServerUrl, apiGetFriendRequests, apiGetUserFullProfile } from './api';
-import { syncSocialFromDatabase } from './syncService';
+import { syncSocialFromDatabase, flushPendingSync } from './syncService';
 
 /* ==========================================================
    TIPOS DE ENTRENAMIENTO & GRUPOS MUSCULARES
@@ -573,7 +574,10 @@ export function FriendsModal({
                       {/* Botón 1: Observar (Ver Perfil y Métricas Completas) */}
                       <TouchableOpacity
                         activeOpacity={0.8}
-                        onPress={() => setSelectedFriendForProfile(friend)}
+                        onPress={() => {
+                          flushPendingSync().catch(() => {});
+                          setSelectedFriendForProfile(friend);
+                        }}
                         style={[
                           styles.actionBtnObservar,
                           {
@@ -951,35 +955,38 @@ function FriendProfileObserverModal({
   bodyFont?: string;
   dataFont?: string;
 }) {
-  const [realProfile, setRealProfile] = useState<FriendFullProfile | null>(friend.fullProfile || null);
-  const [loadingRealProfile, setLoadingRealProfile] = useState(false);
+  const [realProfile, setRealProfile] = useState<FriendFullProfile | null>(null);
+  const [loadingRealProfile, setLoadingRealProfile] = useState(true);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string>('');
+
+  const fetchLiveProfile = useCallback(async (isInitial = false) => {
+    const target = friend?.nickname || friend?.id;
+    if (!target) return;
+    if (isInitial) setLoadingRealProfile(true);
+    try {
+      const res = await apiGetUserFullProfile(target);
+      if (res.success && res.fullProfile) {
+        setRealProfile(res.fullProfile);
+        setLastRefreshedAt(
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        );
+      }
+    } catch (err: any) {
+      console.log('Error al consultar perfil en vivo:', err.message);
+    } finally {
+      setLoadingRealProfile(false);
+    }
+  }, [friend?.id, friend?.nickname]);
 
   useEffect(() => {
-    if (!visible || !friend) return;
-    if (friend.fullProfile) {
-      setRealProfile(friend.fullProfile);
+    if (visible && friend) {
+      // Cada vez que se da clic en Observar, ejecutamos una consulta limpia e inmediata a la BD
+      fetchLiveProfile(true);
+    } else {
+      setRealProfile(null);
+      setLoadingRealProfile(true);
     }
-    let isMounted = true;
-    setLoadingRealProfile(true);
-    const target = friend.nickname || friend.id;
-    if (target) {
-      apiGetUserFullProfile(target)
-        .then((res) => {
-          if (isMounted && res.success && res.fullProfile) {
-            setRealProfile(res.fullProfile);
-          }
-        })
-        .catch((err) => {
-          console.log('Perfil en tiempo real:', err.message);
-        })
-        .finally(() => {
-          if (isMounted) setLoadingRealProfile(false);
-        });
-    }
-    return () => {
-      isMounted = false;
-    };
-  }, [visible, friend?.id, friend?.nickname]);
+  }, [visible, friend?.id, friend?.nickname, fetchLiveProfile]);
 
   const profile = realProfile || friend.fullProfile || getFriendFullProfile(friend);
   const [activeProfileTab, setActiveProfileTab] = useState<
@@ -1008,12 +1015,19 @@ function FriendProfileObserverModal({
                 </View>
               )}
               <View style={{ flex: 1 }}>
-                <View style={styles.observerPill}>
-                  <Ionicons name="eye" size={12} color="#10B981" style={{ marginRight: 4 }} />
-                  <Text style={styles.observerPillText}>MODO OBSERVADOR EN VIVO</Text>
-                  {loadingRealProfile && (
-                    <ActivityIndicator size="small" color="#10B981" style={{ marginLeft: 6, transform: [{ scale: 0.7 }] }} />
-                  )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <View style={styles.observerPill}>
+                    <Ionicons name="eye" size={12} color="#10B981" style={{ marginRight: 4 }} />
+                    <Text style={styles.observerPillText}>MODO OBSERVADOR EN VIVO</Text>
+                    {loadingRealProfile && (
+                      <ActivityIndicator size="small" color="#10B981" style={{ marginLeft: 6, transform: [{ scale: 0.7 }] }} />
+                    )}
+                  </View>
+                  {lastRefreshedAt ? (
+                    <Text style={{ fontSize: 10, color: '#10B981', fontWeight: '700' }}>
+                      {lastRefreshedAt}
+                    </Text>
+                  ) : null}
                 </View>
                 <Text style={[styles.profileHeaderTitle, { color: palette.text, fontFamily: titleFont }]} numberOfLines={1}>
                   {friend.name}
@@ -1023,9 +1037,29 @@ function FriendProfileObserverModal({
                 </Text>
               </View>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeIconBtn} hitSlop={10}>
-              <Ionicons name="close" size={24} color={palette.textSub} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => fetchLiveProfile(true)}
+                style={[
+                  styles.refreshIconBtn,
+                  {
+                    backgroundColor: palette.isDark ? '#0F172A' : '#F1F5F9',
+                    borderColor: palette.border,
+                  },
+                ]}
+                hitSlop={8}
+                disabled={loadingRealProfile}
+              >
+                <Ionicons
+                  name="sync"
+                  size={16}
+                  color={loadingRealProfile ? c1 : palette.textSub}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onClose} style={styles.closeIconBtn} hitSlop={10}>
+                <Ionicons name="close" size={24} color={palette.textSub} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Banner de Personalización de Tema del Amigo */}
@@ -1095,7 +1129,18 @@ function FriendProfileObserverModal({
             })}
           </ScrollView>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={loadingRealProfile}
+                onRefresh={() => fetchLiveProfile(false)}
+                colors={[c1]}
+                tintColor={c1}
+              />
+            }
+          >
             {/* SI LA SECCIÓN ESTÁ BLOQUEADA POR PRIVACIDAD */}
             {!isSectionPublic ? (
               <View style={[styles.lockedSectionBox, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
@@ -3879,6 +3924,14 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  refreshIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
   },
   closeIconBtn: {
     padding: 4,

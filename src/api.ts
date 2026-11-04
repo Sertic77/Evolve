@@ -355,12 +355,17 @@ export async function apiGetUserFullProfile(
   token?: string,
 ): Promise<{ success: boolean; user: any; fullProfile: any }> {
   const clean = targetIdOrNickname.replace('@', '').trim();
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+  };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${getServerUrl()}/api/users/${encodeURIComponent(clean)}/full-profile`, {
+  const timestamp = Date.now();
+  const res = await fetch(`${getServerUrl()}/api/users/${encodeURIComponent(clean)}/full-profile?_t=${timestamp}`, {
     method: 'GET',
     headers,
   });

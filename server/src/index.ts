@@ -1222,6 +1222,11 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
 // ENDPOINT PARA OBTENER EL PERFIL COMPLETO REAL DE UN USUARIO / AMIGO
 app.get('/api/users/:target/full-profile', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+
     const { target } = req.params;
     if (!target) return res.status(400).json({ error: 'Falta identificador de usuario' });
 
