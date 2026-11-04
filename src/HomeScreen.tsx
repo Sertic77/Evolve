@@ -1376,8 +1376,8 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 style={[
                   styles.metasLBaseCard,
                   {
-                    backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.5),
-                    borderColor: getPaletteColorWithAlpha(palette.primary, 0.4),
+                    backgroundColor: getPaletteColorWithAlpha(palette.secondary, 0.5),
+                    borderColor: getPaletteColorWithAlpha(palette.secondary, 0.4),
                     borderWidth: 1,
                     borderRadius: 18,
                     borderTopLeftRadius: 18,

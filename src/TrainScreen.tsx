@@ -28,6 +28,7 @@ import {
   WorkoutExercise,
   WorkoutSet,
   getActivePalette,
+  SEED_EXERCISES,
 } from './store';
 import { DateSelector, PrimaryButton, s } from './components';
 
@@ -241,8 +242,31 @@ export default function TrainScreen() {
   const [date, setDate] = useState(new Date());
   const key = dateKey(date);
 
-  const { exercises, workoutLogs, setDayWorkout, upsertExercise, activePaletteId, customPalettes } = useStore();
+  const { exercises: storedExercises, workoutLogs, setDayWorkout, upsertExercise, activePaletteId, customPalettes } = useStore();
   const palette = getActivePalette({ activePaletteId, customPalettes });
+
+  // Fusionar ejercicios predeterminados de la app con los ejercicios del usuario
+  const exercises = useMemo(() => {
+    const map = new Map();
+    SEED_EXERCISES.forEach((seed) => {
+      map.set(seed.name.toLowerCase().trim(), seed);
+    });
+    (storedExercises || []).forEach((ex) => {
+      map.set(ex.name.toLowerCase().trim(), ex);
+    });
+    return Array.from(map.values());
+  }, [storedExercises]);
+
+  // Sincronizar en segundo plano los nuevos ejercicios predeterminados si faltan en el store local
+  useEffect(() => {
+    const existingNames = new Set((storedExercises || []).map((e) => e.name.toLowerCase().trim()));
+    SEED_EXERCISES.forEach((seed) => {
+      if (!existingNames.has(seed.name.toLowerCase().trim())) {
+        upsertExercise(seed);
+      }
+    });
+  }, [storedExercises, upsertExercise]);
+
   const dayExercises = workoutLogs[key] ?? [];
 
   // Ejercicio seleccionado para ver estadísticas detalladas (null = rotación automática)
@@ -2139,11 +2163,15 @@ function ExercisePickerModal({
   const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
 
   const [query, setQuery] = useState('');
+  const [selectedMuscle, setSelectedMuscle] = useState('Todos');
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return exercises;
-    return exercises.filter((e) => e.name.toLowerCase().includes(query.toLowerCase().trim()));
-  }, [exercises, query]);
+    return exercises.filter((e) => {
+      const matchesQuery = !query.trim() || e.name.toLowerCase().includes(query.toLowerCase().trim());
+      const matchesMuscle = selectedMuscle === 'Todos' || e.muscleGroup === selectedMuscle;
+      return matchesQuery && matchesMuscle;
+    });
+  }, [exercises, query, selectedMuscle]);
 
   const exactMatch = exercises.some((e) => e.name.toLowerCase().trim() === query.toLowerCase().trim());
 
@@ -2181,6 +2209,46 @@ function ExercisePickerModal({
                   autoCorrect={false}
                   clearButtonMode="while-editing"
                 />
+              </View>
+
+              {/* Chips de filtro por grupo muscular */}
+              <View style={{ marginBottom: 10 }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+                >
+                  {MUSCLE_GROUPS.map((group) => {
+                    const isSel = selectedMuscle === group;
+                    return (
+                      <Pressable
+                        key={group}
+                        onPress={() => setSelectedMuscle(group)}
+                        style={({ pressed }) => [
+                          {
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 16,
+                            backgroundColor: isSel ? palette.primary : `${palette.primary}15`,
+                            borderWidth: 1,
+                            borderColor: isSel ? palette.primary : `${palette.primary}30`,
+                            opacity: pressed ? 0.75 : 1,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: isSel ? '700' : '600',
+                            color: isSel ? '#FFFFFF' : palette.text,
+                          }}
+                        >
+                          {group}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
               </View>
 
               {query.trim().length > 0 && !exactMatch && (

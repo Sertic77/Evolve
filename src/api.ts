@@ -350,6 +350,28 @@ export async function apiGetUsers(token?: string, query?: string): Promise<DbUse
   return data.users || [];
 }
 
+export async function apiGetUserFullProfile(
+  targetIdOrNickname: string,
+  token?: string,
+): Promise<{ success: boolean; user: any; fullProfile: any }> {
+  const clean = targetIdOrNickname.replace('@', '').trim();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${getServerUrl()}/api/users/${encodeURIComponent(clean)}/full-profile`, {
+    method: 'GET',
+    headers,
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al obtener perfil completo del usuario.');
+  }
+  return data;
+}
+
 export async function apiAddFriend(
   token: string,
   payload: { friendId?: string; friendNickname?: string },

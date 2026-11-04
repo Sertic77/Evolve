@@ -15,6 +15,7 @@ let isInitialized = false;
 
 // Llaves de datos del usuario que se deben guardar en la base de datos (UserData)
 export const USER_DATA_SYNC_KEYS = [
+  'goals',
   'ingredients',
   'savedMeals',
   'logs',

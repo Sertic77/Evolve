@@ -11,6 +11,7 @@ import {
   Platform,
   Switch,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,12 +22,13 @@ import {
   ColorPalette,
   DISCOVERABLE_USERS,
   getFriendFullProfile,
+  FriendFullProfile,
   SectionPrivacySettings,
   ChallengeDetails,
   ChallengeVariable,
   SEED_EXERCISES,
 } from './store';
-import { getServerUrl, apiGetFriendRequests } from './api';
+import { getServerUrl, apiGetFriendRequests, apiGetUserFullProfile } from './api';
 import { syncSocialFromDatabase } from './syncService';
 
 /* ==========================================================
@@ -949,7 +951,37 @@ function FriendProfileObserverModal({
   bodyFont?: string;
   dataFont?: string;
 }) {
-  const profile = getFriendFullProfile(friend);
+  const [realProfile, setRealProfile] = useState<FriendFullProfile | null>(friend.fullProfile || null);
+  const [loadingRealProfile, setLoadingRealProfile] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !friend) return;
+    if (friend.fullProfile) {
+      setRealProfile(friend.fullProfile);
+    }
+    let isMounted = true;
+    setLoadingRealProfile(true);
+    const target = friend.nickname || friend.id;
+    if (target) {
+      apiGetUserFullProfile(target)
+        .then((res) => {
+          if (isMounted && res.success && res.fullProfile) {
+            setRealProfile(res.fullProfile);
+          }
+        })
+        .catch((err) => {
+          console.log('Perfil en tiempo real:', err.message);
+        })
+        .finally(() => {
+          if (isMounted) setLoadingRealProfile(false);
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [visible, friend?.id, friend?.nickname]);
+
+  const profile = realProfile || friend.fullProfile || getFriendFullProfile(friend);
   const [activeProfileTab, setActiveProfileTab] = useState<
     'home' | 'workout' | 'food' | 'wellness' | 'measurements'
   >('home');
@@ -978,7 +1010,10 @@ function FriendProfileObserverModal({
               <View style={{ flex: 1 }}>
                 <View style={styles.observerPill}>
                   <Ionicons name="eye" size={12} color="#10B981" style={{ marginRight: 4 }} />
-                  <Text style={styles.observerPillText}>MODO OBSERVADOR</Text>
+                  <Text style={styles.observerPillText}>MODO OBSERVADOR EN VIVO</Text>
+                  {loadingRealProfile && (
+                    <ActivityIndicator size="small" color="#10B981" style={{ marginLeft: 6, transform: [{ scale: 0.7 }] }} />
+                  )}
                 </View>
                 <Text style={[styles.profileHeaderTitle, { color: palette.text, fontFamily: titleFont }]} numberOfLines={1}>
                   {friend.name}
