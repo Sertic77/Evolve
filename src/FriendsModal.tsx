@@ -1945,7 +1945,7 @@ function InviteWorkoutModal({
 /* ==========================================================
    COMPONENTE: SELECTOR DE FECHA EN CALENDARIO
 ========================================================== */
-function CalendarDatePickerModal({
+export function CalendarDatePickerModal({
   visible,
   initialDate,
   onClose,

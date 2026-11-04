@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -46,7 +46,7 @@ import {
   SEED_FRIENDS,
 } from './store';
 import { pushUserDataToDatabase, pullUserDataFromDatabase } from './syncService';
-import { FriendsModal } from './FriendsModal';
+import { FriendsModal, CalendarDatePickerModal } from './FriendsModal';
 
 const COLOR_SWATCHES = [
   '#8B5CF6', // Lavanda
@@ -1171,10 +1171,10 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                   borderColor: palette.primary,
                   borderWidth: 0,
                   borderRadius: 18,
-                  borderBottomLeftRadius: activeGoals.length > 0 && isMetasExpanded ? 0 : 18,
-                  borderBottomRightRadius: activeGoals.length > 0 && isMetasExpanded ? 0 : 18,
+                  borderBottomLeftRadius: 18,
+                  borderBottomRightRadius: 18,
                   borderBottomWidth: 0,
-                  paddingBottom: activeGoals.length > 0 && isMetasExpanded ? 24 : 13,
+                  paddingBottom: 13,
                   shadowOpacity: 0,
                   elevation: 0,
                 },
@@ -1371,15 +1371,15 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 style={[
                   styles.metasLBaseCard,
                   {
-                    backgroundColor: palette.primary,
-                    borderColor: palette.primary,
-                    borderWidth: 0,
-                    borderTopWidth: 0,
-                    borderTopLeftRadius: 0,
+                    backgroundColor: getPaletteColorWithAlpha(palette.primary, 0.5),
+                    borderColor: getPaletteColorWithAlpha(palette.primary, 0.4),
+                    borderWidth: 1,
+                    borderRadius: 18,
+                    borderTopLeftRadius: 18,
                     borderTopRightRadius: 18,
                     borderBottomLeftRadius: 18,
                     borderBottomRightRadius: 18,
-                    marginTop: -1,
+                    marginTop: 8,
                     padding: 15,
                     shadowOpacity: 0.08,
                     elevation: 2,
@@ -4556,14 +4556,13 @@ const styles = StyleSheet.create({
   },
   metasLBaseCard: {
     width: '100%',
-    borderTopLeftRadius: 0,
+    borderRadius: 18,
+    borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     borderBottomLeftRadius: 18,
     borderBottomRightRadius: 18,
     borderWidth: 1,
-    borderTopWidth: 0,
-    borderTopColor: 'transparent',
-    marginTop: -2,
+    marginTop: 8,
     padding: 13,
     shadowColor: '#000',
     shadowOpacity: 0.08,
@@ -6619,6 +6618,20 @@ function GoalsModal({
     userProfile?.activityLevel || 'moderate'
   );
   const [calTargetMode, setCalTargetMode] = useState<'maintenance' | 'deficit' | 'surplus'>('maintenance');
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+
+  const calendarInitialDate = useMemo(() => {
+    const parts = targetDate.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return new Date(y, m, d);
+      }
+    }
+    return new Date();
+  }, [targetDate]);
 
   const recalculateCalories = (
     hStr: string,
@@ -7595,25 +7608,43 @@ function GoalsModal({
                   </View>
                 </View>
 
-                {/* Fecha Límite */}
+                {/* Botón moderno de Calendario para escoger la fecha objetivo */}
                 <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 14 }]}>
-                  Fecha Objetivo (AAAA-MM-DD)
+                  Fecha Objetivo
                 </Text>
-                <TextInput
-                  value={targetDate}
-                  onChangeText={setTargetDate}
-                  placeholder="2026-02-14"
-                  placeholderTextColor={palette.textSub}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setShowCalendarPicker(true)}
                   style={[
-                    goalModalStyles.textInput,
+                    goalModalStyles.calendarDateCardBtn,
                     {
-                      color: palette.text,
-                      backgroundColor: palette.bg,
-                      borderColor: palette.border,
-                      fontFamily: dataFont,
+                      backgroundColor: `${c1}15`,
+                      borderColor: c1,
                     },
                   ]}
-                />
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <View
+                      style={[
+                        goalModalStyles.calendarIconCircle,
+                        {
+                          backgroundColor: c1,
+                        },
+                      ]}
+                    >
+                      <Ionicons name="calendar" size={18} color="#FFFFFF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[goalModalStyles.calendarCardTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                        {formatGoalDate(targetDate)}
+                      </Text>
+                      <Text style={[goalModalStyles.calendarCardSub, { color: palette.textSub, fontFamily: bodyFont }]}>
+                        {getGoalDaysRemaining(targetDate).text} · Toca para abrir calendario
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={c1} />
+                </TouchableOpacity>
 
                 {/* Atajos de Fecha */}
                 <View style={goalModalStyles.quickDateRow}>
@@ -7859,6 +7890,25 @@ function GoalsModal({
             )}
           </ScrollView>
         </View>
+
+        {/* Modal Selector de Calendario para la Fecha Objetivo */}
+        <CalendarDatePickerModal
+          visible={showCalendarPicker}
+          initialDate={calendarInitialDate}
+          onClose={() => setShowCalendarPicker(false)}
+          onSelectDate={(_dateStr, chosenObj) => {
+            const y = chosenObj.getFullYear();
+            const m = String(chosenObj.getMonth() + 1).padStart(2, '0');
+            const d = String(chosenObj.getDate()).padStart(2, '0');
+            setTargetDate(`${y}-${m}-${d}`);
+            setShowCalendarPicker(false);
+          }}
+          palette={palette}
+          primaryColor={c1}
+          titleFont={titleFont}
+          subtitleFont={subtitleFont}
+          bodyFont={bodyFont}
+        />
       </View>
     </Modal>
   );
@@ -8339,6 +8389,30 @@ const goalModalStyles = StyleSheet.create({
   calcHudDivider: {
     width: 1,
     height: 30,
+  },
+  calendarDateCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  calendarIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  calendarCardSub: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });
 
