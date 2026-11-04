@@ -1377,30 +1377,97 @@ const SEED_INGREDIENTS: Ingredient[] = [
   { id: 'seed-oats', name: 'Avena', servingGrams: 40, kcal: 150, protein: 5, carbs: 27, fat: 3, sugar: 0.8, unit: 'g' },
 ];
 
-const SEED_EXERCISES: Exercise[] = [
+export const SEED_EXERCISES: Exercise[] = [
+  // --- PECHO ---
   { id: 'ex-bench', name: 'Press de Banca Plano', muscleGroup: 'Pecho' },
-  { id: 'ex-squat', name: 'Sentadilla con Barra', muscleGroup: 'Piernas' },
-  { id: 'ex-deadlift', name: 'Peso Muerto', muscleGroup: 'Espalda' },
-  { id: 'ex-run', name: 'Correr / Trote', muscleGroup: 'Cardio', type: 'time' },
-  { id: 'ex-bike', name: 'Bicicleta / AirBike', muscleGroup: 'Cardio', type: 'time' },
-  { id: 'ex-rower', name: 'Remo / Rower', muscleGroup: 'CrossFit', type: 'time' },
-  { id: 'ex-burpee', name: 'Burpees / WOD', muscleGroup: 'CrossFit', type: 'time' },
-  { id: 'ex-plank', name: 'Plancha Abdominal', muscleGroup: 'Core', type: 'time' },
-  { id: 'ex-pullup', name: 'Dominadas', muscleGroup: 'Espalda' },
-  { id: 'ex-military', name: 'Press Militar', muscleGroup: 'Hombros' },
-  { id: 'ex-curl', name: 'Curl de Bíceps', muscleGroup: 'Brazos' },
-  { id: 'ex-dips', name: 'Fondos en Paralelas', muscleGroup: 'Pecho' },
-  { id: 'ex-press', name: 'Prensa de Piernas', muscleGroup: 'Piernas' },
+  { id: 'ex-incline-bench', name: 'Press de Banca Inclinado', muscleGroup: 'Pecho' },
+  { id: 'ex-decline-bench', name: 'Press de Banca Declinado', muscleGroup: 'Pecho' },
+  { id: 'ex-dumbbell-bench', name: 'Press Plano con Mancuernas', muscleGroup: 'Pecho' },
+  { id: 'ex-dumbbell-incline', name: 'Press Inclinado con Mancuernas', muscleGroup: 'Pecho' },
+  { id: 'ex-chest-fly', name: 'Aperturas con Mancuernas', muscleGroup: 'Pecho' },
+  { id: 'ex-cable-crossover', name: 'Cruces en Polea (Crossover)', muscleGroup: 'Pecho' },
+  { id: 'ex-dips', name: 'Fondos en Paralelas (Pecho)', muscleGroup: 'Pecho' },
+  { id: 'ex-pushup-chest', name: 'Flexiones de Pecho (Push-ups)', muscleGroup: 'Pecho' },
+  { id: 'ex-pec-deck', name: 'Peck Deck / Contractora', muscleGroup: 'Pecho' },
 
-  // Calistenia
+  // --- ESPALDA ---
+  { id: 'ex-deadlift', name: 'Peso Muerto Convencional', muscleGroup: 'Espalda' },
+  { id: 'ex-pullup', name: 'Dominadas Pronas (Pull-ups)', muscleGroup: 'Espalda' },
+  { id: 'ex-chinup', name: 'Dominadas Supinas (Chin-ups)', muscleGroup: 'Espalda' },
+  { id: 'ex-lat-pulldown', name: 'Jalón al Pecho en Polea', muscleGroup: 'Espalda' },
+  { id: 'ex-barbell-row', name: 'Remo con Barra 90°/45°', muscleGroup: 'Espalda' },
+  { id: 'ex-dumbbell-row', name: 'Remo Unilateral con Mancuerna', muscleGroup: 'Espalda' },
+  { id: 'ex-cable-row', name: 'Remo en Polea Baja (Gironda)', muscleGroup: 'Espalda' },
+  { id: 'ex-tbar-row', name: 'Remo en Barra T', muscleGroup: 'Espalda' },
+  { id: 'ex-pullover-lat', name: 'Pullover en Polea Alta', muscleGroup: 'Espalda' },
+  { id: 'ex-hyperextension', name: 'Hiperextensiones Lumbares', muscleGroup: 'Espalda' },
+
+  // --- PIERNAS ---
+  { id: 'ex-squat', name: 'Sentadilla Trasera con Barra', muscleGroup: 'Piernas' },
+  { id: 'ex-front-squat', name: 'Sentadilla Frontal', muscleGroup: 'Piernas' },
+  { id: 'ex-press', name: 'Prensa de Piernas 45°', muscleGroup: 'Piernas' },
+  { id: 'ex-hack-squat', name: 'Sentadilla Hack', muscleGroup: 'Piernas' },
+  { id: 'ex-bulgarian-squat', name: 'Sentadilla Búlgara con Mancuernas', muscleGroup: 'Piernas' },
+  { id: 'ex-leg-extension', name: 'Extensión de Cuádriceps', muscleGroup: 'Piernas' },
+  { id: 'ex-romanian-deadlift', name: 'Peso Muerto Rumano (RDL)', muscleGroup: 'Piernas' },
+  { id: 'ex-leg-curl-lying', name: 'Curl Femoral Tumbado', muscleGroup: 'Piernas' },
+  { id: 'ex-leg-curl-seated', name: 'Curl Femoral Sentado', muscleGroup: 'Piernas' },
+  { id: 'ex-hip-thrust', name: 'Hip Thrust con Barra (Glúteos)', muscleGroup: 'Piernas' },
+  { id: 'ex-lunges', name: 'Zancadas / Desplantes Caminando', muscleGroup: 'Piernas' },
+  { id: 'ex-calf-raise-standing', name: 'Elevación de Talones de Pie (Gemelos)', muscleGroup: 'Piernas' },
+  { id: 'ex-calf-raise-seated', name: 'Elevación de Talones Sentado (Sóleo)', muscleGroup: 'Piernas' },
+  { id: 'ex-abductor-machine', name: 'Abductores en Máquina', muscleGroup: 'Piernas' },
+
+  // --- HOMBROS ---
+  { id: 'ex-military', name: 'Press Militar con Barra (OHP)', muscleGroup: 'Hombros' },
+  { id: 'ex-dumbbell-shoulder-press', name: 'Press de Hombros con Mancuernas', muscleGroup: 'Hombros' },
+  { id: 'ex-arnold-press', name: 'Press Arnold', muscleGroup: 'Hombros' },
+  { id: 'ex-lateral-raise-db', name: 'Elevaciones Laterales con Mancuernas', muscleGroup: 'Hombros' },
+  { id: 'ex-lateral-raise-cable', name: 'Elevaciones Laterales en Polea', muscleGroup: 'Hombros' },
+  { id: 'ex-rear-delt-fly', name: 'Pájaros / Deltoides Posterior', muscleGroup: 'Hombros' },
+  { id: 'ex-face-pull', name: 'Face Pull en Polea con Cuerda', muscleGroup: 'Hombros' },
+  { id: 'ex-upright-row', name: 'Remo al Mentón con Barra Z', muscleGroup: 'Hombros' },
+  { id: 'ex-shrugs', name: 'Encogimientos de Hombros (Trapecio)', muscleGroup: 'Hombros' },
+
+  // --- BRAZOS ---
+  { id: 'ex-curl', name: 'Curl de Bíceps con Barra Z', muscleGroup: 'Brazos' },
+  { id: 'ex-bicep-curl-db', name: 'Curl Alterno con Mancuernas', muscleGroup: 'Brazos' },
+  { id: 'ex-hammer-curl', name: 'Curl Martillo (Braquial)', muscleGroup: 'Brazos' },
+  { id: 'ex-preacher-curl', name: 'Curl en Banco Scott / Predicador', muscleGroup: 'Brazos' },
+  { id: 'ex-incline-db-curl', name: 'Curl Inclinado con Mancuernas', muscleGroup: 'Brazos' },
+  { id: 'ex-tricep-pushdown', name: 'Extensión de Tríceps en Polea (Cuerda/Barra)', muscleGroup: 'Brazos' },
+  { id: 'ex-skull-crusher', name: 'Press Francés con Barra Z', muscleGroup: 'Brazos' },
+  { id: 'ex-overhead-tricep', name: 'Extensión sobre la Cabeza (Copa Mancuerna)', muscleGroup: 'Brazos' },
+  { id: 'ex-dips-bench', name: 'Fondos entre Bancos / Paralelas (Tríceps)', muscleGroup: 'Brazos' },
+
+  // --- CORE / ABDOMEN ---
+  { id: 'ex-plank', name: 'Plancha Abdominal Estática', muscleGroup: 'Core', type: 'time' },
+  { id: 'ex-hanging-leg-raise', name: 'Elevación de Piernas Colgado', muscleGroup: 'Core' },
+  { id: 'ex-ab-wheel', name: 'Rueda Abdominal (Ab Wheel)', muscleGroup: 'Core' },
+  { id: 'ex-crunch', name: 'Crunch Abdominal / Encogimientos', muscleGroup: 'Core' },
+  { id: 'ex-cable-woodchopper', name: 'Woodchopper en Polea (Oblicuos)', muscleGroup: 'Core' },
+  { id: 'ex-russian-twist', name: 'Giros Rusos (Russian Twists)', muscleGroup: 'Core' },
+
+  // --- CALISTENIA ---
   { id: 'ex-calis-pullup', name: 'Dominadas Estrictas', muscleGroup: 'Calistenia' },
   { id: 'ex-calis-dips', name: 'Fondos en Paralelas (Dips)', muscleGroup: 'Calistenia' },
   { id: 'ex-calis-muscleup', name: 'Muscle-Up en Barra', muscleGroup: 'Calistenia' },
   { id: 'ex-calis-pushup', name: 'Flexiones / Push-ups', muscleGroup: 'Calistenia' },
   { id: 'ex-calis-frontlever', name: 'Front Lever Estático', muscleGroup: 'Calistenia', type: 'time' },
   { id: 'ex-calis-handstand', name: 'Parada de Manos / Handstand', muscleGroup: 'Calistenia', type: 'time' },
+  { id: 'ex-calis-pistol', name: 'Pistol Squat (Una pierna)', muscleGroup: 'Calistenia' },
 
-  // Deportes
+  // --- CARDIO & CROSSFIT ---
+  { id: 'ex-run', name: 'Correr / Running', muscleGroup: 'Cardio', type: 'time' },
+  { id: 'ex-bike', name: 'Bicicleta / AirBike', muscleGroup: 'Cardio', type: 'time' },
+  { id: 'ex-rower', name: 'Remo Ergómetro (Rower)', muscleGroup: 'CrossFit', type: 'time' },
+  { id: 'ex-burpee', name: 'Burpees', muscleGroup: 'CrossFit' },
+  { id: 'ex-jump-rope', name: 'Salto a la Cuerda / Comba', muscleGroup: 'Cardio', type: 'time' },
+  { id: 'ex-kettlebell-swing', name: 'Kettlebell Swings', muscleGroup: 'CrossFit' },
+  { id: 'ex-box-jump', name: 'Saltos al Cajón (Box Jumps)', muscleGroup: 'CrossFit' },
+  { id: 'ex-thruster', name: 'Thrusters con Barra', muscleGroup: 'CrossFit' },
+
+  // --- DEPORTES ---
   { id: 'ex-sport-basket', name: 'Baloncesto / Basketball', muscleGroup: 'Deporte', type: 'time' },
   { id: 'ex-sport-soccer', name: 'Fútbol / Soccer', muscleGroup: 'Deporte', type: 'time' },
   { id: 'ex-sport-tennis', name: 'Tenis / Pádel', muscleGroup: 'Deporte', type: 'time' },

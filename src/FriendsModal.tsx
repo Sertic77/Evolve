@@ -24,6 +24,7 @@ import {
   SectionPrivacySettings,
   ChallengeDetails,
   ChallengeVariable,
+  SEED_EXERCISES,
 } from './store';
 import { getServerUrl, apiGetFriendRequests } from './api';
 import { syncSocialFromDatabase } from './syncService';
@@ -2124,25 +2125,25 @@ function ChallengeModal({
   const [showCalendar, setShowCalendar] = useState(false);
 
   const [selectedVariable, setSelectedVariable] = useState<ChallengeVariable>('strength');
-  const [selectedMuscle, setSelectedMuscle] = useState('Pecho (Bench Press)');
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>('Todos');
+  const [selectedMuscle, setSelectedMuscle] = useState('Press de Banca Plano');
   const [customMuscle, setCustomMuscle] = useState('');
   const [message, setMessage] = useState('');
+
+  const MUSCLE_FILTER_GROUPS = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Core', 'Calistenia', 'CrossFit'];
+
+  const availableChallengeExercises = useMemo(() => {
+    if (selectedMuscleGroup === 'Todos') {
+      return SEED_EXERCISES;
+    }
+    return SEED_EXERCISES.filter((e) => e.muscleGroup === selectedMuscleGroup);
+  }, [selectedMuscleGroup]);
 
   const CHALLENGE_VARIABLES: { id: ChallengeVariable; label: string; icon: string; desc: string }[] = [
     { id: 'calories', label: 'Calorías', icon: 'flame', desc: 'Compara calorías quemadas en la fecha' },
     { id: 'strength', label: 'Fuerza', icon: 'barbell', desc: 'Compara carga máxima o PR levantado por músculo' },
     { id: 'total_weight', label: 'Peso total levantado (volumen)', icon: 'speedometer', desc: 'Compara el volumen total acumulado (kg)' },
     { id: 'time_running', label: 'Tiempo (running/cardio)', icon: 'stopwatch', desc: 'Compara resistencia y duración de cardio/running' },
-  ];
-
-  const MUSCLE_CHOICES = [
-    'Pecho (Bench Press)',
-    'Espalda (Deadlift)',
-    'Piernas (Sentadilla)',
-    'Hombros (Press Militar)',
-    'Brazos (Curl Bíceps / Tríceps)',
-    'Dominadas (Pull-ups)',
-    'Abdomen & Core',
   ];
 
   const handleSend = () => {
@@ -2328,21 +2329,50 @@ function ChallengeModal({
               })}
             </View>
 
-            {/* Sub-selector para fuerza por músculo */}
-            {(selectedVariable === 'strength' || selectedVariable === 'muscle_weight') && (
+            {/* Sub-selector para fuerza por músculo / ejercicio estándar */}
+            {(selectedVariable === 'strength' || selectedVariable === 'total_weight') && (
               <View style={[styles.subOptionsContainer, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)', marginTop: 10 }]}>
                 <Text style={[styles.subOptionsTitle, { color: '#EF4444', fontFamily: subtitleFont }]}>
-                  🏋️ Selecciona el Músculo / Ejercicio a Retar:
+                  🏋️ Selecciona el Ejercicio a Retar ({selectedMuscleGroup}):
                 </Text>
-                <View style={styles.chipsWrap}>
-                  {MUSCLE_CHOICES.map((m) => {
-                    const isMSelected = selectedMuscle === m && !customMuscle;
+
+                {/* Filtro por grupo muscular */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginVertical: 6 }}>
+                  {MUSCLE_FILTER_GROUPS.map((grp) => {
+                    const isGSelected = selectedMuscleGroup === grp;
                     return (
                       <TouchableOpacity
-                        key={m}
+                        key={grp}
+                        activeOpacity={0.8}
+                        onPress={() => setSelectedMuscleGroup(grp)}
+                        style={[
+                          styles.choiceChip,
+                          {
+                            paddingVertical: 4,
+                            paddingHorizontal: 10,
+                            backgroundColor: isGSelected ? '#EF4444' : palette.cardBg,
+                            borderColor: isGSelected ? '#EF4444' : palette.border,
+                          },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isGSelected ? '#FFFFFF' : palette.text }}>
+                          {grp}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Lista de ejercicios estandarizados de entreno */}
+                <View style={styles.chipsWrap}>
+                  {availableChallengeExercises.map((ex) => {
+                    const isMSelected = selectedMuscle === ex.name && !customMuscle;
+                    return (
+                      <TouchableOpacity
+                        key={ex.id}
                         activeOpacity={0.8}
                         onPress={() => {
-                          setSelectedMuscle(m);
+                          setSelectedMuscle(ex.name);
                           setCustomMuscle('');
                         }}
                         style={[
@@ -2359,7 +2389,7 @@ function ChallengeModal({
                             { color: isMSelected ? '#FFFFFF' : palette.text, fontFamily: subtitleFont },
                           ]}
                         >
-                          {m}
+                          {ex.name}
                         </Text>
                       </TouchableOpacity>
                     );

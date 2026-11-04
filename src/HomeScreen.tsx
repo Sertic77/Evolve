@@ -1215,41 +1215,45 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               </Text>
 
               {activeGoals.length > 0 ? (() => {
-                const featuredGoal =
-                  activeGoals[0].type === 'calories'
-                    ? { ...activeGoals[0], currentValue: Math.round(totalKcal) }
-                    : activeGoals[0];
-                const featuredProgress = calculateGoalProgress(featuredGoal);
+                const totalProgressSum = activeGoals.reduce((sum, g) => {
+                  const goal = g.type === 'calories' ? { ...g, currentValue: Math.round(totalKcal) } : g;
+                  return sum + calculateGoalProgress(goal);
+                }, 0);
+                const globalProgress = Math.min(100, Math.round(totalProgressSum / activeGoals.length));
                 return (
-                <View style={styles.topDualBodyWrap}>
-                  <Text
-                    style={[styles.topDualGoalName, { color: '#FFFFFF', fontFamily: subtitleFont }]}
-                    numberOfLines={1}
-                  >
-                    {featuredGoal.title}
-                  </Text>
-
-                  <View style={styles.topDualProgressBarWrap}>
-                    <View style={[styles.topDualProgressBg, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
-                      <View
-                        style={[
-                          styles.topDualProgressFill,
-                          {
-                            backgroundColor: '#FDE047',
-                            width: `${featuredProgress}%`,
-                          },
-                        ]}
-                      />
+                  <View style={styles.topDualBodyWrap}>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+                      <Text style={{ fontSize: 26, fontWeight: '900', color: '#FFFFFF', fontFamily: dataFont || titleFont }}>
+                        {globalProgress}%
+                      </Text>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: 'rgba(255, 255, 255, 0.85)', fontFamily: subtitleFont }}>
+                        progreso global
+                      </Text>
                     </View>
-                    <Text style={[styles.topDualPercentText, { color: '#FFFFFF', fontFamily: dataFont }]}>
-                      {featuredProgress}%
-                    </Text>
-                  </View>
 
-                  <Text style={[styles.topDualDateHint, { color: 'rgba(255, 255, 255, 0.9)', fontFamily: bodyFont }]}>
-                    🗓️ {formatGoalDate(featuredGoal.targetDate)}
-                  </Text>
-                </View>
+                    <View style={[styles.topDualProgressBarWrap, { marginTop: 6 }]}>
+                      <View style={[styles.topDualProgressBg, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
+                        <View
+                          style={[
+                            styles.topDualProgressFill,
+                            {
+                              backgroundColor: '#FDE047',
+                              width: `${globalProgress}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                      <Text style={[styles.topDualDateHint, { color: 'rgba(255, 255, 255, 0.95)', fontFamily: bodyFont }]}>
+                        🎯 {activeGoals.length} {activeGoals.length === 1 ? 'meta activa' : 'metas activas'}
+                      </Text>
+                      <Text style={{ fontSize: 10, color: '#FDE047', fontWeight: '800', fontFamily: subtitleFont }}>
+                        Ver detalle ›
+                      </Text>
+                    </View>
+                  </View>
                 );
               })() : (
                 <View style={styles.topDualBodyWrap}>
