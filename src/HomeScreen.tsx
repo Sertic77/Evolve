@@ -32,6 +32,10 @@ import {
   ColorPalette,
   FontStyleOption,
   GenderOption,
+  UserProfile,
+  ActivityLevelKey,
+  ACTIVITY_LEVEL_OPTIONS,
+  calculateDailyCalorieTarget,
   UserGoal,
   GoalType,
   DayMeasurements,
@@ -174,6 +178,9 @@ export function calculateGoalCompletionXp(goal: UserGoal): {
     case 'weight':
       baseXp = 120;
       break;
+    case 'calories':
+      baseXp = 125;
+      break;
     default:
       baseXp = 100;
       break;
@@ -209,6 +216,11 @@ export function calculateGoalCompletionXp(goal: UserGoal): {
       growthPercent = start > 0 ? Math.round((deltaCm / start) * 100) : 0;
       // Cada 1 cm de perímetro muscular = 35 XP
       growthXp = Math.min(300, Math.round(deltaCm * 35));
+    } else if (goal.type === 'calories') {
+      const cur = Number(goal.currentValue) || 0;
+      const p = target > 0 ? Math.min(100, Math.round((cur / target) * 100)) : 100;
+      growthPercent = p;
+      growthXp = Math.min(250, Math.round(p * 2.2));
     } else {
       growthXp = 50;
     }
@@ -697,7 +709,15 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
     });
   });
 
-  const targetKcal = 2200;
+  // Metas del usuario desde el store
+  const goals = useStore((s) => s.goals) || [];
+  const addGoal = useStore((s) => s.addGoal);
+  const updateGoal = useStore((s) => s.updateGoal);
+  const deleteGoal = useStore((s) => s.deleteGoal);
+  const toggleGoalCompleted = useStore((s) => s.toggleGoalCompleted);
+
+  const activeCaloriesGoal = goals.find((g) => !g.completed && g.type === 'calories');
+  const targetKcal = activeCaloriesGoal?.targetValue || 2200;
   const kcalPct = Math.min(100, Math.round((totalKcal / targetKcal) * 100));
 
   // 2. Entreno de hoy
@@ -744,13 +764,6 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
   const friendNotifications = useStore((s) => s.friendNotifications) || [];
   const sentWorkoutInvites = useStore((s) => s.sentWorkoutInvites) || [];
   const unreadFriendsCount = friendNotifications.filter((n) => !n.read && n.status === 'pending').length;
-
-  // Metas del usuario desde el store
-  const goals = useStore((s) => s.goals) || [];
-  const addGoal = useStore((s) => s.addGoal);
-  const updateGoal = useStore((s) => s.updateGoal);
-  const deleteGoal = useStore((s) => s.deleteGoal);
-  const toggleGoalCompleted = useStore((s) => s.toggleGoalCompleted);
 
   // 6. Racha de Entrenamientos y Sistema Progresivo de Niveles & Puntos XP
   const xpBreakdown = React.useMemo(() => {
@@ -1200,13 +1213,19 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                 Metas
               </Text>
 
-              {activeGoals.length > 0 ? (
+              {activeGoals.length > 0 ? (() => {
+                const featuredGoal =
+                  activeGoals[0].type === 'calories'
+                    ? { ...activeGoals[0], currentValue: Math.round(totalKcal) }
+                    : activeGoals[0];
+                const featuredProgress = calculateGoalProgress(featuredGoal);
+                return (
                 <View style={styles.topDualBodyWrap}>
                   <Text
                     style={[styles.topDualGoalName, { color: '#FFFFFF', fontFamily: subtitleFont }]}
                     numberOfLines={1}
                   >
-                    {activeGoals[0].title}
+                    {featuredGoal.title}
                   </Text>
 
                   <View style={styles.topDualProgressBarWrap}>
@@ -1216,21 +1235,22 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
                           styles.topDualProgressFill,
                           {
                             backgroundColor: '#FDE047',
-                            width: `${calculateGoalProgress(activeGoals[0])}%`,
+                            width: `${featuredProgress}%`,
                           },
                         ]}
                       />
                     </View>
                     <Text style={[styles.topDualPercentText, { color: '#FFFFFF', fontFamily: dataFont }]}>
-                      {calculateGoalProgress(activeGoals[0])}%
+                      {featuredProgress}%
                     </Text>
                   </View>
 
                   <Text style={[styles.topDualDateHint, { color: 'rgba(255, 255, 255, 0.9)', fontFamily: bodyFont }]}>
-                    🗓️ {formatGoalDate(activeGoals[0].targetDate)}
+                    🗓️ {formatGoalDate(featuredGoal.targetDate)}
                   </Text>
                 </View>
-              ) : (
+                );
+              })() : (
                 <View style={styles.topDualBodyWrap}>
                   <Text style={[styles.topDualEmptyDesc, { color: 'rgba(255, 255, 255, 0.9)', fontFamily: bodyFont }]}>
                     Define tu meta a fecha
@@ -1381,19 +1401,27 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               </View>
 
               <View style={styles.metasLListWrap}>
-                {activeGoals.map((goal) => {
+                {activeGoals.map((rawGoal) => {
+                  const goal =
+                    rawGoal.type === 'calories'
+                      ? { ...rawGoal, currentValue: Math.round(totalKcal) }
+                      : rawGoal;
                   const progress = calculateGoalProgress(goal);
                   const remaining = getGoalDaysRemaining(goal.targetDate);
+                  const isCalGoal = goal.type === 'calories';
+                  const isCalReached = isCalGoal && (goal.currentValue || 0) >= (goal.targetValue || 0);
                   return (
                     <View key={goal.id} style={styles.metasLItemRow}>
                       <View style={styles.metasLItemTop}>
-                        <View style={styles.metasLTag}>
-                          <Text style={styles.metasLTagText}>
+                        <View style={[styles.metasLTag, isCalGoal && { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                          <Text style={[styles.metasLTagText, isCalGoal && { color: '#F59E0B' }]}>
                             {getGoalCategoryIcon(goal.type)} {goal.categoryLabel || getGoalCategoryLabel(goal.type)}
                           </Text>
                         </View>
-                        <Text style={[styles.metasLDatePill, { fontFamily: subtitleFont }]}>
-                          🗓️ {formatGoalDate(goal.targetDate)} ({remaining.text})
+                        <Text style={[styles.metasLDatePill, { fontFamily: subtitleFont }, isCalReached && { color: '#10B981', fontWeight: '800' }]}>
+                          {isCalGoal && isCalReached
+                            ? '🔥 ¡Mínimo alcanzado hoy!'
+                            : `🗓️ ${formatGoalDate(goal.targetDate)} (${remaining.text})`}
                         </Text>
                       </View>
 
@@ -1403,17 +1431,20 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
 
                       <View style={styles.metasLProgressRow}>
                         <Text style={[styles.metasLValuesText, { fontFamily: dataFont }]}>
-                          {goal.currentValue !== undefined ? goal.currentValue : '--'} / {goal.targetValue !== undefined ? goal.targetValue : '--'} {goal.unit || ''}
+                          {goal.currentValue !== undefined ? goal.currentValue.toLocaleString() : '--'} / {goal.targetValue !== undefined ? goal.targetValue.toLocaleString() : '--'} {goal.unit || ''}
                         </Text>
                         <View style={styles.metasLTrackBg}>
                           <View
                             style={[
                               styles.metasLTrackFill,
-                              { width: `${progress}%` },
+                              {
+                                width: `${progress}%`,
+                                backgroundColor: isCalReached ? '#10B981' : isCalGoal ? '#F59E0B' : undefined,
+                              },
                             ]}
                           />
                         </View>
-                        <Text style={[styles.metasLPctText, { fontFamily: dataFont }]}>
+                        <Text style={[styles.metasLPctText, { fontFamily: dataFont }, isCalReached && { color: '#10B981' }]}>
                           {progress}%
                         </Text>
                       </View>
@@ -1921,6 +1952,9 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
         measurementLogs={measurementLogs}
         workoutLogs={workoutLogs}
         exercises={exercises}
+        userProfile={userProfile}
+        onUpdateUserProfile={setUserProfile}
+        todayCalories={totalKcal}
       />
 
       {/* Modal de Sección Completa: Amigos, Comunidad y Notificaciones */}
@@ -5885,6 +5919,12 @@ export function calculateGoalProgress(goal: UserGoal): number {
   const target = Number(goal.targetValue);
   if (isNaN(cur) || isNaN(target)) return goal.completed ? 100 : 0;
   if (goal.completed) return 100;
+  if (goal.type === 'calories') {
+    if (target > 0) {
+      return Math.min(100, Math.max(0, Math.round((cur / target) * 100)));
+    }
+    return 0;
+  }
   if (!isNaN(start) && target !== start) {
     if (target > start) {
       const p = Math.round(((cur - start) / (target - start)) * 100);
@@ -5906,6 +5946,7 @@ export function getGoalCategoryIcon(type: GoalType): string {
     case 'body_fat': return '📉';
     case 'pr': return '🏋️';
     case 'muscle': return '📏';
+    case 'calories': return '🔥';
     default: return '🎯';
   }
 }
@@ -5916,6 +5957,7 @@ export function getGoalCategoryLabel(type: GoalType): string {
     case 'body_fat': return '% Grasa Corporal';
     case 'pr': return 'Récord / PR';
     case 'muscle': return 'Tamaño Muscular';
+    case 'calories': return 'Calorías Diarias';
     default: return 'Objetivo Personal';
   }
 }
@@ -6407,6 +6449,16 @@ const avatarStyles = StyleSheet.create({
 // ==========================================================
 const QUICK_PRESET_GOALS = [
   {
+    icon: '🔥',
+    type: 'calories' as GoalType,
+    category: 'Calorías Diarias',
+    title: 'Consumo Calórico Mínimo Diario',
+    targetVal: '2650',
+    unit: 'kcal',
+    timeline: 'Diario',
+    targetDateOffsetDays: 90,
+  },
+  {
     icon: '🏋️',
     type: 'pr' as GoalType,
     variableKey: 'Press de Banca Plano',
@@ -6504,6 +6556,9 @@ function GoalsModal({
   measurementLogs = {},
   workoutLogs = {},
   exercises = [],
+  userProfile,
+  onUpdateUserProfile,
+  todayCalories = 0,
 }: {
   visible: boolean;
   goals: UserGoal[];
@@ -6525,6 +6580,9 @@ function GoalsModal({
   measurementLogs?: Record<string, DayMeasurements>;
   workoutLogs?: Record<string, WorkoutExercise[]>;
   exercises?: Exercise[];
+  userProfile?: UserProfile;
+  onUpdateUserProfile?: (profile: Partial<UserProfile>) => void;
+  todayCalories?: number;
 }) {
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'new'>('active');
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
@@ -6540,6 +6598,87 @@ function GoalsModal({
   const [unit, setUnit] = useState('kg');
   const [notes, setNotes] = useState('');
   const [autoFilledNotice, setAutoFilledNotice] = useState<string | null>(null);
+
+  // Estados para la calculadora de calorías mínimas (Mifflin-St Jeor)
+  const latestWeightFromLogs = Object.keys(weightLogs || {}).length > 0
+    ? weightLogs[Object.keys(weightLogs).sort().pop()!]
+    : 75;
+  const initialWeight = currentWeight || latestWeightFromLogs;
+
+  const [calHeight, setCalHeight] = useState<string>(
+    userProfile?.height ? String(userProfile.height) : '178'
+  );
+  const [calAge, setCalAge] = useState<string>(
+    userProfile?.age ? String(userProfile.age) : '24'
+  );
+  const [calWeight, setCalWeight] = useState<string>(String(initialWeight));
+  const [calGender, setCalGender] = useState<GenderOption>(
+    userProfile?.gender || 'Masculino'
+  );
+  const [calActivity, setCalActivity] = useState<ActivityLevelKey>(
+    userProfile?.activityLevel || 'moderate'
+  );
+  const [calTargetMode, setCalTargetMode] = useState<'maintenance' | 'deficit' | 'surplus'>('maintenance');
+
+  const recalculateCalories = (
+    hStr: string,
+    aStr: string,
+    wStr: string,
+    g: GenderOption,
+    act: ActivityLevelKey,
+    mode: 'maintenance' | 'deficit' | 'surplus' = calTargetMode
+  ) => {
+    const h = parseFloat(hStr.replace(',', '.')) || (userProfile?.height || 178);
+    const a = parseFloat(aStr.replace(',', '.')) || (userProfile?.age || 24);
+    const w = parseFloat(wStr.replace(',', '.')) || initialWeight;
+    const calc = calculateDailyCalorieTarget(w, h, a, g, act);
+    let target = calc.tdee;
+    if (mode === 'deficit') {
+      target = Math.round(calc.tdee - 350);
+    } else if (mode === 'surplus') {
+      target = Math.round(calc.tdee + 350);
+    }
+
+    setStartVal(String(calc.bmr));
+    setCurrentVal(String(Math.round(todayCalories || 0)));
+    setTargetVal(String(target));
+    setUnit('kcal');
+    const modeLabel =
+      mode === 'deficit'
+        ? 'déficit (-350 kcal)'
+        : mode === 'surplus'
+        ? 'superávit (+350 kcal)'
+        : 'mantenimiento';
+    setGoalTitle(`Consumo mínimo de ${target.toLocaleString()} kcal diarias`);
+    setAutoFilledNotice(
+      `✓ Mifflin-St Jeor: TMB reposo ${calc.bmr.toLocaleString()} kcal | Consumo diario mínimo (${calc.activityLabel}, ${modeLabel}): ${target.toLocaleString()} kcal`
+    );
+  };
+
+  const handleHeightChange = (val: string) => {
+    setCalHeight(val);
+    recalculateCalories(val, calAge, calWeight, calGender, calActivity, calTargetMode);
+  };
+  const handleAgeChange = (val: string) => {
+    setCalAge(val);
+    recalculateCalories(calHeight, val, calWeight, calGender, calActivity, calTargetMode);
+  };
+  const handleWeightChange = (val: string) => {
+    setCalWeight(val);
+    recalculateCalories(calHeight, calAge, val, calGender, calActivity, calTargetMode);
+  };
+  const handleGenderChange = (g: GenderOption) => {
+    setCalGender(g);
+    recalculateCalories(calHeight, calAge, calWeight, g, calActivity, calTargetMode);
+  };
+  const handleActivityChange = (act: ActivityLevelKey) => {
+    setCalActivity(act);
+    recalculateCalories(calHeight, calAge, calWeight, calGender, act, calTargetMode);
+  };
+  const handleTargetModeChange = (mode: 'maintenance' | 'deficit' | 'surplus') => {
+    setCalTargetMode(mode);
+    recalculateCalories(calHeight, calAge, calWeight, calGender, calActivity, mode);
+  };
 
   const activeGoals = goals.filter((g) => !g.completed);
   const completedGoals = goals.filter((g) => g.completed);
@@ -6583,7 +6722,10 @@ function GoalsModal({
   const handleSelectVariable = (type: GoalType, variableKey?: string) => {
     setGoalType(type);
 
-    if (type === 'weight') {
+    if (type === 'calories') {
+      setSelectedVariableKey('calories');
+      recalculateCalories(calHeight, calAge, calWeight, calGender, calActivity, calTargetMode);
+    } else if (type === 'weight') {
       setSelectedVariableKey('weight');
       const dates = Object.keys(weightLogs || {}).sort();
       const earliest = dates.length > 0 ? weightLogs[dates[0]] : currentWeight || 70;
@@ -6742,11 +6884,28 @@ function GoalsModal({
     setGoalTitle(g.title);
     setTargetDate(g.targetDate);
     setStartVal(g.startValue !== undefined ? String(g.startValue) : '');
-    setCurrentVal(g.currentValue !== undefined ? String(g.currentValue) : '');
+    setCurrentVal(
+      g.type === 'calories'
+        ? String(Math.round(todayCalories || 0))
+        : (g.currentValue !== undefined ? String(g.currentValue) : '')
+    );
     setTargetVal(g.targetValue !== undefined ? String(g.targetValue) : '');
-    setUnit(g.unit || 'kg');
+    setUnit(g.unit || (g.type === 'calories' ? 'kcal' : 'kg'));
     setNotes(g.notes || '');
-    setAutoFilledNotice(null);
+
+    if (g.type === 'calories' && g.calorieCalculation) {
+      if (g.calorieCalculation.height) setCalHeight(String(g.calorieCalculation.height));
+      if (g.calorieCalculation.age) setCalAge(String(g.calorieCalculation.age));
+      if (g.calorieCalculation.weight) setCalWeight(String(g.calorieCalculation.weight));
+      if (g.calorieCalculation.gender) setCalGender(g.calorieCalculation.gender);
+      if (g.calorieCalculation.activityLevel) setCalActivity(g.calorieCalculation.activityLevel);
+      if (g.calorieCalculation.mode) setCalTargetMode(g.calorieCalculation.mode);
+      setAutoFilledNotice(
+        `✓ Meta de Calorías: TMB reposo ${g.calorieCalculation.bmr} kcal | Consumo diario mínimo: ${g.targetValue || g.calorieCalculation.tdee} kcal`
+      );
+    } else {
+      setAutoFilledNotice(null);
+    }
     setActiveTab('new');
   };
 
@@ -6764,19 +6923,48 @@ function GoalsModal({
     const cNum = currentVal ? parseFloat(currentVal.replace(',', '.')) : sNum;
     const tNum = targetVal ? parseFloat(targetVal.replace(',', '.')) : undefined;
 
+    let calMetadata: any = undefined;
+    if (goalType === 'calories') {
+      const h = parseFloat(calHeight.replace(',', '.')) || (userProfile?.height || 178);
+      const a = parseFloat(calAge.replace(',', '.')) || (userProfile?.age || 24);
+      const w = parseFloat(calWeight.replace(',', '.')) || initialWeight;
+      const calc = calculateDailyCalorieTarget(w, h, a, calGender, calActivity);
+      calMetadata = {
+        bmr: calc.bmr,
+        tdee: calc.tdee,
+        height: h,
+        age: a,
+        weight: w,
+        gender: calGender,
+        activityLevel: calActivity,
+        multiplier: calc.multiplier,
+        mode: calTargetMode,
+      };
+
+      if (onUpdateUserProfile) {
+        onUpdateUserProfile({
+          height: h,
+          age: a,
+          gender: calGender,
+          activityLevel: calActivity,
+        });
+      }
+    }
+
     if (editingGoalId) {
       onUpdateGoal(editingGoalId, {
         title: goalTitle.trim(),
         type: goalType,
         targetDate: targetDate.trim(),
         startValue: sNum,
-        currentValue: cNum,
+        currentValue: goalType === 'calories' ? Math.round(todayCalories || 0) : cNum,
         targetValue: tNum,
         unit: unit.trim(),
         categoryLabel: getGoalCategoryLabel(goalType),
         notes: notes.trim(),
         exerciseName: goalType === 'pr' ? selectedVariableKey : undefined,
         bodyPart: goalType === 'muscle' ? (selectedVariableKey as BodyPartKey) : undefined,
+        calorieCalculation: calMetadata,
       });
       Alert.alert('¡Meta Actualizada!', 'Tu meta se ha guardado correctamente.');
     } else {
@@ -6785,7 +6973,7 @@ function GoalsModal({
         type: goalType,
         targetDate: targetDate.trim(),
         startValue: sNum,
-        currentValue: cNum,
+        currentValue: goalType === 'calories' ? Math.round(todayCalories || 0) : cNum,
         targetValue: tNum,
         unit: unit.trim(),
         categoryLabel: getGoalCategoryLabel(goalType),
@@ -6793,6 +6981,7 @@ function GoalsModal({
         completed: false,
         exerciseName: goalType === 'pr' ? selectedVariableKey : undefined,
         bodyPart: goalType === 'muscle' ? (selectedVariableKey as BodyPartKey) : undefined,
+        calorieCalculation: calMetadata,
       });
       Alert.alert('¡Meta Creada!', 'Tu nuevo objetivo ha sido fijado. ¡A darlo todo!');
     }
@@ -6938,12 +7127,13 @@ function GoalsModal({
                   {editingGoalId ? 'Editar Meta' : 'Configurar Nueva Meta'}
                 </Text>
 
-                {/* 1. Tipo de Objetivo (Peso, % Grasa, Récord / PR, Tamaño, Otro) */}
+                {/* 1. Tipo de Objetivo (Calorías, Peso, % Grasa, Récord / PR, Tamaño, Otro) */}
                 <Text style={[goalModalStyles.fieldLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
                   1. Tipo de Objetivo
                 </Text>
                 <View style={goalModalStyles.typeSelectorRow}>
                   {[
+                    { key: 'calories', label: 'Calorías', icon: 'flame-outline' },
                     { key: 'weight', label: 'Peso', icon: 'scale-outline' },
                     { key: 'body_fat', label: '% Grasa', icon: 'trending-down-outline' },
                     { key: 'pr', label: 'Récord / PR', icon: 'barbell-outline' },
@@ -6988,6 +7178,221 @@ function GoalsModal({
                     );
                   })}
                 </View>
+
+                {/* Calculadora Interactiva de Calorías Diarias (Mifflin-St Jeor) */}
+                {goalType === 'calories' && (
+                  <View style={[goalModalStyles.calcCard, { backgroundColor: palette.bg, borderColor: `${c1}50` }]}>
+                    <View style={goalModalStyles.calcHeaderRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="calculator" size={16} color={c1} />
+                        <Text style={[goalModalStyles.calcTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                          Calculadora de Calorías Diarias (Mifflin-St Jeor)
+                        </Text>
+                      </View>
+                      <View style={[goalModalStyles.calcBadge, { backgroundColor: `${c1}20` }]}>
+                        <Text style={[goalModalStyles.calcBadgeText, { color: c1 }]}>Científica</Text>
+                      </View>
+                    </View>
+
+                    <Text style={[goalModalStyles.calcSubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      Calcula tu consumo mínimo necesario considerando tu Tasa Metabólica Basal (TMB) y tu Gasto Energético Total (TDEE) según tu nivel de actividad física:
+                    </Text>
+
+                    {/* Fila: Altura, Edad, Peso */}
+                    <View style={goalModalStyles.calcInputsRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[goalModalStyles.calcInputLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                          Altura (cm)
+                        </Text>
+                        <TextInput
+                          value={calHeight}
+                          onChangeText={handleHeightChange}
+                          placeholder="178"
+                          placeholderTextColor={palette.textSub}
+                          keyboardType="numeric"
+                          style={[
+                            goalModalStyles.calcInput,
+                            { color: palette.text, borderColor: palette.border, backgroundColor: palette.cardBg, fontFamily: dataFont },
+                          ]}
+                        />
+                      </View>
+
+                      <View style={{ flex: 1 }}>
+                        <Text style={[goalModalStyles.calcInputLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                          Edad (años)
+                        </Text>
+                        <TextInput
+                          value={calAge}
+                          onChangeText={handleAgeChange}
+                          placeholder="24"
+                          placeholderTextColor={palette.textSub}
+                          keyboardType="numeric"
+                          style={[
+                            goalModalStyles.calcInput,
+                            { color: palette.text, borderColor: palette.border, backgroundColor: palette.cardBg, fontFamily: dataFont },
+                          ]}
+                        />
+                      </View>
+
+                      <View style={{ flex: 1 }}>
+                        <Text style={[goalModalStyles.calcInputLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                          Peso (kg)
+                        </Text>
+                        <TextInput
+                          value={calWeight}
+                          onChangeText={handleWeightChange}
+                          placeholder="75"
+                          placeholderTextColor={palette.textSub}
+                          keyboardType="numeric"
+                          style={[
+                            goalModalStyles.calcInput,
+                            { color: palette.text, borderColor: palette.border, backgroundColor: palette.cardBg, fontFamily: dataFont },
+                          ]}
+                        />
+                      </View>
+                    </View>
+
+                    {/* Selector de Género */}
+                    <Text style={[goalModalStyles.calcInputLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 10 }]}>
+                      Género Biológico
+                    </Text>
+                    <View style={goalModalStyles.genderSelectorRow}>
+                      {(['Masculino', 'Femenino'] as GenderOption[]).map((g) => {
+                        const isSel = calGender === g;
+                        return (
+                          <TouchableOpacity
+                            key={g}
+                            activeOpacity={0.85}
+                            onPress={() => handleGenderChange(g)}
+                            style={[
+                              goalModalStyles.genderBtn,
+                              isSel && { backgroundColor: c1, borderColor: c1 },
+                              !isSel && { backgroundColor: palette.cardBg, borderColor: palette.border },
+                            ]}
+                          >
+                            <Ionicons
+                              name={g === 'Masculino' ? 'male' : 'female'}
+                              size={14}
+                              color={isSel ? '#FFFFFF' : palette.textSub}
+                            />
+                            <Text
+                              style={[
+                                goalModalStyles.genderBtnText,
+                                { color: isSel ? '#FFFFFF' : palette.text, fontFamily: subtitleFont },
+                              ]}
+                            >
+                              {g}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Selector de Actividad Física */}
+                    <Text style={[goalModalStyles.calcInputLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 10 }]}>
+                      Nivel de Actividad Física
+                    </Text>
+                    <View style={goalModalStyles.activityGrid}>
+                      {ACTIVITY_LEVEL_OPTIONS.map((item) => {
+                        const isSel = calActivity === item.key;
+                        return (
+                          <TouchableOpacity
+                            key={item.key}
+                            activeOpacity={0.85}
+                            onPress={() => handleActivityChange(item.key)}
+                            style={[
+                              goalModalStyles.activityBtn,
+                              isSel && { borderColor: c1, backgroundColor: `${c1}12` },
+                              !isSel && { borderColor: palette.border, backgroundColor: palette.cardBg },
+                            ]}
+                          >
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text
+                                style={[
+                                  goalModalStyles.activityLabel,
+                                  { color: isSel ? c1 : palette.text, fontFamily: subtitleFont },
+                                ]}
+                              >
+                                {item.label}
+                              </Text>
+                              <Text style={[goalModalStyles.activityMultiplier, { color: palette.textSub, fontFamily: dataFont }]}>
+                                {item.factor}x
+                              </Text>
+                            </View>
+                            <Text style={[goalModalStyles.activityDesc, { color: palette.textSub, fontFamily: bodyFont }]} numberOfLines={1}>
+                              {item.desc}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Enfoque del Objetivo (Mantenimiento, Déficit, Superávit) */}
+                    <Text style={[goalModalStyles.calcInputLabel, { color: palette.textSub, fontFamily: subtitleFont, marginTop: 10 }]}>
+                      Enfoque del Objetivo
+                    </Text>
+                    <View style={goalModalStyles.targetModeRow}>
+                      {[
+                        { key: 'maintenance', label: 'Mantenimiento (100% Gasto TDEE)', icon: 'shield-checkmark-outline' },
+                        { key: 'deficit', label: 'Déficit Calórico (-350 kcal)', icon: 'trending-down-outline' },
+                        { key: 'surplus', label: 'Superávit Calórico (+350 kcal)', icon: 'trending-up-outline' },
+                      ].map((m) => {
+                        const isSel = calTargetMode === m.key;
+                        return (
+                          <TouchableOpacity
+                            key={m.key}
+                            activeOpacity={0.85}
+                            onPress={() => handleTargetModeChange(m.key as any)}
+                            style={[
+                              goalModalStyles.targetModeBtn,
+                              isSel && { backgroundColor: c1, borderColor: c1 },
+                              !isSel && { backgroundColor: palette.cardBg, borderColor: palette.border },
+                            ]}
+                          >
+                            <Ionicons
+                              name={m.icon as any}
+                              size={13}
+                              color={isSel ? '#FFFFFF' : palette.textSub}
+                            />
+                            <Text
+                              style={[
+                                goalModalStyles.targetModeText,
+                                { color: isSel ? '#FFFFFF' : palette.text, fontFamily: subtitleFont },
+                              ]}
+                            >
+                              {m.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* HUD Banner con los Resultados Calculados */}
+                    <View style={[goalModalStyles.calcResultHud, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+                      <View style={goalModalStyles.calcHudCol}>
+                        <Text style={[goalModalStyles.calcHudLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                          TMB (Reposo Biológico)
+                        </Text>
+                        <Text style={[goalModalStyles.calcHudVal, { color: palette.text, fontFamily: dataFont }]}>
+                          {startVal ? Number(startVal).toLocaleString() : '--'}{' '}
+                          <Text style={{ fontSize: 10, color: palette.textSub }}>kcal</Text>
+                        </Text>
+                      </View>
+
+                      <View style={[goalModalStyles.calcHudDivider, { backgroundColor: palette.border }]} />
+
+                      <View style={goalModalStyles.calcHudCol}>
+                        <Text style={[goalModalStyles.calcHudLabel, { color: palette.textSub, fontFamily: subtitleFont }]}>
+                          Consumo Mínimo Diario
+                        </Text>
+                        <Text style={[goalModalStyles.calcHudVal, { color: '#F59E0B', fontFamily: dataFont }]}>
+                          {targetVal ? Number(targetVal).toLocaleString() : '--'}{' '}
+                          <Text style={{ fontSize: 10, color: palette.textSub }}>kcal/día</Text>
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
 
                 {/* 2. Selector de Variable Relacionada (PR de Fuerza) */}
                 {goalType === 'pr' && (
@@ -7365,15 +7770,31 @@ function GoalsModal({
                         {/* Barra de Progreso */}
                         <View style={goalModalStyles.progressSection}>
                           <View style={goalModalStyles.progressValuesRow}>
-                            <Text style={[goalModalStyles.progressValueText, { color: palette.textSub, fontFamily: dataFont }]}>
-                              Inicio: {goal.startValue !== undefined ? goal.startValue : '--'} {goal.unit || ''}
-                            </Text>
-                            <Text style={[goalModalStyles.progressValueText, { color: c1, fontWeight: '800', fontFamily: dataFont }]}>
-                              Actual: {goal.currentValue !== undefined ? goal.currentValue : '--'} {goal.unit || ''}
-                            </Text>
-                            <Text style={[goalModalStyles.progressValueText, { color: palette.textSub, fontFamily: dataFont }]}>
-                              Objetivo: {goal.targetValue !== undefined ? goal.targetValue : '--'} {goal.unit || ''}
-                            </Text>
+                            {goal.type === 'calories' ? (
+                              <>
+                                <Text style={[goalModalStyles.progressValueText, { color: palette.textSub, fontFamily: dataFont }]}>
+                                  TMB: {goal.startValue !== undefined ? Number(goal.startValue).toLocaleString() : '--'} kcal
+                                </Text>
+                                <Text style={[goalModalStyles.progressValueText, { color: '#F59E0B', fontWeight: '800', fontFamily: dataFont }]}>
+                                  Hoy: {Math.round(todayCalories || 0).toLocaleString()} kcal
+                                </Text>
+                                <Text style={[goalModalStyles.progressValueText, { color: palette.textSub, fontFamily: dataFont }]}>
+                                  Mínimo: {goal.targetValue !== undefined ? Number(goal.targetValue).toLocaleString() : '--'} kcal
+                                </Text>
+                              </>
+                            ) : (
+                              <>
+                                <Text style={[goalModalStyles.progressValueText, { color: palette.textSub, fontFamily: dataFont }]}>
+                                  Inicio: {goal.startValue !== undefined ? goal.startValue : '--'} {goal.unit || ''}
+                                </Text>
+                                <Text style={[goalModalStyles.progressValueText, { color: c1, fontWeight: '800', fontFamily: dataFont }]}>
+                                  Actual: {goal.currentValue !== undefined ? goal.currentValue : '--'} {goal.unit || ''}
+                                </Text>
+                                <Text style={[goalModalStyles.progressValueText, { color: palette.textSub, fontFamily: dataFont }]}>
+                                  Objetivo: {goal.targetValue !== undefined ? goal.targetValue : '--'} {goal.unit || ''}
+                                </Text>
+                              </>
+                            )}
                           </View>
 
                           <View style={[goalModalStyles.progressTrack, { backgroundColor: palette.isDark ? '#334155' : 'rgba(203, 213, 225, 0.4)' }]}>
@@ -7382,15 +7803,17 @@ function GoalsModal({
                                 goalModalStyles.progressFill,
                                 {
                                   width: `${progress}%`,
-                                  backgroundColor: goal.completed ? c1 : c2,
+                                  backgroundColor: goal.completed ? c1 : goal.type === 'calories' ? (progress >= 100 ? '#10B981' : '#F59E0B') : c2,
                                 },
                               ]}
                             />
                           </View>
 
                           <View style={goalModalStyles.progressPercentRow}>
-                            <Text style={[goalModalStyles.progressPercentText, { color: goal.completed ? c1 : palette.text, fontFamily: dataFont }]}>
-                              {progress}% {goal.completed ? '¡Cumplida! 🏆' : 'completado'}
+                            <Text style={[goalModalStyles.progressPercentText, { color: goal.completed ? c1 : goal.type === 'calories' && progress >= 100 ? '#10B981' : palette.text, fontFamily: dataFont }]}>
+                              {goal.type === 'calories'
+                                ? `${progress}% del mínimo diario alcanzado hoy ${progress >= 100 ? '🔥 ¡Mínimo cumplido!' : ''}`
+                                : `${progress}% ${goal.completed ? '¡Cumplida! 🏆' : 'completado'}`}
                             </Text>
                           </View>
                         </View>
@@ -7783,6 +8206,139 @@ const goalModalStyles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12.5,
     fontWeight: '900',
+  },
+  calcCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  calcHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  calcTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  calcBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  calcBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  calcSubtitle: {
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 10,
+  },
+  calcInputsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  calcInputLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  calcInput: {
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  genderSelectorRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  genderBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  genderBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  activityGrid: {
+    gap: 6,
+  },
+  activityBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  activityLabel: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  activityMultiplier: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  activityDesc: {
+    fontSize: 10,
+    marginTop: 1,
+  },
+  targetModeRow: {
+    flexDirection: 'column',
+    gap: 6,
+  },
+  targetModeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  targetModeText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  calcResultHud: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginTop: 12,
+  },
+  calcHudCol: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  calcHudLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  calcHudVal: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  calcHudDivider: {
+    width: 1,
+    height: 30,
   },
 });
 

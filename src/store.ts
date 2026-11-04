@@ -129,12 +129,15 @@ export type SleepLogEntry = {
    CONFIGURACIÓN Y PERSONALIZACIÓN (PALETAS, TIPOGRAFÍA, HOME)
 ========================================================== */
 export type GenderOption = 'Masculino' | 'Femenino' | 'Otro' | 'Prefiero no decir';
+export type ActivityLevelKey = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
 
 export type UserProfile = {
   name: string;
   nickname: string;
   height?: number; // en cm
+  age?: number; // en años
   gender?: GenderOption;
+  activityLevel?: ActivityLevelKey;
   avatarUri?: string;
 };
 
@@ -142,14 +145,61 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   name: 'Sergio Tamayo',
   nickname: 'Sertic77',
   height: 178,
+  age: 24,
   gender: 'Masculino',
+  activityLevel: 'moderate',
   avatarUri: '',
 };
+
+export const ACTIVITY_LEVEL_OPTIONS: { key: ActivityLevelKey; label: string; desc: string; factor: number }[] = [
+  { key: 'sedentary', label: 'Sedentario', desc: 'Poco o ningún ejercicio (oficina / reposo)', factor: 1.2 },
+  { key: 'light', label: 'Ligero', desc: 'Ejercicio ligero 1 a 3 días por semana', factor: 1.375 },
+  { key: 'moderate', label: 'Moderado', desc: 'Entrenamiento moderado 3 a 5 días por semana', factor: 1.55 },
+  { key: 'active', label: 'Fuerte / Activo', desc: 'Entrenamiento intenso 6 a 7 días por semana', factor: 1.725 },
+  { key: 'very_active', label: 'Muy Activo / Atleta', desc: 'Entrenamientos dobles o trabajo físico pesado', factor: 1.9 },
+];
+
+/**
+ * Fórmula científica de Mifflin-St Jeor para calcular la Tasa Metabólica Basal (TMB)
+ * y el Consumo Calórico Mínimo Diario (TDEE) con base en Altura, Edad, Peso, Actividad Física y Género.
+ */
+export interface CalorieCalculationResult {
+  bmr: number; // Consumo basal mínimo vital en reposo (TMB)
+  tdee: number; // Consumo calórico mínimo diario recomendado según actividad
+  multiplier: number;
+  activityLabel: string;
+}
+
+export function calculateDailyCalorieTarget(
+  weightKg: number,
+  heightCm: number,
+  ageYears: number,
+  gender: GenderOption = 'Masculino',
+  activityLevel: ActivityLevelKey = 'moderate'
+): CalorieCalculationResult {
+  const isFemale = gender === 'Femenino';
+  const s = isFemale ? -161 : 5;
+  const safeWeight = weightKg > 0 ? weightKg : 70;
+  const safeHeight = heightCm > 0 ? heightCm : 175;
+  const safeAge = ageYears > 0 ? ageYears : 25;
+
+  // Fórmula Mifflin-St Jeor: 10 * peso + 6.25 * altura - 5 * edad + s
+  const bmr = Math.round(10 * safeWeight + 6.25 * safeHeight - 5 * safeAge + s);
+  const found = ACTIVITY_LEVEL_OPTIONS.find((a) => a.key === activityLevel) || ACTIVITY_LEVEL_OPTIONS[2];
+  const tdee = Math.round(bmr * found.factor);
+
+  return {
+    bmr,
+    tdee,
+    multiplier: found.factor,
+    activityLabel: found.label,
+  };
+}
 
 /* ==========================================================
    METAS & OBJETIVOS CON FECHAS LÍMITE
 ========================================================== */
-export type GoalType = 'weight' | 'body_fat' | 'pr' | 'muscle' | 'custom';
+export type GoalType = 'weight' | 'body_fat' | 'pr' | 'muscle' | 'calories' | 'custom';
 
 export type UserGoal = {
   id: string;
@@ -163,6 +213,17 @@ export type UserGoal = {
   categoryLabel?: string;
   exerciseName?: string;
   bodyPart?: BodyPartKey;
+  calorieCalculation?: {
+    height: number;
+    weight: number;
+    age: number;
+    gender: GenderOption;
+    activityLevel: ActivityLevelKey;
+    bmr: number;
+    tdee: number;
+    multiplier?: number;
+    mode?: 'maintenance' | 'deficit' | 'surplus';
+  };
   completed?: boolean;
   completedAt?: string;
   notes?: string;
