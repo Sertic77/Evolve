@@ -906,26 +906,119 @@ const STANDARD_EXERCISES: Record<string, string> = {
   'ex-calf-raise': 'Elevaciones de Talones',
 };
 
-function buildFriendFullProfile(user: any, records: Record<string, any>) {
-  // 1. Personalización y Paleta
-  const activePaletteId = records.activePaletteId || 'emerald';
-  let pal = {
-    name: 'Menta & Esmeralda',
-    primary: '#10B981',
-    secondary: '#06B6D4',
+const ALL_PRESET_PALETTES: Record<string, {
+  name: string;
+  primary: string;
+  secondary: string;
+  cardBg: string;
+  bg: string;
+  isDark: boolean;
+}> = {
+  default: {
+    name: 'Anime Pastel',
+    primary: '#8B5CF6',
+    secondary: '#F472B6',
+    cardBg: '#FFFFFF',
+    bg: '#F3F5FA',
+    isDark: false,
+  },
+  dark: {
+    name: 'Modo Nocturno (Midnight)',
+    primary: '#818CF8',
+    secondary: '#EC4899',
     cardBg: '#1E293B',
     bg: '#0F172A',
     isDark: true,
-  };
-  if (activePaletteId === 'default') {
-    pal = { name: 'Anime Pastel', primary: '#8B5CF6', secondary: '#F472B6', cardBg: '#FFFFFF', bg: '#F3F5FA', isDark: false };
-  } else if (activePaletteId === 'dark') {
-    pal = { name: 'Modo Nocturno', primary: '#818CF8', secondary: '#EC4899', cardBg: '#1E293B', bg: '#0F172A', isDark: true };
-  } else if (activePaletteId === 'sunset') {
-    pal = { name: 'Atardecer Cálido', primary: '#FB7185', secondary: '#F59E0B', cardBg: '#FFFFFF', bg: '#FFF7ED', isDark: false };
-  } else if (activePaletteId === 'cyberpunk') {
-    pal = { name: 'Cyberpunk Neón', primary: '#06B6D4', secondary: '#EC4899', cardBg: '#27272A', bg: '#18181B', isDark: true };
+  },
+  sunset: {
+    name: 'Atardecer Cálido',
+    primary: '#FB7185',
+    secondary: '#F59E0B',
+    cardBg: '#FFFFFF',
+    bg: '#FFF7ED',
+    isDark: false,
+  },
+  emerald: {
+    name: 'Menta & Esmeralda',
+    primary: '#10B981',
+    secondary: '#06B6D4',
+    cardBg: '#FFFFFF',
+    bg: '#F0FDF4',
+    isDark: false,
+  },
+  cyberpunk: {
+    name: 'Cyberpunk Neón',
+    primary: '#06B6D4',
+    secondary: '#EC4899',
+    cardBg: '#27272A',
+    bg: '#18181B',
+    isDark: true,
+  },
+  ocean: {
+    name: 'Océano Profundo',
+    primary: '#3B82F6',
+    secondary: '#2DD4BF',
+    cardBg: '#FFFFFF',
+    bg: '#F0F9FF',
+    isDark: false,
+  },
+  crimson: {
+    name: 'Fuego Carmesí',
+    primary: '#DC2626',
+    secondary: '#EA580C',
+    cardBg: '#FFFFFF',
+    bg: '#FEF2F2',
+    isDark: false,
+  },
+};
+
+function calculateGoalProgress(goal: any): number {
+  if (goal.completed) return 100;
+  const cur = Number(goal.currentValue);
+  const start = Number(goal.startValue);
+  const target = Number(goal.targetValue);
+  if (isNaN(cur) || isNaN(target)) return 0;
+  if (goal.type === 'calories') {
+    if (target > 0) return Math.min(100, Math.max(0, Math.round((cur / target) * 100)));
+    return 0;
   }
+  if (!isNaN(start) && target !== start) {
+    if (target > start) {
+      const p = Math.round(((cur - start) / (target - start)) * 100);
+      return Math.min(100, Math.max(0, p));
+    } else {
+      const p = Math.round(((start - cur) / (start - target)) * 100);
+      return Math.min(100, Math.max(0, p));
+    }
+  }
+  if (target > 0) {
+    return Math.min(100, Math.max(0, Math.round((cur / target) * 100)));
+  }
+  return 0;
+}
+
+function buildFriendFullProfile(user: any, records: Record<string, any>) {
+  // 1. Personalización y Paleta Real del Usuario
+  const rawPaletteId = records.activePaletteId !== undefined ? String(records.activePaletteId).trim() : 'default';
+  const customPalettes = Array.isArray(records.customPalettes) ? records.customPalettes : [];
+  const foundCustom = customPalettes.find((cp: any) => cp && cp.id === rawPaletteId);
+
+  let pal = ALL_PRESET_PALETTES[rawPaletteId];
+  if (foundCustom) {
+    pal = {
+      name: foundCustom.name || 'Personalizada',
+      primary: foundCustom.primary || (foundCustom.colors && foundCustom.colors[0]) || '#8B5CF6',
+      secondary: foundCustom.secondary || (foundCustom.colors && foundCustom.colors[1]) || '#EC4899',
+      cardBg: foundCustom.cardBg || (foundCustom.isDark ? '#1E293B' : '#FFFFFF'),
+      bg: foundCustom.bg || (foundCustom.isDark ? '#0F172A' : '#F3F5FA'),
+      isDark: Boolean(foundCustom.isDark),
+    };
+  } else if (!pal) {
+    const lowerId = rawPaletteId.toLowerCase();
+    const foundPresetKey = Object.keys(ALL_PRESET_PALETTES).find((k) => k.toLowerCase() === lowerId);
+    pal = foundPresetKey ? ALL_PRESET_PALETTES[foundPresetKey] : ALL_PRESET_PALETTES.default;
+  }
+
   const typography = records.typography?.titles || 'athletic';
 
   // 2. Privacidad
@@ -944,37 +1037,34 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
   const xp = user.totalXp || level * 1000;
   const nextLevelXp = (level + 1) * 1250;
 
-  // 4. Metas Reales desde la BD
+  // 4. Metas Reales desde la BD (filtrar activas y calcular progreso real)
   const rawGoals = Array.isArray(records.goals) ? records.goals : [];
-  const activeGoals = rawGoals.length > 0
-    ? rawGoals.map((g: any, idx: number) => {
-        let progress = 0;
-        if (g.completed) {
-          progress = 100;
-        } else if (g.startValue !== undefined && g.targetValue !== undefined && g.currentValue !== undefined) {
-          const totalDiff = Math.abs(g.targetValue - g.startValue);
-          const currentDiff = Math.abs(g.currentValue - g.startValue);
-          progress = totalDiff > 0 ? Math.min(100, Math.max(0, Math.round((currentDiff / totalDiff) * 100))) : 50;
-        } else {
-          progress = 65;
-        }
-        return {
-          id: g.id || `goal-${idx}`,
-          title: g.title || 'Meta de Entrenamiento',
-          progress,
-          targetDate: g.targetDate || '2026-12-31',
-          category: g.categoryLabel || g.type || 'Fuerza',
-        };
-      })
-    : [
-        {
-          id: 'goal-real-1',
-          title: 'Superar marcas personales de fuerza',
-          progress: 75,
-          targetDate: '2026-12-31',
-          category: 'Fuerza & Rendimiento',
-        },
-      ];
+  const activeRawGoals = rawGoals.filter((g: any) => !g.completed);
+
+  const activeGoals = activeRawGoals.map((g: any, idx: number) => {
+    const progress = calculateGoalProgress(g);
+    let cat = g.categoryLabel;
+    if (!cat) {
+      switch (g.type) {
+        case 'weight': cat = 'Peso Corporal'; break;
+        case 'body_fat': cat = '% Grasa Corporal'; break;
+        case 'pr': cat = g.exerciseName ? `PR: ${g.exerciseName}` : 'Récord / PR'; break;
+        case 'muscle': cat = 'Medida Muscular'; break;
+        case 'calories': cat = 'Calorías Diarias'; break;
+        default: cat = 'Objetivo Personal'; break;
+      }
+    }
+    return {
+      id: g.id || `goal-${idx}`,
+      title: g.title || 'Meta de Entrenamiento',
+      progress,
+      targetDate: g.targetDate || 'Sin fecha límite',
+      category: cat,
+      currentValue: g.currentValue,
+      targetValue: g.targetValue,
+      unit: g.unit || '',
+    };
+  });
 
   const completedGoalsCount = rawGoals.filter((g: any) => g.completed).length;
 
@@ -1231,19 +1321,34 @@ app.get('/api/users/:target/full-profile', optionalAuth, async (req: Authenticat
     if (!target) return res.status(400).json({ error: 'Falta identificador de usuario' });
 
     const cleanTarget = String(target).trim().replace('@', '');
+    const lowerClean = cleanTarget.toLowerCase();
 
-    const user = await prisma.user.findFirst({
+    let user = await prisma.user.findFirst({
       where: {
         OR: [
           { id: target },
+          { id: cleanTarget },
           { nickname: cleanTarget },
-          { email: cleanTarget.toLowerCase() },
+          { nickname: lowerClean },
+          { email: lowerClean },
         ],
       },
       include: {
         dataRecords: true,
       },
     });
+
+    if (!user) {
+      // Fallback robusto en memoria insensible a mayúsculas/minúsculas para SQLite
+      const allUsers = await prisma.user.findMany({ include: { dataRecords: true } });
+      user = allUsers.find(
+        (u) =>
+          u.id === target ||
+          u.id === cleanTarget ||
+          (u.nickname && u.nickname.toLowerCase() === lowerClean) ||
+          (u.email && u.email.toLowerCase() === lowerClean)
+      ) || null;
+    }
 
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });

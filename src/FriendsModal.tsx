@@ -960,7 +960,7 @@ function FriendProfileObserverModal({
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>('');
 
   const fetchLiveProfile = useCallback(async (isInitial = false) => {
-    const target = friend?.nickname || friend?.id;
+    const target = friend?.id || friend?.nickname;
     if (!target) return;
     if (isInitial) setLoadingRealProfile(true);
     try {
@@ -989,6 +989,17 @@ function FriendProfileObserverModal({
   }, [visible, friend?.id, friend?.nickname, fetchLiveProfile]);
 
   const profile = realProfile || friend.fullProfile || getFriendFullProfile(friend);
+  const friendPalette = profile.customization.palette || {
+    name: 'Anime Pastel',
+    primary: c1,
+    secondary: c2,
+    isDark: palette.isDark,
+    cardBg: palette.cardBg,
+    bg: palette.bg,
+  };
+  const friendPrimary = friendPalette.primary || c1;
+  const friendSecondary = friendPalette.secondary || c2;
+
   const [activeProfileTab, setActiveProfileTab] = useState<
     'home' | 'workout' | 'food' | 'wellness' | 'measurements'
   >('home');
@@ -1010,7 +1021,7 @@ function FriendProfileObserverModal({
                   resizeMode="cover"
                 />
               ) : (
-                <View style={[styles.observerHeaderAvatarDot, { backgroundColor: friend.color }]}>
+                <View style={[styles.observerHeaderAvatarDot, { backgroundColor: friendPrimary }]}>
                   <Text style={styles.observerHeaderAvatarText}>{friend.initials}</Text>
                 </View>
               )}
@@ -1102,8 +1113,8 @@ function FriendProfileObserverModal({
                   style={[
                     styles.profileTabBtn,
                     {
-                      backgroundColor: isActive ? c1 : palette.isDark ? '#0F172A' : '#F1F5F9',
-                      borderColor: isActive ? c1 : palette.border,
+                      backgroundColor: isActive ? friendPrimary : palette.isDark ? '#0F172A' : '#F1F5F9',
+                      borderColor: isActive ? friendPrimary : palette.border,
                     },
                   ]}
                 >
@@ -1136,8 +1147,8 @@ function FriendProfileObserverModal({
               <RefreshControl
                 refreshing={loadingRealProfile}
                 onRefresh={() => fetchLiveProfile(false)}
-                colors={[c1]}
-                tintColor={c1}
+                colors={[friendPrimary]}
+                tintColor={friendPrimary}
               />
             }
           >
@@ -1205,46 +1216,82 @@ function FriendProfileObserverModal({
                     </LinearGradient>
 
                     {/* Metas Activas y en Curso */}
-                    <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-                      Metas Activas en Curso
-                    </Text>
-                    {profile.home.activeGoals.map((g) => (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 8 }}>
+                      <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont, marginTop: 0, marginBottom: 0 }]}>
+                        Metas Activas en Curso
+                      </Text>
+                      <View style={{ backgroundColor: `${friendPrimary}20`, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                        <Text style={{ color: friendPrimary, fontSize: 11, fontWeight: '800' }}>
+                          {profile.home.activeGoals.length} {profile.home.activeGoals.length === 1 ? 'meta' : 'metas'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {profile.home.activeGoals.length === 0 ? (
                       <View
-                        key={g.id}
                         style={[
                           styles.goalItemCard,
                           {
                             backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
                             borderColor: palette.border,
+                            alignItems: 'center',
+                            paddingVertical: 20,
+                            paddingHorizontal: 16,
                           },
                         ]}
                       >
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text style={[styles.goalTitle, { color: palette.text, fontFamily: subtitleFont }]}>
-                            🎯 {g.title}
-                          </Text>
-                          <Text style={[styles.goalPercent, { color: c1, fontFamily: dataFont }]}>
-                            {g.progress}%
-                          </Text>
-                        </View>
-                        <View style={styles.goalTrack}>
-                          <View style={[styles.goalFill, { width: `${g.progress}%`, backgroundColor: c1 }]} />
-                        </View>
-                        <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont }]}>
-                          Fecha límite: {g.targetDate} · {g.category}
+                        <Text style={{ fontSize: 26, marginBottom: 6 }}>🎯</Text>
+                        <Text style={[styles.goalTitle, { color: palette.text, fontFamily: subtitleFont, textAlign: 'center' }]}>
+                          Sin metas activas actualmente
+                        </Text>
+                        <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont, textAlign: 'center', marginTop: 4 }]}>
+                          Este atleta no tiene metas en curso en este momento.
                         </Text>
                       </View>
-                    ))}
+                    ) : (
+                      profile.home.activeGoals.map((g) => (
+                        <View
+                          key={g.id}
+                          style={[
+                            styles.goalItemCard,
+                            {
+                              backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                              borderColor: palette.border,
+                            },
+                          ]}
+                        >
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={[styles.goalTitle, { color: palette.text, fontFamily: subtitleFont, flex: 1, marginRight: 8 }]}>
+                              🎯 {g.title}
+                            </Text>
+                            <Text style={[styles.goalPercent, { color: friendPrimary, fontFamily: dataFont }]}>
+                              {g.progress}%
+                            </Text>
+                          </View>
+                          <View style={styles.goalTrack}>
+                            <View style={[styles.goalFill, { width: `${g.progress}%`, backgroundColor: friendPrimary }]} />
+                          </View>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                            <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont }]}>
+                              {g.category}
+                            </Text>
+                            <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont }]}>
+                              Límite: {g.targetDate}
+                            </Text>
+                          </View>
+                        </View>
+                      ))
+                    )}
                   </View>
                 )}
 
                 {/* 2. SECCIÓN ENTRENO */}
                 {activeProfileTab === 'workout' && (
                   <View style={styles.tabContentWrap}>
-                    <View style={[styles.infoBannerBox, { backgroundColor: `${c1}15`, borderColor: `${c1}35` }]}>
-                      <Ionicons name="barbell" size={18} color={c1} style={{ marginRight: 8 }} />
+                    <View style={[styles.infoBannerBox, { backgroundColor: `${friendPrimary}15`, borderColor: `${friendPrimary}35` }]}>
+                      <Ionicons name="barbell" size={18} color={friendPrimary} style={{ marginRight: 8 }} />
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.infoBannerTitle, { color: c1, fontFamily: subtitleFont }]}>
+                        <Text style={[styles.infoBannerTitle, { color: friendPrimary, fontFamily: subtitleFont }]}>
                           División de Entrenamiento
                         </Text>
                         <Text style={[styles.infoBannerDesc, { color: palette.text, fontFamily: bodyFont }]}>
@@ -1274,8 +1321,8 @@ function FriendProfileObserverModal({
                               {pr.date || 'Récord activo'}
                             </Text>
                           </View>
-                          <View style={[styles.prWeightBadge, { backgroundColor: `${c1}20` }]}>
-                            <Text style={[styles.prWeightText, { color: c1, fontFamily: dataFont }]}>
+                          <View style={[styles.prWeightBadge, { backgroundColor: `${friendPrimary}20` }]}>
+                            <Text style={[styles.prWeightText, { color: friendPrimary, fontFamily: dataFont }]}>
                               {pr.weight} kg
                             </Text>
                             {pr.reps && (
@@ -1387,7 +1434,7 @@ function FriendProfileObserverModal({
                           {m.name}
                         </Text>
                         <View style={{ flexDirection: 'row', gap: 10 }}>
-                          <Text style={[styles.mealLogVal, { color: c1, fontFamily: dataFont }]}>
+                          <Text style={[styles.mealLogVal, { color: friendPrimary, fontFamily: dataFont }]}>
                             {m.calories} kcal
                           </Text>
                           <Text style={[styles.mealLogVal, { color: '#3B82F6', fontFamily: dataFont }]}>
@@ -1506,12 +1553,12 @@ function FriendProfileObserverModal({
                           <Text style={[styles.weightSubVal, { color: palette.textSub, fontFamily: bodyFont }]}>Inicio</Text>
                           <Text style={[styles.weightNum, { color: palette.text, fontFamily: dataFont }]}>{profile.measurements.startWeight} kg</Text>
                         </View>
-                        <Ionicons name="arrow-forward" size={18} color={c1} style={{ alignSelf: 'center' }} />
+                        <Ionicons name="arrow-forward" size={18} color={friendPrimary} style={{ alignSelf: 'center' }} />
                         <View style={{ alignItems: 'center' }}>
-                          <Text style={[styles.weightSubVal, { color: c1, fontFamily: subtitleFont }]}>Actual</Text>
-                          <Text style={[styles.weightNum, { color: c1, fontFamily: dataFont }]}>{profile.measurements.currentWeight} kg</Text>
+                          <Text style={[styles.weightSubVal, { color: friendPrimary, fontFamily: subtitleFont }]}>Actual</Text>
+                          <Text style={[styles.weightNum, { color: friendPrimary, fontFamily: dataFont }]}>{profile.measurements.currentWeight} kg</Text>
                         </View>
-                        <Ionicons name="arrow-forward" size={18} color={c2} style={{ alignSelf: 'center' }} />
+                        <Ionicons name="arrow-forward" size={18} color={friendSecondary} style={{ alignSelf: 'center' }} />
                         <View style={{ alignItems: 'center' }}>
                           <Text style={[styles.weightSubVal, { color: palette.textSub, fontFamily: bodyFont }]}>Meta</Text>
                           <Text style={[styles.weightNum, { color: '#10B981', fontFamily: dataFont }]}>{profile.measurements.targetWeight} kg</Text>

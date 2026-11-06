@@ -210,6 +210,12 @@ export function initSyncService() {
   isInitialized = true;
 
   let lastSerialized = '';
+  try {
+    const s = useStore.getState();
+    if (s.isAuthenticated && s.authToken) {
+      lastSerialized = JSON.stringify(extractUserDataForDb(s));
+    }
+  } catch {}
 
   // Escucha cambios en el estado de Zustand
   useStore.subscribe((state) => {
@@ -222,11 +228,11 @@ export function initSyncService() {
       const currentData = extractUserDataForDb(state);
       const serialized = JSON.stringify(currentData);
 
-      if (lastSerialized && serialized !== lastSerialized) {
-        // Hubo cambios reales en la información del usuario -> auto-sincronizar a la BD
-        scheduleDebouncedSync(1200);
+      if (serialized !== lastSerialized) {
+        lastSerialized = serialized;
+        // Hubo cambios reales en la información del usuario -> auto-sincronizar de inmediato a la BD
+        scheduleDebouncedSync(350);
       }
-      lastSerialized = serialized;
     } catch (e) {
       // Ignorar error de serialización
     }
