@@ -1,5 +1,6 @@
 import { AppState, AppStateStatus } from 'react-native';
 import { useStore } from './store';
+import { calculateUserXpAndLevel, calculateWorkoutStreak } from './HomeScreen';
 import {
   apiSyncPush,
   apiSyncPull,
@@ -72,12 +73,35 @@ export async function pushUserDataToDatabase(): Promise<{ success: boolean; erro
 
     const res = await apiSyncPush(token, records);
 
-    // Si el perfil cambió, actualizamos también la tabla principal User
-    if (state.userProfile?.name || state.userProfile?.nickname) {
+    // Si el perfil cambió, actualizamos también la tabla principal User con avatar, racha y nivel
+    if (state.userProfile?.name || state.userProfile?.nickname || state.userProfile?.avatarUri) {
       try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const streakData = calculateWorkoutStreak(state.workoutLogs, todayStr);
+        const xpData = calculateUserXpAndLevel(
+          state.logs,
+          state.workoutLogs,
+          state.sleepLogs,
+          state.supplementLogs,
+          state.measurementLogs,
+          state.weightLogs,
+          state.bodyFatLogs,
+          state.photoLogs,
+          state.healthLogs,
+          state.ingredients,
+          state.goals,
+          state.sentWorkoutInvites,
+          state.friendNotifications,
+          state.friends
+        );
         await apiUpdateProfile(token, {
           name: state.userProfile.name,
           nickname: state.userProfile.nickname,
+          avatarUrl: state.userProfile.avatarUri || undefined,
+          streak: streakData.currentStreak,
+          level: xpData.userLevel,
+          rankTitle: xpData.rankTitle,
+          totalXp: xpData.totalXp,
         });
       } catch (profileErr) {
         // Silencioso si falla la tabla auxiliar de perfil

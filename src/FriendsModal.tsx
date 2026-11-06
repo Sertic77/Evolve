@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,12 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  Animated,
+  Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { resolveAvatarSource, prefetchImageUrls } from './avatarUtils';
 import {
   useStore,
   FriendUser,
@@ -150,69 +153,132 @@ export function FriendsModal({
   const [selectedFriendForChallenge, setSelectedFriendForChallenge] = useState<FriendUser | null>(null);
   const [friendForMenu, setFriendForMenu] = useState<FriendUser | null>(null);
   const [dbUsers, setDbUsers] = useState<any[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Animaciones de transición para pestañas de amigos
+  const [selectorWidth, setSelectorWidth] = useState(0);
+  const tabSlideAnim = useRef(new Animated.Value(0)).current;
+  const contentFadeAnim = useRef(new Animated.Value(1)).current;
+  const contentSlideAnim = useRef(new Animated.Value(0)).current;
+
+  const handleSwitchTab = (newTab: 'friends' | 'discover') => {
+    if (newTab === activeTab) return;
+    const toValue = newTab === 'friends' ? 0 : 1;
+    const direction = newTab === 'discover' ? 1 : -1;
+
+    Animated.spring(tabSlideAnim, {
+      toValue,
+      tension: 125,
+      friction: 8.5,
+      useNativeDriver: true,
+    }).start();
+
+    contentFadeAnim.setValue(0.35);
+    contentSlideAnim.setValue(direction * 18);
+
+    Animated.parallel([
+      Animated.timing(contentFadeAnim, {
+        toValue: 1,
+        duration: 230,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentSlideAnim, {
+        toValue: 0,
+        duration: 230,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    setActiveTab(newTab);
+  };
+
+  const fetchDbUsers = useCallback(async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`;
+      }
+      const res = await fetch(`${getServerUrl()}/api/users`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.users && Array.isArray(data.users)) {
+          setDbUsers(data.users);
+        }
+      }
+    } catch {
+      // Silencioso
+    }
+  }, [authToken]);
+
+  const fetchRequests = useCallback(async () => {
+    if (!authToken) return;
+    try {
+      const data = await apiGetFriendRequests(authToken);
+      if (data && Array.isArray(data.sent)) {
+        const activePendingIds: string[] = [];
+        data.sent.forEach((r: any) => {
+          if (r.receiver?.id) activePendingIds.push(r.receiver.id);
+          if (r.receiver?.nickname) {
+            const clean = r.receiver.nickname.startsWith('@') ? r.receiver.nickname : `@${r.receiver.nickname}`;
+            activePendingIds.push(clean);
+            activePendingIds.push(r.receiver.nickname);
+          }
+        });
+        setPendingSentRequestUserIds(activePendingIds);
+      }
+    } catch {
+      // Silencioso
+    }
+  }, [authToken]);
 
   // Cargar usuarios reales de la base de datos y sincronizar amigos y solicitudes
   useEffect(() => {
     let isMounted = true;
     if (visible) {
       syncSocialFromDatabase();
+      fetchDbUsers();
+      fetchRequests();
     }
-    const fetchDbUsers = async () => {
-      try {
-        const headers: Record<string, string> = {};
-        if (authToken) {
-          headers.Authorization = `Bearer ${authToken}`;
-        }
-        const res = await fetch(`${getServerUrl()}/api/users`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && data.users && Array.isArray(data.users)) {
-            setDbUsers(data.users);
-          }
-        }
-      } catch {
-        // Silencioso
-      }
-    };
 
-    const fetchRequests = async () => {
-      if (authToken) {
-        try {
-          const data = await apiGetFriendRequests(authToken);
-          if (isMounted && data && Array.isArray(data.sent)) {
-            const activePendingIds: string[] = [];
-            data.sent.forEach((r: any) => {
-              if (r.receiver?.id) activePendingIds.push(r.receiver.id);
-              if (r.receiver?.nickname) {
-                const clean = r.receiver.nickname.startsWith('@') ? r.receiver.nickname : `@${r.receiver.nickname}`;
-                activePendingIds.push(clean);
-                activePendingIds.push(r.receiver.nickname);
-              }
-            });
-            setPendingSentRequestUserIds(activePendingIds);
-          }
-        } catch {
-          // Silencioso
-        }
-      }
-    };
-
-    fetchDbUsers();
-    fetchRequests();
-
-    // Polling activo mientras el modal de amigos esté abierto para reflejar cambios en tiempo real
+    // Polling inteligente mientras el modal de amigos esté abierto (cada 8 seg para no saturar red)
     const livePoll = setInterval(() => {
-      if (isMounted) {
+      if (isMounted && visible) {
         syncSocialFromDatabase();
         fetchRequests();
       }
-    }, 3500);
+    }, 8000);
 
     return () => {
       isMounted = false;
       clearInterval(livePoll);
     };
-  }, [visible, authToken]);
+  }, [visible, authToken, fetchDbUsers, fetchRequests]);
+
+  // Pre-cacheo en segundo plano de imágenes de perfil
+  useEffect(() => {
+    const urls = [
+      ...friends.map((f) => f.avatarUri),
+      ...dbUsers.map((u) => u.avatarUrl),
+    ];
+    prefetchImageUrls(urls);
+  }, [friends, dbUsers]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        syncSocialFromDatabase(),
+        fetchDbUsers(),
+        fetchRequests(),
+      ]);
+    } catch {
+      // Silencioso
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Notificaciones no leídas y pendientes
   const unreadNotifs = friendNotifications.filter(
@@ -361,7 +427,18 @@ export function FriendsModal({
           </View>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={c1}
+              colors={[c1]}
+            />
+          }
+        >
           {/* Banner de Comunidad y Estadísticas */}
           <LinearGradient
             colors={[c1, c2]}
@@ -418,18 +495,39 @@ export function FriendsModal({
             )}
           </View>
 
-          {/* Selector de Pestañas */}
-          <View style={[styles.tabSelectorRow, { backgroundColor: palette.isDark ? '#0F172A' : '#E2E8F0' }]}>
+          {/* Selector de Pestañas con Indicador Deslizante Animado */}
+          <View
+            style={[styles.tabSelectorRow, { backgroundColor: palette.isDark ? '#0F172A' : '#E2E8F0' }]}
+            onLayout={(e) => setSelectorWidth(e.nativeEvent.layout.width)}
+          >
+            {/* Cápsula deslizante animada */}
+            {selectorWidth > 0 && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.slidingTabPill,
+                  {
+                    width: (selectorWidth - 6) / 2,
+                    transform: [
+                      {
+                        translateX: tabSlideAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, (selectorWidth - 6) / 2],
+                        }),
+                      },
+                    ],
+                    backgroundColor: palette.cardBg,
+                    borderColor: palette.border,
+                    shadowColor: activeTab === 'friends' ? c1 : c2,
+                  },
+                ]}
+              />
+            )}
+
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={() => setActiveTab('friends')}
-              style={[
-                styles.tabBtn,
-                activeTab === 'friends' && [
-                  styles.tabBtnActive,
-                  { backgroundColor: palette.cardBg },
-                ],
-              ]}
+              onPress={() => handleSwitchTab('friends')}
+              style={styles.tabBtn}
             >
               <Ionicons
                 name="people"
@@ -442,6 +540,7 @@ export function FriendsModal({
                   styles.tabBtnText,
                   {
                     color: activeTab === 'friends' ? palette.text : palette.textSub,
+                    fontWeight: activeTab === 'friends' ? '800' : '600',
                     fontFamily: subtitleFont,
                   },
                 ]}
@@ -452,14 +551,8 @@ export function FriendsModal({
 
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={() => setActiveTab('discover')}
-              style={[
-                styles.tabBtn,
-                activeTab === 'discover' && [
-                  styles.tabBtnActive,
-                  { backgroundColor: palette.cardBg },
-                ],
-              ]}
+              onPress={() => handleSwitchTab('discover')}
+              style={styles.tabBtn}
             >
               <Ionicons
                 name="person-add"
@@ -472,6 +565,7 @@ export function FriendsModal({
                   styles.tabBtnText,
                   {
                     color: activeTab === 'discover' ? palette.text : palette.textSub,
+                    fontWeight: activeTab === 'discover' ? '800' : '600',
                     fontFamily: subtitleFont,
                   },
                 ]}
@@ -481,59 +575,80 @@ export function FriendsModal({
             </TouchableOpacity>
           </View>
 
-          {/* TAB 1: LISTADO DE AMIGOS */}
-          {activeTab === 'friends' && (
-            <View style={styles.sectionWrap}>
-              {filteredFriends.length === 0 ? (
-                <View style={[styles.emptyBox, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
-                  <Ionicons name="people-outline" size={44} color={palette.textSub} style={{ opacity: 0.5 }} />
-                  <Text style={[styles.emptyTitle, { color: palette.text, fontFamily: titleFont }]}>
-                    No se encontraron amigos
-                  </Text>
-                  <Text style={[styles.emptySubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
-                    {searchQuery
-                      ? 'No hay amigos que coincidan con la búsqueda por nombre o @nickname.'
-                      : '¡Añade amigos para observar sus métricas completas y retarlos a entrenar juntos!'}
-                  </Text>
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => setActiveTab('discover')}
-                    style={[styles.emptyActionBtn, { backgroundColor: c1 }]}
-                  >
-                    <Ionicons name="person-add-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={[styles.emptyActionBtnText, { fontFamily: subtitleFont }]}>
-                      Buscar Nuevos Atletas
+          {/* Contenido animado con transición suave al deslizar de pestaña */}
+          <Animated.View
+            style={{
+              opacity: contentFadeAnim,
+              transform: [{ translateX: contentSlideAnim }],
+            }}
+          >
+            {/* TAB 1: LISTADO DE AMIGOS */}
+            {activeTab === 'friends' && (
+              <View style={styles.sectionWrap}>
+                {filteredFriends.length === 0 ? (
+                  <View style={[styles.emptyBox, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+                    <Ionicons name="people-outline" size={44} color={palette.textSub} style={{ opacity: 0.5 }} />
+                    <Text style={[styles.emptyTitle, { color: palette.text, fontFamily: titleFont }]}>
+                      No se encontraron amigos
                     </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                filteredFriends.map((friend) => (
-                  <View
-                    key={friend.nickname}
-                    style={[
-                      styles.friendCard,
-                      {
-                        backgroundColor: palette.cardBg,
-                        borderColor: palette.border,
-                      },
-                    ]}
-                  >
-                    {/* Fila Superior: Avatar + Info + Racha */}
-                    <View style={styles.friendCardTop}>
-                      <View style={styles.friendIdentityRow}>
-                        <View style={[styles.friendAvatar, { backgroundColor: friend.color }]}>
-                          <Text style={styles.friendAvatarText}>{friend.initials}</Text>
-                          <View style={styles.activeDot} />
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
-                            {friend.name}
-                          </Text>
-                          <Text style={[styles.friendNickBadge, { color: c1, fontFamily: subtitleFont }]}>
-                            {friend.nickname}
-                          </Text>
-                        </View>
-                      </View>
+                    <Text style={[styles.emptySubtitle, { color: palette.textSub, fontFamily: bodyFont }]}>
+                      {searchQuery
+                        ? 'No hay amigos que coincidan con la búsqueda por nombre o @nickname.'
+                        : '¡Añade amigos para observar sus métricas completas y retarlos a entrenar juntos!'}
+                    </Text>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => handleSwitchTab('discover')}
+                      style={[styles.emptyActionBtn, { backgroundColor: c1 }]}
+                    >
+                      <Ionicons name="person-add-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={[styles.emptyActionBtnText, { fontFamily: subtitleFont }]}>
+                        Buscar Nuevos Atletas
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  filteredFriends.map((friend) => {
+                    const avatarSrc = resolveAvatarSource(friend.avatarUri);
+                    return (
+                      <View
+                        key={friend.nickname}
+                        style={[
+                          styles.friendCard,
+                          {
+                            backgroundColor: palette.cardBg,
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        {/* Fila Superior: Avatar Sincronizado + Info + Racha */}
+                        <View style={styles.friendCardTop}>
+                          <View style={styles.friendIdentityRow}>
+                            {avatarSrc ? (
+                              <View style={styles.friendAvatarContainer}>
+                                <Image
+                                  source={avatarSrc}
+                                  style={styles.friendAvatarImg}
+                                  resizeMode="cover"
+                                  fadeDuration={0}
+                                />
+                                <View style={styles.activeDot} />
+                              </View>
+                            ) : (
+                              <View style={[styles.friendAvatar, { backgroundColor: friend.color }]}>
+                                <Text style={styles.friendAvatarText}>{friend.initials}</Text>
+                                <View style={styles.activeDot} />
+                              </View>
+                            )}
+                            <View style={{ flex: 1, marginLeft: 10 }}>
+                              <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
+                                {friend.name}
+                              </Text>
+                              <Text style={[styles.friendNickBadge, { color: c1, fontFamily: subtitleFont }]}>
+                                {friend.nickname}
+                              </Text>
+                            </View>
+                          </View>
 
                       {/* Pill de Racha y Botón de Opciones (3 puntitos) */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -627,10 +742,11 @@ export function FriendsModal({
                       </TouchableOpacity>
                     </View>
                   </View>
-                ))
-              )}
-            </View>
-          )}
+                );
+              })
+            )}
+          </View>
+        )}
 
           {/* TAB 2: DESCUBRIR Y BUSCAR AMIGOS EN BASE DE DATOS */}
           {activeTab === 'discover' && (
@@ -672,9 +788,20 @@ export function FriendsModal({
                       ]}
                     >
                       <View style={styles.discoverLeft}>
-                        <View style={[styles.friendAvatar, { backgroundColor: user.color }]}>
-                          <Text style={styles.friendAvatarText}>{user.initials}</Text>
-                        </View>
+                        {resolveAvatarSource(user.avatarUri) ? (
+                          <View style={styles.friendAvatarContainer}>
+                            <Image
+                              source={resolveAvatarSource(user.avatarUri)!}
+                              style={styles.friendAvatarImg}
+                              resizeMode="cover"
+                              fadeDuration={0}
+                            />
+                          </View>
+                        ) : (
+                          <View style={[styles.friendAvatar, { backgroundColor: user.color }]}>
+                            <Text style={styles.friendAvatarText}>{user.initials}</Text>
+                          </View>
+                        )}
                         <View style={{ marginLeft: 10, flex: 1 }}>
                           <Text style={[styles.friendName, { color: palette.text, fontFamily: titleFont }]}>
                             {user.name}
@@ -724,6 +851,7 @@ export function FriendsModal({
               )}
             </View>
           )}
+          </Animated.View>
         </ScrollView>
 
         {/* ==========================================================
@@ -1014,11 +1142,12 @@ function FriendProfileObserverModal({
           {/* Header con Indicador de Modo Observador y Avatar al lado izquierdo */}
           <View style={styles.profileHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-              {friend.avatarUri ? (
+              {resolveAvatarSource(friend.avatarUri) ? (
                 <Image
-                  source={{ uri: friend.avatarUri }}
+                  source={resolveAvatarSource(friend.avatarUri)!}
                   style={styles.observerHeaderAvatarImg}
                   resizeMode="cover"
+                  fadeDuration={0}
                 />
               ) : (
                 <View style={[styles.observerHeaderAvatarDot, { backgroundColor: friendPrimary }]}>
@@ -3463,9 +3592,18 @@ function FriendOptionsActionModal({
 
           {/* Amigo Info Header */}
           <View style={styles.actionModalHeader}>
-            <View style={[styles.friendAvatar, { backgroundColor: friend.color, width: 44, height: 44, borderRadius: 22 }]}>
-              <Text style={[styles.friendAvatarText, { fontSize: 15 }]}>{friend.initials}</Text>
-            </View>
+            {resolveAvatarSource(friend.avatarUri) ? (
+              <Image
+                source={resolveAvatarSource(friend.avatarUri)!}
+                style={{ width: 44, height: 44, borderRadius: 22 }}
+                resizeMode="cover"
+                fadeDuration={0}
+              />
+            ) : (
+              <View style={[styles.friendAvatar, { backgroundColor: friend.color, width: 44, height: 44, borderRadius: 22 }]}>
+                <Text style={[styles.friendAvatarText, { fontSize: 15 }]}>{friend.initials}</Text>
+              </View>
+            )}
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Text style={[styles.actionModalName, { color: palette.text, fontFamily: titleFont }]} numberOfLines={1}>
                 {friend.name}
@@ -3652,6 +3790,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 3,
     marginBottom: 14,
+    position: 'relative',
+  },
+  slidingTabPill: {
+    position: 'absolute',
+    top: 3,
+    bottom: 3,
+    left: 3,
+    borderRadius: 9,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.16,
+    shadowRadius: 5,
+    elevation: 3,
   },
   tabBtn: {
     flex: 1,
@@ -3660,6 +3811,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     borderRadius: 10,
+    zIndex: 2,
   },
   tabBtnActive: {
     shadowColor: '#000',
@@ -3706,6 +3858,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  friendAvatarContainer: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    position: 'relative',
+  },
+  friendAvatarImg: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
   },
   friendAvatar: {
     width: 42,

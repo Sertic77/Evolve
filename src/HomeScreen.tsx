@@ -21,6 +21,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fmt, getPaletteColorWithAlpha } from './theme';
+import { resolveAvatarSource } from './avatarUtils';
 import {
   useStore,
   dateKey,
@@ -955,11 +956,12 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
             style={styles.heroAvatarWrapper}
             accessibilityLabel="Ver y cambiar foto de perfil"
           >
-            {userProfile?.avatarUri ? (
+            {resolveAvatarSource(userProfile?.avatarUri) ? (
               <Image
-                source={{ uri: userProfile.avatarUri }}
+                source={resolveAvatarSource(userProfile?.avatarUri)!}
                 style={styles.heroAvatarImage}
                 resizeMode="cover"
+                fadeDuration={0}
               />
             ) : (
               <LinearGradient
@@ -6328,11 +6330,12 @@ function AvatarZoomModal({
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             {/* BANNER A TODO LO ANCHO DEL POPUP (NO CIRCULAR) */}
             <View style={avatarStyles.fullWidthBanner}>
-              {userProfile?.avatarUri ? (
+              {resolveAvatarSource(userProfile?.avatarUri) ? (
                 <Image
-                  source={{ uri: userProfile.avatarUri }}
+                  source={resolveAvatarSource(userProfile?.avatarUri)!}
                   style={avatarStyles.bannerImage}
                   resizeMode="cover"
+                  fadeDuration={0}
                 />
               ) : (
                 <LinearGradient
@@ -6415,14 +6418,16 @@ function AvatarZoomModal({
               <View style={[avatarStyles.presetGrid, { width: availableGridWidth, alignSelf: 'center' }]}>
                 {PRESET_AVATARS.map((preset) => {
                   const presetUri = preset.asset ? Image.resolveAssetSource(preset.asset)?.uri : (preset as any).uri;
-                  const isSelected = userProfile?.avatarUri === presetUri;
+                  const isSelected =
+                    userProfile?.avatarUri === preset.id ||
+                    userProfile?.avatarUri === presetUri ||
+                    (userProfile?.avatarUri && userProfile.avatarUri.includes(preset.id));
                   return (
                     <TouchableOpacity
                       key={preset.id}
                       activeOpacity={0.8}
                       onPress={() => {
-                        const targetUri = preset.asset ? Image.resolveAssetSource(preset.asset)?.uri : (preset as any).uri;
-                        if (targetUri) onUpdateAvatar(targetUri);
+                        onUpdateAvatar(preset.id);
                       }}
                       style={[
                         avatarStyles.presetItemCard,
@@ -6440,6 +6445,7 @@ function AvatarZoomModal({
                           source={preset.asset || { uri: (preset as any).uri }}
                           style={{ width: thumbSize, height: thumbSize, borderRadius: 8 }}
                           resizeMode="cover"
+                          fadeDuration={0}
                         />
                       </View>
                       <Text

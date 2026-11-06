@@ -1245,6 +1245,7 @@ function AnimeBodyVector({
         source={imageSource}
         style={[measureStyles.croquisIllustrationImage, { width, height }]}
         resizeMode="cover"
+        fadeDuration={0}
       />
 
       {/* 2. Capa Interactiva SVG 516x1024 perfectamente sincronizada con la imagen */}
@@ -4534,6 +4535,7 @@ function ProgressPhotosSection({
             source={{ uri: activeFrame.uri }}
             style={measureStyles.projectorMainImage}
             resizeMode={inFullscreenMode ? 'contain' : 'cover'}
+            fadeDuration={0}
           />
         </Pressable>
 
@@ -4707,6 +4709,7 @@ function ProgressPhotosSection({
                         source={{ uri: photo.uri }}
                         style={measureStyles.photoThumbImage}
                         resizeMode="cover"
+                        fadeDuration={0}
                       />
                       <View style={measureStyles.photoThumbSavedBadge}>
                         <Ionicons name="checkmark-circle" size={13} color={palette.primary} />
@@ -5058,6 +5061,7 @@ function ProgressPhotosSection({
                           source={{ uri: item.uri }}
                           style={measureStyles.frameStripThumbImg}
                           resizeMode="cover"
+                          fadeDuration={0}
                         />
                         <View style={measureStyles.frameStripIndexBadge}>
                           <Text style={measureStyles.frameStripIndexText}>#{idx + 1}</Text>

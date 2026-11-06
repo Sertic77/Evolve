@@ -844,18 +844,32 @@ app.get('/api/users', optionalAuth, async (req: AuthenticatedRequest, res: Respo
         level: true,
         rankTitle: true,
         totalXp: true,
+        dataRecords: {
+          where: { dataType: 'userProfile' },
+          select: { payload: true },
+        },
       },
       take: 50,
     });
 
     const formatted = users.map((u) => {
-      const cleanNick = u.nickname ? `@${u.nickname.replace('@', '')}` : `@${u.email.split('@')[0]}`;
+      let profilePayload: any = null;
+      if (Array.isArray(u.dataRecords) && u.dataRecords[0]?.payload) {
+        try {
+          profilePayload = JSON.parse(u.dataRecords[0].payload);
+        } catch {}
+      }
+      const rawNick = profilePayload?.nickname || u.nickname || u.email.split('@')[0];
+      const cleanNick = rawNick ? (rawNick.startsWith('@') ? rawNick : `@${rawNick.replace('@', '')}`) : '';
+      const resolvedAvatar = profilePayload?.avatarUri || u.avatarUrl || undefined;
+      const resolvedName = profilePayload?.name || u.name;
+
       return {
         id: u.id,
-        name: u.name,
+        name: resolvedName,
         nickname: cleanNick,
         email: u.email,
-        avatarUrl: u.avatarUrl,
+        avatarUrl: resolvedAvatar,
         streak: u.streak || 0,
         level: u.level || 1,
         rank: u.rankTitle || 'Iniciado Fitness',
@@ -1897,17 +1911,33 @@ app.get('/api/friends', authMiddleware, async (req: AuthenticatedRequest, res: R
           activeGoal: fullProfile.home.activeGoals[0]?.title || 'Superar sus marcas personales',
         };
 
+        const resolvedName = records.userProfile?.name || friendUser.name;
+        const rawNick = records.userProfile?.nickname || friendUser.nickname || '';
+        const resolvedNick = rawNick ? (rawNick.startsWith('@') ? rawNick : `@${rawNick}`) : cleanNick;
+        const resolvedAvatar = records.userProfile?.avatarUri || friendUser.avatarUrl || undefined;
+
+        // Calcular entrenamiento del día real a partir de workoutLogs
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todaySessions = Array.isArray(records.workoutLogs?.[todayStr]) ? records.workoutLogs[todayStr] : [];
+        let todayWorkout = 'Descanso activo';
+        if (todaySessions.length > 0) {
+          const firstEx = todaySessions[0]?.exerciseId || todaySessions[0]?.name || 'Entrenamiento';
+          todayWorkout = `Hoy: ${firstEx} (${todaySessions.length} ejer.) 🔥`;
+        } else if (fullProfile.workout.recentWorkouts.length > 0) {
+          todayWorkout = `Último: ${fullProfile.workout.recentWorkouts[0].title}`;
+        }
+
         return {
           id: friendUser.id,
-          name: friendUser.name,
-          nickname: cleanNick,
-          streak: friendUser.streak || 0,
-          level: friendUser.level || 1,
-          rank: friendUser.rankTitle || 'Atleta Activo',
-          todayWorkout: fullProfile.workout.recentWorkouts[0]?.title || 'Entrenamiento Evolve 🔥',
+          name: resolvedName,
+          nickname: resolvedNick,
+          streak: typeof fullProfile.home.streak === 'number' ? fullProfile.home.streak : (friendUser.streak || 0),
+          level: typeof fullProfile.home.level === 'number' ? fullProfile.home.level : (friendUser.level || 1),
+          rank: fullProfile.home.rank || friendUser.rankTitle || 'Atleta Activo',
+          todayWorkout,
           color: fullProfile.customization.palette.primary,
-          initials: friendUser.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase(),
-          avatarUri: friendUser.avatarUrl || undefined,
+          initials: resolvedName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
+          avatarUri: resolvedAvatar,
           metrics,
           fullProfile,
         };
