@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated, Easing, Dimensions, LayoutChangeEvent } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, Easing, Dimensions, LayoutChangeEvent, PanResponder } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,10 +11,12 @@ import MeasureScreen from './src/MeasureScreen';
 import WellnessScreen from './src/WellnessScreen';
 import HomeScreen from './src/HomeScreen';
 import AuthScreen from './src/AuthScreen';
+import EvolveLogo from './src/EvolveLogo';
 import { useStore, getActivePalette } from './src/store';
 import { initSyncService, pullUserDataFromDatabase } from './src/syncService';
 
 // 5 Pestañas con HOME en el centro exacto (Índice 2)
+const TABS_ORDER = ['sleep', 'food', 'home', 'train', 'measure'] as const;
 const SIDE_TABS_LEFT = [
   { key: 'sleep', label: 'Bienestar', icon: 'moon' },
   { key: 'food', label: 'Comida', icon: 'nutrition' },
@@ -103,37 +105,52 @@ function ComingSoonHUD({ title, icon, subtitle }: { title: string; icon: any; su
   );
 }
 
-/* --- Componente de Transición Suave entre Pantallas / Tabs --- */
-function TabScreenTransition({ tabKey, children }: { tabKey: string; children: React.ReactNode }) {
-  const animOpacity = useRef(new Animated.Value(0)).current;
-  const animTranslateY = useRef(new Animated.Value(10)).current;
+/* --- Componente de Transición Suave con Deslizamiento entre Pantallas / Tabs --- */
+function TabScreenTransition({
+  tabKey,
+  direction,
+  children,
+}: {
+  tabKey: string;
+  direction: 'forward' | 'backward' | 'none';
+  children: React.ReactNode;
+}) {
+  const animSlide = useRef(new Animated.Value(0)).current;
+  const animOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    animOpacity.setValue(0);
-    animTranslateY.setValue(10);
+    if (direction === 'none') {
+      animSlide.setValue(0);
+      animOpacity.setValue(1);
+      return;
+    }
+
+    const startX = direction === 'forward' ? SCREEN_WIDTH * 0.32 : -SCREEN_WIDTH * 0.32;
+    animSlide.setValue(startX);
+    animOpacity.setValue(0.25);
 
     Animated.parallel([
-      Animated.timing(animOpacity, {
-        toValue: 1,
-        duration: 250,
+      Animated.timing(animSlide, {
+        toValue: 0,
+        duration: 260,
         easing: Easing.bezier(0.16, 1, 0.3, 1),
         useNativeDriver: true,
       }),
-      Animated.timing(animTranslateY, {
-        toValue: 0,
-        duration: 250,
+      Animated.timing(animOpacity, {
+        toValue: 1,
+        duration: 260,
         easing: Easing.bezier(0.16, 1, 0.3, 1),
         useNativeDriver: true,
       }),
     ]).start();
-  }, [tabKey]);
+  }, [tabKey, direction]);
 
   return (
     <Animated.View
       style={{
         flex: 1,
         opacity: animOpacity,
-        transform: [{ translateY: animTranslateY }],
+        transform: [{ translateX: animSlide }],
       }}
     >
       {children}
@@ -141,13 +158,224 @@ function TabScreenTransition({ tabKey, children }: { tabKey: string; children: R
   );
 }
 
+/* --- Overlay Splash con Animación Fluida de Logo Evolve al Entrar del Login --- */
+function AppIntroSplash({
+  palette,
+  onFinish,
+}: {
+  palette: any;
+  onFinish: () => void;
+}) {
+  const splashOpacityAnim = useRef(new Animated.Value(1)).current;
+  const splashScaleAnim = useRef(new Animated.Value(1)).current;
+  const logoScaleAnim = useRef(new Animated.Value(0.82)).current;
+  const logoOpacityAnim = useRef(new Animated.Value(0)).current;
+  const logoAuraAnim = useRef(new Animated.Value(0)).current;
+  const sloganFadeAnim = useRef(new Animated.Value(0)).current;
+  const sloganTranslateAnim = useRef(new Animated.Value(12)).current;
+  const finishedRef = useRef(false);
+
+  const finishSplash = () => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    Animated.parallel([
+      Animated.timing(splashOpacityAnim, {
+        toValue: 0,
+        duration: 380,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        useNativeDriver: true,
+      }),
+      Animated.timing(splashScaleAnim, {
+        toValue: 1.05,
+        duration: 380,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onFinish();
+    });
+  };
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(logoOpacityAnim, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
+          useNativeDriver: true,
+        }),
+        Animated.spring(logoScaleAnim, {
+          toValue: 1,
+          friction: 6.5,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoAuraAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.ease,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(sloganFadeAnim, {
+          toValue: 1,
+          duration: 380,
+          useNativeDriver: true,
+        }),
+        Animated.timing(sloganTranslateAnim, {
+          toValue: 0,
+          duration: 380,
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.delay(450),
+    ]).start(() => {
+      finishSplash();
+    });
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        StyleSheet.absoluteFill,
+        styles.splashOverlay,
+        {
+          backgroundColor: palette.bg,
+          opacity: splashOpacityAnim,
+          transform: [{ scale: splashScaleAnim }],
+        },
+      ]}
+      pointerEvents="box-none"
+    >
+      <LinearGradient
+        colors={
+          palette.isDark
+            ? ['rgba(139, 92, 246, 0.16)', 'rgba(236, 72, 153, 0.08)', 'transparent']
+            : ['rgba(139, 92, 246, 0.12)', 'rgba(236, 72, 153, 0.05)', 'transparent']
+        }
+        start={{ x: 0.5, y: 0.1 }}
+        end={{ x: 0.5, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
+      <Pressable style={styles.splashContentCenter} onPress={finishSplash}>
+        <Animated.View
+          style={[
+            styles.splashLogoAura,
+            {
+              backgroundColor: palette.primary,
+              opacity: logoAuraAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.22],
+              }),
+              transform: [
+                {
+                  scale: logoAuraAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1.4],
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+
+        <Animated.View
+          style={{
+            opacity: logoOpacityAnim,
+            transform: [{ scale: logoScaleAnim }],
+          }}
+        >
+          <EvolveLogo width={280} height={90} />
+        </Animated.View>
+
+        <Animated.View
+          style={{
+            alignItems: 'center',
+            marginTop: 14,
+            opacity: sloganFadeAnim,
+            transform: [{ translateY: sloganTranslateAnim }],
+          }}
+        >
+          <View
+            style={[
+              styles.splashBadge,
+              {
+                backgroundColor: `${palette.primary}18`,
+                borderColor: `${palette.primary}35`,
+              },
+            ]}
+          >
+            <Ionicons name="flash" size={13} color={palette.primary} />
+            <Text style={[styles.splashBadgeText, { color: palette.primary }]}>
+              ELEVA TU POTENCIAL • SUPERA TUS LÍMITES
+            </Text>
+          </View>
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState<string>('home');
+  const [slideDirection, setSlideDirection] = useState<'forward' | 'backward' | 'none'>('none');
+  const [showAppSplash, setShowAppSplash] = useState(false);
   const activePaletteId = useStore((s) => s.activePaletteId);
   const customPalettes = useStore((s) => s.customPalettes);
   const deletedPaletteIds = useStore((s) => s.deletedPaletteIds);
   const typography = useStore((s) => s.typography);
   const isAuthenticated = useStore((s) => s.isAuthenticated);
+  const prevAuthRef = useRef(isAuthenticated);
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+
+  const setTabWithDirection = (newTab: string) => {
+    if (newTab === tabRef.current) return;
+    const curIdx = TAB_INDEX_MAP[tabRef.current] ?? 2;
+    const newIdx = TAB_INDEX_MAP[newTab] ?? 2;
+    setSlideDirection(newIdx > curIdx ? 'forward' : 'backward');
+    setTab(newTab);
+  };
+
+  // Gestor de deslizamiento táctil horizontal entre secciones
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const { dx, dy } = gestureState;
+        // Solo capturar si el desplazamiento horizontal predomina fuertemente sobre el vertical
+        return Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy) * 2.2;
+      },
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        const { dx, dy } = gestureState;
+        return Math.abs(dx) > 28 && Math.abs(dx) > Math.abs(dy) * 2.8;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const { dx, vx } = gestureState;
+        const isQuickSwipe = Math.abs(vx) > 0.3;
+        const isFarSwipe = Math.abs(dx) > 40;
+
+        if ((isQuickSwipe || isFarSwipe) && Math.abs(dx) > 20) {
+          const curIdx = TAB_INDEX_MAP[tabRef.current] ?? 2;
+          if (dx < 0 && curIdx < TABS_ORDER.length - 1) {
+            // Deslizar a la izquierda -> siguiente sección (ej. Home -> Entreno)
+            setTabWithDirection(TABS_ORDER[curIdx + 1]);
+          } else if (dx > 0 && curIdx > 0) {
+            // Deslizar a la derecha -> sección anterior (ej. Home -> Comida)
+            setTabWithDirection(TABS_ORDER[curIdx - 1]);
+          }
+        }
+      },
+      onPanResponderTerminate: () => {},
+    })
+  ).current;
+
   const palette = getActivePalette({ activePaletteId, customPalettes, deletedPaletteIds });
   // Sincronizar paleta y tipografia con toda la app
   applyGlobalTheme(palette, typography);
@@ -158,6 +386,14 @@ export default function App() {
       initSyncService();
       pullUserDataFromDatabase();
     }
+  }, [isAuthenticated]);
+
+  // Si el usuario pasa de no autenticado a autenticado (al entrar del login a la app)
+  useEffect(() => {
+    if (!prevAuthRef.current && isAuthenticated) {
+      setShowAppSplash(true);
+    }
+    prevAuthRef.current = isAuthenticated;
   }, [isAuthenticated]);
 
   // Animación de transición suave entre Auth (Login/Registro) y la App Principal
@@ -412,10 +648,11 @@ export default function App() {
               <View
                 key={`${activePaletteId}-${typography?.titles}-${typography?.subtitles}-${typography?.body}-${typography?.data}`}
                 style={[styles.mainContent, { backgroundColor: palette.bg }]}
+                {...panResponder.panHandlers}
               >
-                <TabScreenTransition tabKey={tab}>
+                <TabScreenTransition tabKey={tab} direction={slideDirection}>
                   {tab === 'home' ? (
-                    <HomeScreen onNavigate={(newTab) => setTab(newTab)} />
+                    <HomeScreen onNavigate={(newTab) => setTabWithDirection(newTab)} />
                   ) : tab === 'sleep' ? (
                     <WellnessScreen />
                   ) : tab === 'food' ? (
@@ -470,7 +707,7 @@ export default function App() {
                       <Pressable
                         key={t.key}
                         style={({ pressed }) => [styles.tabItem, pressed && { transform: [{ scale: 0.92 }] }]}
-                        onPress={() => setTab(t.key)}
+                        onPress={() => setTabWithDirection(t.key)}
                         onLayout={(e) => handleTabLayout(t.key, e)}
                       >
                         <View style={styles.tabIconPill}>
@@ -506,7 +743,7 @@ export default function App() {
                       <Pressable
                         key={t.key}
                         style={({ pressed }) => [styles.tabItem, pressed && { transform: [{ scale: 0.92 }] }]}
-                        onPress={() => setTab(t.key)}
+                        onPress={() => setTabWithDirection(t.key)}
                         onLayout={(e) => handleTabLayout(t.key, e)}
                       >
                         <View style={styles.tabIconPill}>
@@ -534,7 +771,7 @@ export default function App() {
                 <View style={styles.floatingHomeAnchor} pointerEvents="box-none">
                   <Animated.View style={{ transform: [{ scale: homeScaleAnim }] }}>
                     <Pressable
-                      onPress={() => setTab('home')}
+                      onPress={() => setTabWithDirection('home')}
                       style={({ pressed }) => [
                         styles.floatingHomeBtn,
                         {
@@ -573,6 +810,14 @@ export default function App() {
           </Animated.View>
         )}
       </View>
+
+      {/* Pantalla de Splash Animada al Entrar a la App */}
+      {showAppSplash && (
+        <AppIntroSplash
+          palette={palette}
+          onFinish={() => setShowAppSplash(false)}
+        />
+      )}
     </SafeAreaProvider>
   );
 }
@@ -795,5 +1040,37 @@ const styles = StyleSheet.create({
     width: '65%',
     height: 6,
     borderRadius: 3,
+  },
+  // Intro Splash tras Login
+  splashOverlay: {
+    zIndex: 99999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashContentCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    width: '100%',
+  },
+  splashLogoAura: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+  },
+  splashBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  splashBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
 });

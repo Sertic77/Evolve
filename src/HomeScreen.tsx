@@ -848,6 +848,71 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
     };
   }, []);
 
+  // Animación de ganancia de XP en el perfil superior
+  const [showXpGainBadge, setShowXpGainBadge] = useState(false);
+  const [lastXpGained, setLastXpGained] = useState(0);
+  const xpGainTranslateYAnim = useRef(new Animated.Value(0)).current;
+  const xpGainOpacityAnim = useRef(new Animated.Value(0)).current;
+  const xpGainScaleAnim = useRef(new Animated.Value(0.6)).current;
+  const prevTotalXpRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (prevTotalXpRef.current !== null && xpBreakdown.totalXp > prevTotalXpRef.current) {
+      const diff = xpBreakdown.totalXp - prevTotalXpRef.current;
+      setLastXpGained(diff);
+      setShowXpGainBadge(true);
+
+      xpGainTranslateYAnim.setValue(6);
+      xpGainOpacityAnim.setValue(0);
+      xpGainScaleAnim.setValue(0.5);
+
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(xpGainOpacityAnim, {
+            toValue: 1,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.spring(xpGainScaleAnim, {
+            toValue: 1,
+            friction: 5,
+            tension: 50,
+            useNativeDriver: true,
+          }),
+          Animated.timing(xpGainTranslateYAnim, {
+            toValue: -4,
+            duration: 350,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+        // Ascenso flotante sutil mientras está visible
+        Animated.timing(xpGainTranslateYAnim, {
+          toValue: -14,
+          duration: 1600,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        // Desvanecimiento final suave
+        Animated.parallel([
+          Animated.timing(xpGainOpacityAnim, {
+            toValue: 0,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+          Animated.timing(xpGainScaleAnim, {
+            toValue: 0.8,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start(() => {
+        setShowXpGainBadge(false);
+      });
+    }
+    prevTotalXpRef.current = xpBreakdown.totalXp;
+  }, [xpBreakdown.totalXp]);
+
   return (
     <View style={[styles.root, { backgroundColor: palette.bg }]}>
       {/* ==========================================================
@@ -969,8 +1034,36 @@ export default function HomeScreen({ onNavigate }: { onNavigate?: (tab: string) 
               </Text>
             </View>
 
-            {/* Barra XP con icono interactivo "i" */}
+            {/* Barra XP con icono interactivo "i" y animación flotante de puntos ganados */}
             <View style={styles.heroXpRow}>
+              {showXpGainBadge && (
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.xpGainedFloatBadge,
+                    {
+                      opacity: xpGainOpacityAnim,
+                      transform: [
+                        { translateY: xpGainTranslateYAnim },
+                        { scale: xpGainScaleAnim },
+                      ],
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[c1, c2]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.xpGainedGradient}
+                  >
+                    <Ionicons name="sparkles" size={10} color="#FFFFFF" />
+                    <Text style={[styles.xpGainedText, { fontFamily: subtitleFont }]}>
+                      +{lastXpGained} XP
+                    </Text>
+                  </LinearGradient>
+                </Animated.View>
+              )}
+
               <View
                 style={[
                   styles.heroXpTrack,
@@ -4481,6 +4574,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 5,
+    position: 'relative',
+  },
+  xpGainedFloatBadge: {
+    position: 'absolute',
+    right: 22,
+    top: -24,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  xpGainedGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
+    gap: 4,
+  },
+  xpGainedText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
   },
   heroXpTrack: {
     flex: 1,
