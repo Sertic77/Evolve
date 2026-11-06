@@ -5928,6 +5928,38 @@ export const PRESET_AVATARS = [
     asset: require('../assets/avatars/pixel_boy_mostmuscular.jpg'),
   },
   {
+    id: 'pixel_m_squat',
+    title: 'Daiki (Squat)',
+    category: 'hombres',
+    accessory: 'Barra & Rodilleras',
+    emoji: '🏋️‍♂️',
+    asset: require('../assets/avatars/pixel_boy_squat.jpg'),
+  },
+  {
+    id: 'pixel_m_dips',
+    title: 'Takeshi (Dips)',
+    category: 'hombres',
+    accessory: 'Paralelas & Tríceps',
+    emoji: '🔥',
+    asset: require('../assets/avatars/pixel_boy_dips.jpg'),
+  },
+  {
+    id: 'pixel_m_boxing',
+    title: 'Ryuji (Box)',
+    category: 'hombres',
+    accessory: 'Guantes & Guardia',
+    emoji: '🥊',
+    asset: require('../assets/avatars/pixel_boy_boxing.jpg'),
+  },
+  {
+    id: 'pixel_m_ropes',
+    title: 'Shin (Ropes)',
+    category: 'hombres',
+    accessory: 'Battle Ropes Olas',
+    emoji: '⚡',
+    asset: require('../assets/avatars/pixel_boy_battle_ropes.jpg'),
+  },
+  {
     id: 'pixel_w_squat',
     title: 'Aoi (Squats)',
     category: 'mujeres',
@@ -5953,11 +5985,35 @@ export const PRESET_AVATARS = [
   },
   {
     id: 'pixel_w_dumbbells',
-    title: 'Mei (Laterales)',
+    title: 'Mei (Vuelos)',
     category: 'mujeres',
-    accessory: 'Hombros & Vuelos',
+    accessory: 'Hombros & Mancuernas',
     emoji: '✨',
     asset: require('../assets/avatars/pixel_girl_dumbbells.jpg'),
+  },
+  {
+    id: 'pixel_w_running',
+    title: 'Akari (Run)',
+    category: 'mujeres',
+    accessory: 'Cinta & Audífonos',
+    emoji: '🏃‍♀️',
+    asset: require('../assets/avatars/pixel_girl_running.jpg'),
+  },
+  {
+    id: 'pixel_w_stretching',
+    title: 'Sakura (Yoga)',
+    category: 'mujeres',
+    accessory: 'Esterilla & Flex',
+    emoji: '🧘‍♀️',
+    asset: require('../assets/avatars/pixel_girl_stretching.jpg'),
+  },
+  {
+    id: 'pixel_w_hipthrust',
+    title: 'Hana (Thrust)',
+    category: 'mujeres',
+    accessory: 'Glúteos & Barra',
+    emoji: '💫',
+    asset: require('../assets/avatars/pixel_girl_hipthrust.jpg'),
   },
 ];
 
@@ -6071,11 +6127,11 @@ function AvatarZoomModal({
 }) {
   const { width: windowWidth } = useWindowDimensions();
   // Modal inner width: overlay padding 18*2 + card padding 18*2 = 72px
-  const availableGridWidth = Math.max(260, Math.min(windowWidth - 72, 380));
-  // Exactly 3 items per row with 2 gaps of 8px (16px total)
-  const itemCardWidth = Math.floor((availableGridWidth - 16) / 3);
-  // Thumbnail size: itemCardWidth - 8px card padding (4px on each side)
-  const thumbSize = Math.max(60, itemCardWidth - 8);
+  const availableGridWidth = Math.max(280, Math.min(windowWidth - 72, 400));
+  // Exactly 4 items per row with 3 gaps of 6px (18px total)
+  const itemCardWidth = Math.floor((availableGridWidth - 18) / 4);
+  // Thumbnail size: itemCardWidth - 6px card padding (3px on each side)
+  const thumbSize = Math.max(48, itemCardWidth - 6);
 
   const handlePickCamera = async () => {
     try {
@@ -6220,13 +6276,13 @@ function AvatarZoomModal({
               </TouchableOpacity>
             ) : null}
 
-            {/* Galería de Avatares Pixel-Art & Anime Gym (Grilla 3x3 - 9 Avatares) */}
+            {/* Galería de Avatares Pixel-Art & Anime Gym (Grilla 4x4 - 16 Avatares) */}
             <View style={avatarStyles.presetSection}>
               <View style={avatarStyles.presetHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="sparkles" size={14} color={c1} />
                   <Text style={[avatarStyles.presetSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
-                    Avatares Pixel-Art & Anime (9 Predeterminados)
+                    Avatares Pixel-Art & Anime (16 Predeterminados)
                   </Text>
                 </View>
                 <Text style={[avatarStyles.presetSectionSub, { color: palette.textSub, fontFamily: bodyFont }]}>
@@ -6234,7 +6290,7 @@ function AvatarZoomModal({
                 </Text>
               </View>
 
-              {/* Cuadrícula 3x3 de Avatares (Con límites estrictos y proporciones exactas) */}
+              {/* Cuadrícula 4x4 de Avatares (Con límites estrictos y proporciones exactas) */}
               <View style={[avatarStyles.presetGrid, { width: availableGridWidth, alignSelf: 'center' }]}>
                 {PRESET_AVATARS.map((preset) => {
                   const presetUri = preset.asset ? Image.resolveAssetSource(preset.asset)?.uri : (preset as any).uri;
@@ -6348,7 +6404,7 @@ const avatarStyles = StyleSheet.create({
   // Banner a todo el ancho (no circular)
   fullWidthBanner: {
     width: '100%',
-    height: 125,
+    height: 240,
     borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',
@@ -6457,32 +6513,32 @@ const avatarStyles = StyleSheet.create({
   presetGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
     justifyContent: 'flex-start',
   },
   presetItemCard: {
-    borderRadius: 12,
-    padding: 4,
+    borderRadius: 10,
+    padding: 3,
     alignItems: 'center',
     position: 'relative',
     overflow: 'hidden',
   },
   thumbnailWrapper: {
-    borderRadius: 8,
+    borderRadius: 7,
     overflow: 'hidden',
     backgroundColor: '#0F172A',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   presetThumbnail: {
-    borderRadius: 8,
+    borderRadius: 7,
   },
   presetTitle: {
-    fontSize: 9.5,
+    fontSize: 8.5,
     fontWeight: '800',
     textAlign: 'center',
   },
   presetAccessoryText: {
-    fontSize: 8,
+    fontSize: 7.2,
     marginTop: 1,
     textAlign: 'center',
   },

@@ -1091,56 +1091,60 @@ function FriendProfileObserverModal({
           </View>
 
           {/* Pestañas de Navegación de Perfil (Home, Entreno, Comida, Bienestar, Medidas) */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.profileTabsScroll}
-          >
-            {[
-              { key: 'home', label: 'Home', icon: 'home-outline' },
-              { key: 'workout', label: 'Entreno', icon: 'barbell-outline' },
-              { key: 'food', label: 'Comida', icon: 'restaurant-outline' },
-              { key: 'wellness', label: 'Bienestar', icon: 'heart-outline' },
-              { key: 'measurements', label: 'Medidas', icon: 'analytics-outline' },
-            ].map((tab) => {
-              const isActive = activeProfileTab === tab.key;
-              const isLocked = !p[tab.key as keyof typeof p];
-              return (
-                <TouchableOpacity
-                  key={tab.key}
-                  activeOpacity={0.8}
-                  onPress={() => setActiveProfileTab(tab.key as any)}
-                  style={[
-                    styles.profileTabBtn,
-                    {
-                      backgroundColor: isActive ? friendPrimary : palette.isDark ? '#0F172A' : '#F1F5F9',
-                      borderColor: isActive ? friendPrimary : palette.border,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={isLocked ? 'lock-closed' : (tab.icon as any)}
-                    size={14}
-                    color={isActive ? '#FFFFFF' : isLocked ? '#EF4444' : palette.textSub}
-                    style={{ marginRight: 5 }}
-                  />
-                  <Text
+          <View style={{ flexShrink: 0, height: 46, marginBottom: 8 }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.profileTabsScroll}
+              style={{ flexGrow: 0, height: 46 }}
+            >
+              {[
+                { key: 'home', label: 'Home', icon: 'home-outline' },
+                { key: 'workout', label: 'Entreno', icon: 'barbell-outline' },
+                { key: 'food', label: 'Comida', icon: 'restaurant-outline' },
+                { key: 'wellness', label: 'Bienestar', icon: 'heart-outline' },
+                { key: 'measurements', label: 'Medidas', icon: 'analytics-outline' },
+              ].map((tab) => {
+                const isActive = activeProfileTab === tab.key;
+                const isLocked = !p[tab.key as keyof typeof p];
+                return (
+                  <TouchableOpacity
+                    key={tab.key}
+                    activeOpacity={0.8}
+                    onPress={() => setActiveProfileTab(tab.key as any)}
                     style={[
-                      styles.profileTabBtnText,
+                      styles.profileTabBtn,
                       {
-                        color: isActive ? '#FFFFFF' : palette.text,
-                        fontFamily: subtitleFont,
+                        backgroundColor: isActive ? friendPrimary : palette.isDark ? '#0F172A' : '#F1F5F9',
+                        borderColor: isActive ? friendPrimary : palette.border,
                       },
                     ]}
                   >
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                    <Ionicons
+                      name={isLocked ? 'lock-closed' : (tab.icon as any)}
+                      size={14}
+                      color={isActive ? '#FFFFFF' : isLocked ? '#EF4444' : palette.textSub}
+                      style={{ marginRight: 5 }}
+                    />
+                    <Text
+                      style={[
+                        styles.profileTabBtnText,
+                        {
+                          color: isActive ? '#FFFFFF' : palette.text,
+                          fontFamily: subtitleFont,
+                        },
+                      ]}
+                    >
+                      {tab.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
 
           <ScrollView
+            style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 24 }}
             refreshControl={
@@ -1304,71 +1308,115 @@ function FriendProfileObserverModal({
                     <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
                       Récords Personales (PRs)
                     </Text>
-                    <View style={[styles.prsContainer, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
-                      {profile.workout.prs.map((pr, index) => (
-                        <View
-                          key={pr.exercise}
-                          style={[
-                            styles.prRow,
-                            index > 0 && { borderTopWidth: 1, borderTopColor: palette.border },
-                          ]}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.prExerciseName, { color: palette.text, fontFamily: subtitleFont }]}>
-                              {pr.exercise}
-                            </Text>
-                            <Text style={[styles.prDate, { color: palette.textSub, fontFamily: bodyFont }]}>
-                              {pr.date || 'Récord activo'}
-                            </Text>
-                          </View>
-                          <View style={[styles.prWeightBadge, { backgroundColor: `${friendPrimary}20` }]}>
-                            <Text style={[styles.prWeightText, { color: friendPrimary, fontFamily: dataFont }]}>
-                              {pr.weight} kg
-                            </Text>
-                            {pr.reps && (
-                              <Text style={[styles.prRepsText, { color: palette.textSub, fontFamily: bodyFont }]}>
-                                x{pr.reps} reps
+                    {profile.workout.prs.length === 0 ? (
+                      <View
+                        style={[
+                          styles.goalItemCard,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: palette.border,
+                            alignItems: 'center',
+                            paddingVertical: 18,
+                          },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 24, marginBottom: 4 }}>🏋️‍♂️</Text>
+                        <Text style={[styles.goalTitle, { color: palette.text, fontFamily: subtitleFont, textAlign: 'center' }]}>
+                          Sin récords personales (PRs) aún
+                        </Text>
+                        <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont, textAlign: 'center', marginTop: 3 }]}>
+                          Este atleta aún no tiene récords personales registrados.
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.prsContainer, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                        {profile.workout.prs.map((pr, index) => (
+                          <View
+                            key={pr.exercise}
+                            style={[
+                              styles.prRow,
+                              index > 0 && { borderTopWidth: 1, borderTopColor: palette.border },
+                            ]}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.prExerciseName, { color: palette.text, fontFamily: subtitleFont }]}>
+                                {pr.exercise}
                               </Text>
-                            )}
+                              <Text style={[styles.prDate, { color: palette.textSub, fontFamily: bodyFont }]}>
+                                {pr.date || 'Récord activo'}
+                              </Text>
+                            </View>
+                            <View style={[styles.prWeightBadge, { backgroundColor: `${friendPrimary}20` }]}>
+                              <Text style={[styles.prWeightText, { color: friendPrimary, fontFamily: dataFont }]}>
+                                {pr.weight} kg
+                              </Text>
+                              {pr.reps && (
+                                <Text style={[styles.prRepsText, { color: palette.textSub, fontFamily: bodyFont }]}>
+                                  x{pr.reps} reps
+                                </Text>
+                              )}
+                            </View>
                           </View>
-                        </View>
-                      ))}
-                    </View>
+                        ))}
+                      </View>
+                    )}
 
                     {/* Entrenamientos Recientes */}
                     <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
                       Entrenamientos Recientes
                     </Text>
-                    {profile.workout.recentWorkouts.map((w) => (
+                    {profile.workout.recentWorkouts.length === 0 ? (
                       <View
-                        key={w.id}
                         style={[
-                          styles.workoutHistoryCard,
+                          styles.goalItemCard,
                           {
                             backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
                             borderColor: palette.border,
+                            alignItems: 'center',
+                            paddingVertical: 18,
                           },
                         ]}
                       >
-                        <View style={styles.workoutHistoryHeader}>
-                          <Text style={[styles.workoutHistoryTitle, { color: palette.text, fontFamily: subtitleFont }]}>
-                            {w.title}
-                          </Text>
-                          <Text style={[styles.workoutHistoryDate, { color: palette.textSub, fontFamily: bodyFont }]}>
-                            {w.date} · {w.durationMinutes} min
-                          </Text>
-                        </View>
-                        <View style={styles.exerciseChipsRow}>
-                          {w.exercises.map((ex) => (
-                            <View key={ex} style={[styles.exerciseMiniChip, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
-                              <Text style={[styles.exerciseMiniChipText, { color: palette.text, fontFamily: bodyFont }]}>
-                                {ex}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
+                        <Text style={{ fontSize: 24, marginBottom: 4 }}>📋</Text>
+                        <Text style={[styles.goalTitle, { color: palette.text, fontFamily: subtitleFont, textAlign: 'center' }]}>
+                          Sin entrenamientos recientes
+                        </Text>
+                        <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont, textAlign: 'center', marginTop: 3 }]}>
+                          No hay sesiones de entreno registradas en el historial.
+                        </Text>
                       </View>
-                    ))}
+                    ) : (
+                      profile.workout.recentWorkouts.map((w) => (
+                        <View
+                          key={w.id}
+                          style={[
+                            styles.workoutHistoryCard,
+                            {
+                              backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                              borderColor: palette.border,
+                            },
+                          ]}
+                        >
+                          <View style={styles.workoutHistoryHeader}>
+                            <Text style={[styles.workoutHistoryTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                              {w.title}
+                            </Text>
+                            <Text style={[styles.workoutHistoryDate, { color: palette.textSub, fontFamily: bodyFont }]}>
+                              {w.date} · {w.durationMinutes} min
+                            </Text>
+                          </View>
+                          <View style={styles.exerciseChipsRow}>
+                            {w.exercises.map((ex) => (
+                              <View key={ex} style={[styles.exerciseMiniChip, { backgroundColor: palette.cardBg, borderColor: palette.border }]}>
+                                <Text style={[styles.exerciseMiniChipText, { color: palette.text, fontFamily: bodyFont }]}>
+                                  {ex}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      ))
+                    )}
                   </View>
                 )}
 
@@ -1419,30 +1467,52 @@ function FriendProfileObserverModal({
                     <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
                       Comidas Registradas del Día
                     </Text>
-                    {profile.food.loggedMealsToday.map((m, idx) => (
+                    {profile.food.loggedMealsToday.length === 0 ? (
                       <View
-                        key={idx}
                         style={[
-                          styles.mealLogRow,
+                          styles.goalItemCard,
                           {
                             backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
                             borderColor: palette.border,
+                            alignItems: 'center',
+                            paddingVertical: 18,
                           },
                         ]}
                       >
-                        <Text style={[styles.mealLogTitle, { color: palette.text, fontFamily: subtitleFont }]}>
-                          {m.name}
+                        <Text style={{ fontSize: 24, marginBottom: 4 }}>🥗</Text>
+                        <Text style={[styles.goalTitle, { color: palette.text, fontFamily: subtitleFont, textAlign: 'center' }]}>
+                          Sin comidas registradas hoy
                         </Text>
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                          <Text style={[styles.mealLogVal, { color: friendPrimary, fontFamily: dataFont }]}>
-                            {m.calories} kcal
-                          </Text>
-                          <Text style={[styles.mealLogVal, { color: '#3B82F6', fontFamily: dataFont }]}>
-                            {m.protein}g P
-                          </Text>
-                        </View>
+                        <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont, textAlign: 'center', marginTop: 3 }]}>
+                          No hay platos registrados en la fecha más reciente.
+                        </Text>
                       </View>
-                    ))}
+                    ) : (
+                      profile.food.loggedMealsToday.map((m, idx) => (
+                        <View
+                          key={idx}
+                          style={[
+                            styles.mealLogRow,
+                            {
+                              backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                              borderColor: palette.border,
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.mealLogTitle, { color: palette.text, fontFamily: subtitleFont }]}>
+                            {m.name}
+                          </Text>
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <Text style={[styles.mealLogVal, { color: friendPrimary, fontFamily: dataFont }]}>
+                              {m.calories} kcal
+                            </Text>
+                            <Text style={[styles.mealLogVal, { color: '#3B82F6', fontFamily: dataFont }]}>
+                              {m.protein}g P
+                            </Text>
+                          </View>
+                        </View>
+                      ))
+                    )}
                   </View>
                 )}
 
@@ -1462,7 +1532,7 @@ function FriendProfileObserverModal({
                       <View style={[styles.metricTile, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
                         <Text style={styles.metricEmoji}>✨</Text>
                         <Text style={[styles.metricValue, { color: '#10B981', fontSize: 13, fontFamily: subtitleFont }]}>
-                          Óptima
+                          {profile.wellness.sleepQuality}
                         </Text>
                         <Text style={[styles.metricLabel, { color: palette.textSub, fontFamily: bodyFont }]}>
                           Calidad de Recuperación
@@ -1474,48 +1544,70 @@ function FriendProfileObserverModal({
                     <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
                       Suplementación Diaria & Checklist
                     </Text>
-                    {profile.wellness.activeSupplements.map((supp, idx) => (
+                    {profile.wellness.activeSupplements.length === 0 ? (
                       <View
-                        key={idx}
                         style={[
-                          styles.suppCardRow,
+                          styles.goalItemCard,
                           {
                             backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
                             borderColor: palette.border,
+                            alignItems: 'center',
+                            paddingVertical: 18,
                           },
                         ]}
                       >
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.suppName, { color: palette.text, fontFamily: subtitleFont }]}>
-                            {supp.name}
-                          </Text>
-                          <Text style={[styles.suppDosage, { color: palette.textSub, fontFamily: bodyFont }]}>
-                            Dosis: {supp.dosage}
-                          </Text>
-                        </View>
+                        <Text style={{ fontSize: 24, marginBottom: 4 }}>💊</Text>
+                        <Text style={[styles.goalTitle, { color: palette.text, fontFamily: subtitleFont, textAlign: 'center' }]}>
+                          Sin suplementos activos
+                        </Text>
+                        <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont, textAlign: 'center', marginTop: 3 }]}>
+                          Este usuario no tiene suplementos en su rutina diaria.
+                        </Text>
+                      </View>
+                    ) : (
+                      profile.wellness.activeSupplements.map((supp, idx) => (
                         <View
+                          key={idx}
                           style={[
-                            styles.suppStatusBadge,
-                            { backgroundColor: supp.takenToday ? '#10B98125' : '#EF444420' },
+                            styles.suppCardRow,
+                            {
+                              backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                              borderColor: palette.border,
+                            },
                           ]}
                         >
-                          <Ionicons
-                            name={supp.takenToday ? 'checkmark-circle' : 'time-outline'}
-                            size={14}
-                            color={supp.takenToday ? '#10B981' : '#EF4444'}
-                            style={{ marginRight: 4 }}
-                          />
-                          <Text
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.suppName, { color: palette.text, fontFamily: subtitleFont }]}>
+                              {supp.name}
+                            </Text>
+                            <Text style={[styles.suppDosage, { color: palette.textSub, fontFamily: bodyFont }]}>
+                              Dosis: {supp.dosage}
+                            </Text>
+                          </View>
+                          <View
                             style={[
-                              styles.suppStatusText,
-                              { color: supp.takenToday ? '#10B981' : '#EF4444', fontFamily: subtitleFont },
+                              styles.suppStatusBadge,
+                              { backgroundColor: supp.takenToday ? '#10B98125' : '#EF444420' },
                             ]}
                           >
-                            {supp.takenToday ? 'Tomado hoy' : 'Pendiente'}
-                          </Text>
+                            <Ionicons
+                              name={supp.takenToday ? 'checkmark-circle' : 'time-outline'}
+                              size={14}
+                              color={supp.takenToday ? '#10B981' : '#EF4444'}
+                              style={{ marginRight: 4 }}
+                            />
+                            <Text
+                              style={[
+                                styles.suppStatusText,
+                                { color: supp.takenToday ? '#10B981' : '#EF4444', fontFamily: subtitleFont },
+                              ]}
+                            >
+                              {supp.takenToday ? 'Tomado hoy' : 'Pendiente'}
+                            </Text>
+                          </View>
                         </View>
-                      </View>
-                    ))}
+                      ))
+                    )}
                   </View>
                 )}
 
@@ -1570,24 +1662,46 @@ function FriendProfileObserverModal({
                     <Text style={[styles.metricSectionTitle, { color: palette.text, fontFamily: titleFont }]}>
                       Medidas Corporales Registradas
                     </Text>
-                    <View style={[styles.musclesBox, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
-                      {profile.measurements.muscles.map((item, idx) => (
-                        <View
-                          key={item.part}
-                          style={[
-                            styles.muscleRowItem,
-                            idx > 0 && { borderTopWidth: 1, borderTopColor: palette.border },
-                          ]}
-                        >
-                          <Text style={[styles.musclePartName, { color: palette.text, fontFamily: subtitleFont }]}>
-                            {item.part}
-                          </Text>
-                          <Text style={[styles.musclePartCm, { color: c1, fontFamily: dataFont }]}>
-                            {item.cm} cm
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
+                    {profile.measurements.muscles.length === 0 ? (
+                      <View
+                        style={[
+                          styles.goalItemCard,
+                          {
+                            backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC',
+                            borderColor: palette.border,
+                            alignItems: 'center',
+                            paddingVertical: 18,
+                          },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 24, marginBottom: 4 }}>📐</Text>
+                        <Text style={[styles.goalTitle, { color: palette.text, fontFamily: subtitleFont, textAlign: 'center' }]}>
+                          Sin medidas corporales registradas
+                        </Text>
+                        <Text style={[styles.goalDate, { color: palette.textSub, fontFamily: bodyFont, textAlign: 'center', marginTop: 3 }]}>
+                          Este usuario aún no ha guardado registros de perímetros musculares.
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.musclesBox, { backgroundColor: palette.isDark ? '#0F172A' : '#F8FAFC', borderColor: palette.border }]}>
+                        {profile.measurements.muscles.map((item, idx) => (
+                          <View
+                            key={item.part}
+                            style={[
+                              styles.muscleRowItem,
+                              idx > 0 && { borderTopWidth: 1, borderTopColor: palette.border },
+                            ]}
+                          >
+                            <Text style={[styles.musclePartName, { color: palette.text, fontFamily: subtitleFont }]}>
+                              {item.part}
+                            </Text>
+                            <Text style={[styles.musclePartCm, { color: friendPrimary, fontFamily: dataFont }]}>
+                              {item.cm} cm
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
                   </View>
                 )}
               </View>
@@ -3938,6 +4052,7 @@ const styles = StyleSheet.create({
 
   // Profile Observer Modal
   profileCardModal: {
+    height: '92%',
     maxHeight: '92%',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
@@ -3947,6 +4062,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   profileHeader: {
+    flexShrink: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
@@ -3984,6 +4100,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   themeBanner: {
+    flexShrink: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

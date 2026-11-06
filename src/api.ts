@@ -165,7 +165,8 @@ export async function apiCheckEmail(
 }
 
 export async function apiLogin(payload: {
-  email: string;
+  email?: string;
+  identifier?: string;
   password: string;
 }): Promise<AuthResponse> {
   const res = await fetch(`${getServerUrl()}/api/auth/login`, {

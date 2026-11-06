@@ -234,11 +234,18 @@ export default function AuthScreen() {
   };
 
   const handleSubmit = async () => {
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !password) {
-      Alert.alert('Campos requeridos', 'Por favor ingresa tu correo y contraseña.');
+    const cleanIdentifier = email.trim();
+    if (!cleanIdentifier || !password) {
+      Alert.alert(
+        'Campos requeridos',
+        mode === 'login'
+          ? 'Por favor ingresa tu correo o nickname y contraseña.'
+          : 'Por favor ingresa tu correo y contraseña.'
+      );
       return;
     }
+
+    const cleanEmail = cleanIdentifier.toLowerCase();
 
     if (mode === 'register') {
       if (!name.trim()) {
@@ -676,16 +683,22 @@ export default function AuthScreen() {
                 </>
               )}
 
-              <Text style={[styles.inputLabel, { color: palette.textSub }]}>CORREO ELECTRÓNICO</Text>
+              <Text style={[styles.inputLabel, { color: palette.textSub }]}>
+                {mode === 'login' ? 'CORREO ELECTRÓNICO O NICKNAME' : 'CORREO ELECTRÓNICO'}
+              </Text>
               <View style={[styles.inputWrapper, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                <Ionicons name="mail-outline" size={17} color={palette.primary} />
+                <Ionicons
+                  name={mode === 'login' ? 'person-circle-outline' : 'mail-outline'}
+                  size={17}
+                  color={palette.primary}
+                />
                 <TextInput
                   style={[styles.textInput, { color: palette.text }]}
-                  placeholder="tu@correo.com"
+                  placeholder={mode === 'login' ? 'tu@correo.com o @apodo' : 'tu@correo.com'}
                   placeholderTextColor={palette.textSub}
                   value={email}
                   onChangeText={setEmail}
-                  keyboardType="email-address"
+                  keyboardType={mode === 'login' ? 'default' : 'email-address'}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />

@@ -521,25 +521,47 @@ app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
   }
 });
 
-// 2. INICIO DE SESIÓN CON CORREO Y CONTRASEÑA
+// 2. INICIO DE SESIÓN CON CORREO O NICKNAME Y CONTRASEÑA
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, identifier, nickname, password } = req.body;
+    const rawInput = String(identifier || nickname || email || '').trim();
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Ingresa correo y contraseña.' });
+    if (!rawInput || !password) {
+      return res.status(400).json({ error: 'Ingresa correo o nickname y contraseña.' });
     }
 
-    const cleanEmail = String(email).trim().toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    const cleanInput = rawInput.toLowerCase();
+    const cleanNick = cleanInput.startsWith('@') ? cleanInput.slice(1) : cleanInput;
+
+    // Buscar por correo o nickname (con o sin @)
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: cleanInput },
+          { nickname: cleanNick },
+          { nickname: `@${cleanNick}` },
+        ],
+      },
+    });
+
+    // Fallback insensible a mayúsculas para SQLite
+    if (!user) {
+      const allUsers = await prisma.user.findMany();
+      user = allUsers.find((u) => {
+        const uEmail = u.email ? u.email.trim().toLowerCase() : '';
+        const uNick = u.nickname ? u.nickname.trim().toLowerCase().replace('@', '') : '';
+        return uEmail === cleanInput || uNick === cleanNick;
+      }) || null;
+    }
 
     if (!user || !user.passwordHash) {
-      return res.status(401).json({ error: 'Credenciales inválidas. Verifica tu correo y contraseña.' });
+      return res.status(401).json({ error: 'Credenciales inválidas. Verifica tu correo o nickname y contraseña.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Credenciales inválidas. Verifica tu correo y contraseña.' });
+      return res.status(401).json({ error: 'Credenciales inválidas. Verifica tu correo o nickname y contraseña.' });
     }
 
     const token = generateToken(user);
@@ -1030,15 +1052,121 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
     measurements: true,
   };
 
-  // 3. Info Básica y Nivel
-  const streak = user.streak || 0;
-  const level = user.level || 1;
-  const rank = user.rankTitle || 'Atleta Evolve';
-  const xp = user.totalXp || level * 1000;
-  const nextLevelXp = (level + 1) * 1250;
+  // 3. Info Básica, Racha, Nivel y Experiencia Calculados en Tiempo Real
+  const workoutLogs = records.workoutLogs && typeof records.workoutLogs === 'object' ? records.workoutLogs : {};
+  const trainedDates = Object.entries(workoutLogs)
+    .filter(([_, exercises]) => Array.isArray(exercises) && exercises.length > 0)
+    .map(([date]) => date)
+    .sort();
+
+  let streak = 0;
+  if (trainedDates.length > 0) {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const lastDateStr = trainedDates[trainedDates.length - 1];
+    const lastWorkoutDate = new Date(`${lastDateStr}T12:00:00`);
+    const diffMs = today.getTime() - lastWorkoutDate.getTime();
+    const daysSinceLast = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    if (daysSinceLast <= 5) {
+      streak = 1;
+      for (let i = trainedDates.length - 1; i > 0; i--) {
+        const cur = new Date(`${trainedDates[i]}T12:00:00`);
+        const prev = new Date(`${trainedDates[i - 1]}T12:00:00`);
+        const gapDays = Math.round((cur.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+        if (gapDays <= 5) streak++;
+        else break;
+      }
+    }
+  }
+
+  // Cálculo de XP real a partir de todas las actividades registradas
+  let totalXp = 0;
+  // Entrenamientos
+  Object.values(workoutLogs).forEach((sessions: any) => {
+    if (Array.isArray(sessions) && sessions.length > 0) {
+      totalXp += 25;
+      sessions.forEach((s: any) => {
+        const setsCount = Array.isArray(s.sets) ? s.sets.length : 1;
+        totalXp += 8 + setsCount * 2;
+      });
+    }
+  });
+
+  // Nutrición
+  const mealLogs = records.logs && typeof records.logs === 'object' ? records.logs : {};
+  Object.values(mealLogs).forEach((meals: any) => {
+    if (Array.isArray(meals) && meals.length > 0) totalXp += 15;
+  });
+
+  // Sueño
+  const sleepLogs = records.sleepLogs && typeof records.sleepLogs === 'object' ? records.sleepLogs : {};
+  Object.keys(sleepLogs).forEach(() => { totalXp += 10; });
+
+  // Suplementos
+  const rawSupplements = Array.isArray(records.supplements) ? records.supplements : [];
+  const supplementLogs = records.supplementLogs && typeof records.supplementLogs === 'object' ? records.supplementLogs : {};
+  Object.values(supplementLogs).forEach((dayMap: any) => {
+    if (dayMap && typeof dayMap === 'object') {
+      let count = 0;
+      Object.values(dayMap).forEach((arr: any) => {
+        if (Array.isArray(arr)) count += arr.filter(Boolean).length;
+      });
+      totalXp += count * 4;
+    }
+  });
+
+  // Metas completadas
+  const rawGoals = Array.isArray(records.goals) ? records.goals : [];
+  rawGoals.forEach((g: any) => {
+    if (g && g.completed) totalXp += 150;
+  });
+
+  // Medidas corporales
+  const measurementLogs = records.measurementLogs && typeof records.measurementLogs === 'object' ? records.measurementLogs : {};
+  Object.keys(measurementLogs).forEach(() => { totalXp += 12; });
+
+  if (typeof user.totalXp === 'number' && user.totalXp > totalXp) {
+    totalXp = user.totalXp;
+  }
+  if (typeof user.streak === 'number' && user.streak > streak) {
+    streak = user.streak;
+  }
+
+  // Curva de niveles progresiva (idéntica a HomeScreen): L requiere 140 + (L-1)*45 XP
+  let level = 1;
+  let remainingXp = totalXp;
+  let neededForCurrent = 140;
+  while (remainingXp >= neededForCurrent) {
+    remainingXp -= neededForCurrent;
+    level++;
+    neededForCurrent = 140 + (level - 1) * 45;
+  }
+
+  if (typeof user.level === 'number' && user.level > level) {
+    level = user.level;
+  }
+
+  let rank = 'Iniciado Fitness';
+  if (level >= 100) rank = 'Leyenda Evolve';
+  else if (level >= 90) rank = 'Deidad del Hierro';
+  else if (level >= 80) rank = 'Inmortal de Acero';
+  else if (level >= 70) rank = 'Semidiós del Fitness';
+  else if (level >= 60) rank = 'Coloso Indomable';
+  else if (level >= 50) rank = 'Maestro del Olimpo';
+  else if (level >= 40) rank = 'Titán del Hierro';
+  else if (level >= 30) rank = 'Atleta Élite';
+  else if (level >= 20) rank = 'Atleta Avanzado';
+  else if (level >= 10) rank = 'Guerrero del Gym';
+  else if (level >= 5) rank = 'Atleta Dedicado';
+
+  if (user.rankTitle && user.rankTitle !== 'Atleta Evolve' && user.rankTitle !== 'Iniciado Fitness') {
+    rank = user.rankTitle;
+  }
+
+  const xp = remainingXp;
+  const nextLevelXp = neededForCurrent;
 
   // 4. Metas Reales desde la BD (filtrar activas y calcular progreso real)
-  const rawGoals = Array.isArray(records.goals) ? records.goals : [];
   const activeRawGoals = rawGoals.filter((g: any) => !g.completed);
 
   const activeGoals = activeRawGoals.map((g: any, idx: number) => {
@@ -1069,7 +1197,6 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
   const completedGoalsCount = rawGoals.filter((g: any) => g.completed).length;
 
   // 5. Entrenamientos y PRs Reales de la BD
-  const workoutLogs = records.workoutLogs && typeof records.workoutLogs === 'object' ? records.workoutLogs : {};
   const exerciseList = Array.isArray(records.exercises) ? records.exercises : [];
   const exerciseMap = new Map<string, string>();
   exerciseList.forEach((e: any) => {
@@ -1125,16 +1252,7 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
     date: data.date,
   }));
 
-  if (prs.length === 0) {
-    prs.push(
-      { exercise: 'Press de Banca Plano', weight: 80, reps: 6, date: '2026-10-25' },
-      { exercise: 'Sentadilla con Barra', weight: 110, reps: 5, date: '2026-10-28' },
-      { exercise: 'Peso Muerto Convencional', weight: 140, reps: 3, date: '2026-10-30' }
-    );
-  }
-
   // 6. Nutrición y Comidas Reales de la BD
-  const mealLogs = records.logs && typeof records.logs === 'object' ? records.logs : {};
   const ingredientsList = Array.isArray(records.ingredients) ? records.ingredients : [];
   const ingMap = new Map<string, any>();
   ingredientsList.forEach((ing: any) => {
@@ -1158,14 +1276,12 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
             const factor = item.grams / ing.servingGrams;
             mealKcal += Math.round((ing.kcal || 0) * factor);
             mealProt += Math.round((ing.protein || 0) * factor);
-          } else if (item.kcal) {
-            mealKcal += Number(item.kcal);
+          } else if (item.kcal || item.calories) {
+            mealKcal += Number(item.kcal || item.calories || 0);
             mealProt += Number(item.protein || 0);
           }
         }
       }
-      if (mealKcal === 0) mealKcal = 420;
-      if (mealProt === 0) mealProt = 30;
       totalKcalToday += mealKcal;
       totalProtToday += mealProt;
 
@@ -1177,27 +1293,26 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
     }
   }
 
-  if (loggedMealsToday.length === 0) {
-    loggedMealsToday.push(
-      { name: 'Desayuno Proteico', calories: 520, protein: 42 },
-      { name: 'Almuerzo Equilibrado', calories: 750, protein: 55 }
-    );
-  }
-
   const weightLogs = records.weightLogs && typeof records.weightLogs === 'object' ? records.weightLogs : {};
   const weightDates = Object.keys(weightLogs).sort();
-  const currentWeight = weightDates.length > 0 ? Number(weightLogs[weightDates[weightDates.length - 1]]) : 75;
+  const currentWeight = weightDates.length > 0 ? Number(weightLogs[weightDates[weightDates.length - 1]]) : (Number(records.userProfile?.weight) || 70);
   const startWeight = weightDates.length > 0 ? Number(weightLogs[weightDates[0]]) : currentWeight;
-  const targetWeight = currentWeight > 80 ? currentWeight - 5 : currentWeight + 5;
+  const targetWeight = Number(records.userProfile?.targetWeight) || currentWeight;
+
+  const bodyFatLogs = records.bodyFatLogs && typeof records.bodyFatLogs === 'object' ? records.bodyFatLogs : {};
+  const fatDates = Object.keys(bodyFatLogs).sort();
+  const currentBodyFat = fatDates.length > 0 ? Number(bodyFatLogs[fatDates[fatDates.length - 1]]) : (Number(records.userProfile?.bodyFat) || 0);
+
+  const waterLogs = records.waterLogs && typeof records.waterLogs === 'object' ? records.waterLogs : {};
+  const todayWater = latestMealDate && waterLogs[latestMealDate] ? Number(waterLogs[latestMealDate]) : 0;
 
   const targetCalories = records.userProfile?.height && records.userProfile?.gender
-    ? Math.round(10 * currentWeight + 6.25 * records.userProfile.height - 5 * (records.userProfile.age || 25) + (records.userProfile.gender === 'Femenino' ? -161 : 5) + 500)
+    ? Math.round(10 * currentWeight + 6.25 * Number(records.userProfile.height) - 5 * (Number(records.userProfile.age) || 25) + (records.userProfile.gender === 'Femenino' ? -161 : 5) + 500)
     : 2450;
 
   // 7. Bienestar y Sueño Reales de la BD
-  const sleepLogs = records.sleepLogs && typeof records.sleepLogs === 'object' ? records.sleepLogs : {};
   const sleepEntries = Object.values(sleepLogs);
-  let avgSleepHours = 7.5;
+  let avgSleepHours = 0;
   if (sleepEntries.length > 0) {
     const totalHours = sleepEntries.reduce((sum: number, entry: any) => {
       const h = Number(entry.hours) || 0;
@@ -1207,25 +1322,16 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
     avgSleepHours = Math.round((totalHours / sleepEntries.length) * 10) / 10;
   }
 
-  const rawSupplements = Array.isArray(records.supplements) ? records.supplements : [];
-  const supplementLogs = records.supplementLogs && typeof records.supplementLogs === 'object' ? records.supplementLogs : {};
-  const activeSupplements = rawSupplements.length > 0
-    ? rawSupplements.map((s: any) => {
-        const takenToday = Boolean(supplementLogs[latestMealDate || '']?.[s.id]?.some((v: any) => Boolean(v)));
-        return {
-          name: s.name,
-          dosage: `${s.dailyTarget || 1} ${s.dailyTarget === 1 ? 'dosis' : 'tomas'} / día`,
-          takenToday,
-        };
-      })
-    : [
-        { name: 'Creatina Monohidrato', dosage: '5g / día', takenToday: true },
-        { name: 'Proteína Whey Isolate', dosage: '1 scoop / día', takenToday: true },
-        { name: 'Omega 3', dosage: '2 cápsulas', takenToday: false },
-      ];
+  const activeSupplements = rawSupplements.map((s: any) => {
+    const takenToday = Boolean(supplementLogs[latestMealDate || '']?.[s.id]?.some((v: any) => Boolean(v)));
+    return {
+      name: s.name,
+      dosage: `${s.dailyTarget || 1} ${s.dailyTarget === 1 ? 'dosis' : 'tomas'} / día`,
+      takenToday,
+    };
+  });
 
   // 8. Medidas Corporales Reales de la BD
-  const measurementLogs = records.measurementLogs && typeof records.measurementLogs === 'object' ? records.measurementLogs : {};
   const muscles: { part: string; cm: number }[] = [];
   const measurementDates = Object.keys(measurementLogs).sort((a, b) => b.localeCompare(a));
   const seenParts = new Set<string>();
@@ -1245,14 +1351,11 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
     }
   }
 
-  if (muscles.length === 0) {
-    muscles.push(
-      { part: 'Pecho', cm: 102 },
-      { part: 'Brazo Derecho', cm: 38 },
-      { part: 'Cintura', cm: 82 },
-      { part: 'Pierna Derecha', cm: 58 }
-    );
-  }
+  const routinesList = Array.isArray(records.routines) ? records.routines : [];
+  const routineNames = routinesList.map((r: any) => r.name || r.title).filter(Boolean);
+  const division = routineNames.length > 0
+    ? routineNames.slice(0, 3).join(' / ')
+    : (Object.keys(workoutLogs).length > 0 ? 'Entrenamiento Libre' : 'Sin rutina activa');
 
   return {
     customization: {
@@ -1271,39 +1374,31 @@ function buildFriendFullProfile(user: any, records: Record<string, any>) {
       completedGoalsCount,
     },
     workout: {
-      division: 'PPL (Push / Pull / Legs)',
-      weeklyFrequency: Math.max(1, Math.min(6, Object.keys(workoutLogs).length || 4)),
+      division,
+      weeklyFrequency: Math.min(7, Object.keys(workoutLogs).length),
       prs,
-      recentWorkouts: recentWorkouts.length > 0 ? recentWorkouts : [
-        {
-          id: 'w-fallback',
-          date: 'Reciente',
-          title: 'Sesión de Fuerza Evolve',
-          durationMinutes: 50,
-          exercises: ['Press de Banca Plano', 'Press Militar', 'Fondos'],
-        },
-      ],
+      recentWorkouts,
     },
     food: {
       targetCalories,
       macros: {
-        protein: Math.round(currentWeight * 2),
-        carbs: Math.round((targetCalories * 0.45) / 4),
-        fat: Math.round((targetCalories * 0.25) / 9),
+        protein: currentWeight > 0 ? Math.round(currentWeight * 2) : 0,
+        carbs: targetCalories > 0 ? Math.round((targetCalories * 0.45) / 4) : 0,
+        fat: targetCalories > 0 ? Math.round((targetCalories * 0.25) / 9) : 0,
       },
-      waterLiters: 2.8,
+      waterLiters: todayWater > 0 ? Math.round(todayWater * 10) / 10 : 0,
       loggedMealsToday,
     },
     wellness: {
       avgSleepHours,
-      sleepQuality: avgSleepHours >= 7 ? 'Óptima' : 'Moderada',
+      sleepQuality: sleepEntries.length === 0 ? 'Sin registros' : (avgSleepHours >= 7 ? 'Óptima' : 'Moderada'),
       activeSupplements,
     },
     measurements: {
       currentWeight,
       startWeight,
       targetWeight,
-      bodyFat: 14.5,
+      bodyFat: currentBodyFat,
       muscles,
     },
   };

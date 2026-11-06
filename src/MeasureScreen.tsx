@@ -2171,9 +2171,9 @@ function MeasurementEditModal({
                   <Text style={[measureStyles.numberUnitBig, { color: palette.primary }]}>cm</Text>
                 </View>
 
-                {/* Steppers rápidos de ajuste (+/- 0.5, +/- 1.0) */}
+                {/* Steppers rápidos de ajuste (+/- 0.1, +/- 0.5, +/- 1.0) */}
                 <View style={measureStyles.stepperRow}>
-                  {[-1.0, -0.5, +0.5, +1.0].map((step) => (
+                  {[-1.0, -0.5, -0.1, +0.1, +0.5, +1.0].map((step) => (
                     <Pressable
                       key={step}
                       onPress={() => adjustVal(step)}
